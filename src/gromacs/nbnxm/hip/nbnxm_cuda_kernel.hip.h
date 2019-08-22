@@ -476,7 +476,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif     /* LJ_COMB */
 
                                 // Ensure distance do not become so small that r^-12 overflows
-                                r2 = max(r2, NBNXN_MIN_RSQ);
+                                r2      = std::max<float>(r2, NBNXN_MIN_RSQ);
 
                                 inv_r  = rsqrt(r2);
                                 inv_r2 = inv_r * inv_r;
