@@ -3,7 +3,7 @@
  * This file is part of the GROMACS molecular simulation package.
  *
  * Copyright (c) 2010-2018, The GROMACS development team.
- * Copyright (c) 2019, by the GROMACS development team, led by
+ * Copyright (c) 2019,2020, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -70,26 +70,22 @@ static int rocm_max_device_count = 32;
 /** Dummy kernel used for sanity checking. */
 static __global__ void k_dummy_test(void) {}
 
-static void checkCompiledTargetCompatibility(int deviceId, const hipDeviceProp_t& deviceProp)
+static hipError_t checkCompiledTargetCompatibility(int deviceId, const hipDeviceProp_t& deviceProp)
 {
     hipFuncAttributes attributes;
     hipError_t        stat = hipFuncGetAttributes(&attributes, reinterpret_cast<const void*>(k_dummy_test));
 
     if (hipErrorInvalidDeviceFunction == stat)
     {
-        gmx_fatal(FARGS,
-                  "The %s binary does not include support for the ROCM architecture of a "
-                  "detected GPU: %s, ID #%d (compute capability %d.%d). "
-                  "By default, GROMACS supports all architectures of compute "
-                  "capability >= 3.0, so your GPU "
-                  "might be rare, or some architectures were disabled in the build. "
-                  "To work around this error, use the HIP_VISIBLE_DEVICES environment"
-                  "variable to pass a list of GPUs that excludes the ID %d.",
-                  gmx::getProgramContext().displayName(), deviceProp.name, deviceId,
-                  deviceProp.major, deviceProp.minor, deviceId);
+        fprintf(stderr,
+                "\nWARNING: The %s binary does not include support for the ROCM architecture of "
+                "the GPU ID #%d (compute capability %d.%d) detected during detection. "
+                "By default, GROMACS supports all architectures of compute capability. \n ",
+                gmx::getProgramContext().displayName(), deviceId,
+                deviceProp.major, deviceProp.minor);
     }
 
-    CU_RET_ERR(stat, "hipFuncGetAttributes failed");
+    return stat;
 }
 
 bool isHostMemoryPinned(const void* h_ptr)
@@ -122,7 +118,7 @@ bool isHostMemoryPinned(const void* h_ptr)
  *
  * \param[in]  dev_id      the device ID of the GPU or -1 if the device has already been initialized
  * \param[in]  dev_prop    The device properties structure
- * \returns                0 if the device looks OK
+ * \returns                0 if the device looks OK, -1 if it sanity checks failed, and -2 if the device is busy
  *
  * TODO: introduce errors codes and handle errors more smoothly.
  */
@@ -193,14 +189,34 @@ static int do_sanity_checks(int dev_id, const hipDeviceProp_t& dev_prop)
         }
     }
 
+    cu_err = checkCompiledTargetCompatibility(dev_id, dev_prop);
+    // Avoid triggering an error if GPU devices are in exclusive or prohibited mode;
+    // it is enough to check for cudaErrorDevicesUnavailable only here because
+    // if we encounter it that will happen in cudaFuncGetAttributes in the above function.
+    if (cu_err == hipErrorInvalidDevice) //hipErrorDevicesUnavailable is not supported
+    {
+        return -2;
+    }
+    else if (cu_err != hipSuccess)
+    {
+        return -1;
+    }
     /* try to execute a dummy kernel */
-    checkCompiledTargetCompatibility(dev_id, dev_prop);
-
-    KernelLaunchConfig config;
-    config.blockSize[0]       = 512;
-    //const auto dummyArguments = prepareGpuKernelArguments(k_dummy_test, config);
-    //launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel", dummyArguments);
-    launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel");
+    try
+    {
+        KernelLaunchConfig config;
+        config.blockSize[0] = 512;
+//        const auto         dummyArguments = prepareGpuKernelArguments(k_dummy_test, config);
+//        launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel", dummyArguments);
+        launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel");
+    }
+    catch (gmx::GromacsException &ex)
+    {
+        // launchGpuKernel error is not fatal and should continue with marking the device bad
+        fprintf(stderr, "Error occurred while running dummy kernel sanity check on device #%d:\n %s\n",
+                id, formatExceptionMessageToString(ex).c_str());
+        return -1;
+    }
     if (hipDeviceSynchronize() != hipSuccess)
     {
         return -1;
