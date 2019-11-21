@@ -385,7 +385,7 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const cu_nbp
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
-    return lerp(d01.x, d01.y, fraction);
+    return lerp((float)d01.x, (float)d01.y, fraction);
 }
 
 /*! Fetch C6 and C12 from the parameter table.
