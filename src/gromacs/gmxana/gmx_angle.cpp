@@ -404,7 +404,6 @@ int gmx_g_angle(int argc, char* argv[])
     for (last = maxangstat - 1; (last > 0) && (angstat[last - 1] == 0); last--) {}
 
     double aver  = 0;
-    double aver2 = 0;
     printf("Found points in the range from %d to %d (max %d)\n", first, last, maxangstat);
     if (bTrans || bCorr  || bALL || opt2bSet("-or", NFILE, fnm))
     {   /* It's better to re-calculate Std. Dev per sample */
@@ -420,10 +419,8 @@ int gmx_g_angle(int argc, char* argv[])
             {
                 delta  = correctRadianAngleRange(dih[j][i] - b);
                 b     += delta;
-                aver2 += gmx::square(b);
             }
         }
-        aver2 /= nangles;
     }
     else
     {   /* Incorrect  for Std. Dev. */
@@ -433,24 +430,13 @@ int gmx_g_angle(int argc, char* argv[])
             delta   = correctRadianAngleRange(aver_angle[i] - b_aver);
             b_aver += delta;
             aver   += b_aver;
-            aver2  += gmx::square(b_aver);
         }
     }
     aver  /= nframes;
-    aver2 /= nframes/(RAD2DEG * RAD2DEG);
     double aversig = correctRadianAngleRange(aver);
     aversig *= RAD2DEG;
     aver    *= RAD2DEG;
     printf(" < angle >  = %g\n", aversig);
-    printf("< angle^2 > = %g\n", aver2);
-    if ((aversig = aver2-gmx::square(aver)) > 0)
-    {
-        printf("Std. Dev.   = %g\n", std::sqrt(aversig));
-    }
-    else
-    {
-        printf("Std. Dev. - can't be calculated\n");
-    }
 
     if (mult == 3)
     {
