@@ -42,7 +42,9 @@
 
 #include "gmxpre.h"
 
+#if ! __HIP_DEVICE_COMPILE__
 #include <cassert>
+#endif
 
 //#include <math_constants.h>
 #include <cmath>

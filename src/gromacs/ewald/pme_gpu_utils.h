@@ -47,7 +47,9 @@
 
 #include "config.h"
 
+#if ! __HIP_DEVICE_COMPILE__
 #include <cassert>
+#endif
 
 #include "pme_gpu_constants.h"
 
