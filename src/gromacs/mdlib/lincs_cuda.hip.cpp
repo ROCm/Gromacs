@@ -54,7 +54,10 @@
 
 #include "lincs_cuda.cuh"
 
+#if ! __HIP_DEVICE_COMPILE__
 #include <assert.h>
+#endif
+
 #include <stdio.h>
 
 #include <cmath>

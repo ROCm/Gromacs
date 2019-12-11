@@ -85,11 +85,15 @@ static const bool c_disableCudaTextures = DISABLE_CUDA_TEXTURES;
 // Macro defined for clang CUDA device compilation in the presence of debug symbols
 // used to work around codegen bug that breaks some kernels when assertions are on
 // at -O1 and higher (tested with clang 6-8).
-#if defined(__clang__) && defined(__HIPCC__) && !defined(NDEBUG)
-#    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __attribute__((optnone))
-#else
+// LLVM ERROR: Broken function found, compilation aborted!
+// Generating AMD GCN kernel failed in HCC-specific opt passes for target: gfx906
+// Error: hc-kernel-assemble[166]: failed with status -1
+// clang-10: error: HC assembler command failed with exit code 255 (use -v to see invocation)
+//#if defined(__clang__) && defined(__HIPCC__) && !defined(NDEBUG)
+//#    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __attribute__((optnone))
+//#else
 #    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE
-#endif
+//#endif
 
 
 #endif /* HIP_ARCH_UTILS_H_ */
