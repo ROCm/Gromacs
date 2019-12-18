@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2017,2018,2019, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017,2019, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,34 +32,18 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-
 #include "gmxpre.h"
 
-#include "hip_version_information.h"
+#include "gromacs/gpu_utils/cudautils.cuh"
 
-#include "gromacs/utility/stringutil.h"
+#include "nbnxm_cuda_kernel_utils.cuh"
+#include "nbnxm_hip_types.h"
 
-namespace gmx
-{
-
-std::string getCudaDriverVersionString()
-{
-    int cuda_driver = 0;
-    if (hipDriverGetVersion(&cuda_driver) != hipSuccess)
-    {
-        return "N/A";
-    }
-    return formatString("%d.%d", cuda_driver / 1000, cuda_driver % 100);
-}
-
-std::string getCudaRuntimeVersionString()
-{
-    int cuda_runtime = 0;
-    if (cudaRuntimeGetVersion(&cuda_runtime) != hipSuccess)
-    {
-        return "N/A";
-    }
-    return formatString("%d.%d", cuda_runtime / 1000, cuda_runtime % 100);
-}
-
-} // namespace gmx
+/* Top-level kernel generation: will generate through multiple
+ * inclusion the following flavors for all kernel:
+ * force-only output without pair list pruning;
+ */
+#define FUNCTION_DECLARATION_ONLY
+#include "nbnxm_cuda_kernels.cuh"
+#undef FUNCTION_DECLARATION_ONLY
+#include "nbnxm_cuda_kernels.cuh"
