@@ -44,7 +44,11 @@
 #define GMX_PMECOORDINATERECEIVERGPU_IMPL_H
 
 #include "gromacs/ewald/pme_coordinate_receiver_gpu.h"
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
+#else
 #include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
+#endif
 
 namespace gmx
 {
@@ -81,8 +85,13 @@ public:
     void enqueueWaitReceiveCoordinatesFromPpCudaDirect();
 
 private:
+#if GMX_GPU == GMX_GPU_ROCM
+    //! ROCm stream for PME operations
+    hipStream_t pmeStream_ = nullptr;
+#else
     //! CUDA stream for PME operations
     cudaStream_t pmeStream_ = nullptr;
+#endif
     //! communicator for simulation
     MPI_Comm comm_;
     //! list of PP ranks

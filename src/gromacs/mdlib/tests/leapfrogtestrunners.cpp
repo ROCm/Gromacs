@@ -103,7 +103,7 @@ void integrateLeapFrogSimple(LeapFrogTestData* testData, int numSteps)
     }
 }
 
-#if GMX_GPU != GMX_GPU_CUDA
+#if GMX_GPU != GMX_GPU_CUDA && GMX_GPU != GMX_GPU_ROCM
 
 void integrateLeapFrogGpu(gmx_unused LeapFrogTestData* testData, gmx_unused int numSteps)
 {

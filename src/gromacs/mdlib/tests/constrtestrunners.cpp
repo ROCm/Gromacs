@@ -146,7 +146,7 @@ void applyLincs(ConstraintsTestData* testData, t_pbc pbc)
     done_lincs(lincsd);
 }
 
-#if GMX_GPU != GMX_GPU_CUDA
+#if GMX_GPU != GMX_GPU_CUDA && GMX_GPU != GMX_GPU_ROCM
 /*! \brief
  * Stub for LINCS constraints on CUDA-enabled GPU to satisfy compiler.
  *

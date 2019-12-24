@@ -50,6 +50,10 @@
 #    include "cuda/nbnxm_cuda_types.h"
 #endif
 
+#if GMX_GPU == GMX_GPU_ROCM
+#    include "hip/nbnxm_hip_types.h"
+#endif
+
 #if GMX_GPU == GMX_GPU_OPENCL
 #    include "opencl/nbnxm_ocl_types.h"
 #endif

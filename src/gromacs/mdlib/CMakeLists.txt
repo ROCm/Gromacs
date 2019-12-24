@@ -45,5 +45,12 @@ if(GMX_USE_CUDA)
        leapfrog_cuda.cu
        update_constrain_cuda_impl.cu
        )
+elseif(GMX_USE_HIP)
+    gmx_add_libgromacs_sources(
+       lincs_cuda.hip.cpp
+       settle_cuda.hip.cpp
+       leapfrog_cuda.hip.cpp
+       update_constrain_cuda_impl.hip.cpp
+       )
 endif()
 

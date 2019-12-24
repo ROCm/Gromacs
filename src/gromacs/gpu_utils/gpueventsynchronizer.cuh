@@ -41,7 +41,11 @@
 #ifndef GMX_GPU_UTILS_GPUEVENTSYNCHRONIZER_CUH
 #define GMX_GPU_UTILS_GPUEVENTSYNCHRONIZER_CUH
 
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gputraits.hip.h"
+#else
 #include "gromacs/gpu_utils/gputraits.cuh"
+#endif
 #include "gromacs/utility/gmxassert.h"
 
 /*! \libinternal \brief

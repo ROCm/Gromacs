@@ -189,7 +189,7 @@ public:
         // 4. GPU detection was not disabled by GMX_DISABLE_GPU_DETECTION environment variable
         if (s_hasCompatibleGpus)
         {
-            if (GMX_GPU == GMX_GPU_CUDA && s_hasCompatibleGpus)
+            if ((GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM) && s_hasCompatibleGpus)
             {
                 runners_["SETTLE_GPU"] = applySettleGpu;
             }

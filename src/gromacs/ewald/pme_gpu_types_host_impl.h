@@ -53,6 +53,9 @@
 #if GMX_GPU == GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
 #    include "gromacs/gpu_utils/gpuregiontimer.cuh"
+#elif GMX_GPU == GMX_GPU_ROCM
+#    include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
+#    include "gromacs/gpu_utils/gpuregiontimer.hip.h"
 #elif GMX_GPU == GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gpueventsynchronizer_ocl.h"
 #    include "gromacs/gpu_utils/gpuregiontimer_ocl.h"

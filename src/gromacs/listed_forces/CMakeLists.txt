@@ -45,7 +45,12 @@ gmx_add_libgromacs_sources(
     restcbt.cpp
     )
 
-if(GMX_USE_CUDA)
+if(GMX_USE_HIP)
+    gmx_add_libgromacs_sources(
+       gpubonded_impl.hip.cpp
+       gpubondedkernels.hip.cpp
+       )
+elseif(GMX_USE_CUDA)
     gmx_add_libgromacs_sources(
        gpubonded_impl.cu
        gpubondedkernels.cu

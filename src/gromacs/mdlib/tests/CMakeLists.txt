@@ -56,3 +56,8 @@ if(GMX_USE_CUDA)
                                leapfrogtestrunners.cu
                                settletestrunners.cu)
 endif()
+if(GMX_USE_HIP)
+    gmx_add_libgromacs_sources(constrtestrunners.hip.cpp
+                               leapfrogtestrunners.hip.cpp
+                               settletestrunners.hip.cpp)
+endif()

@@ -44,7 +44,35 @@ file(GLOB SOURCES_FROM_CXX
     hostallocator.cpp
     )
 
-if(GMX_USE_CUDA)
+if(GMX_USE_HIP)
+    file(GLOB MYLIB_SOURCES devicetransfers.hip.cpp)
+
+    # ROCM-only test
+    list(APPEND SOURCES_FROM_CXX
+        pinnedmemorychecker.cpp
+        )
+    # TODO Making a separate library is heavy handed, but nothing else
+    # seems to work. Also don't use a hyphen in its name, because nvcc
+    # can't cope with that.
+    #
+    foreach(hip_file ${MYLIB_SOURCES})
+       if(${hip_file} MATCHES "\\.hip.cpp$" )
+           set_source_files_properties(${hip_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+       endif()
+    endforeach()
+
+    get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+
+    if ( NOT HIP_ADD_LIBRARY_FOUND )
+        list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
+        find_package(HIP REQUIRED)
+        set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
+    endif()
+
+    hip_add_library(gpu_utilstest_hip ${MYLIB_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++14" HCC_OPTIONS "" NVCC_OPTIONS "")
+
+    target_link_libraries(gpu_utilstest_hip PRIVATE ${GMX_EXTRA_LIBRARIES} libgromacs)
+elseif(GMX_USE_CUDA)
     # CUDA-only test
     list(APPEND SOURCES_FROM_CXX
         pinnedmemorychecker.cpp
@@ -90,7 +118,9 @@ gmx_add_unit_test(GpuUtilsUnitTests gpu_utils-test
     ${SOURCES_FROM_CXX}
     )
 
-if(GMX_USE_CUDA)
+if(GMX_USE_HIP)
+    target_link_libraries(gpu_utils-test PRIVATE gpu_utilstest_hip)
+elseif(GMX_USE_CUDA)
     target_link_libraries(gpu_utils-test PRIVATE gpu_utilstest_cuda)
 endif()
 if(GMX_USE_OPENCL)

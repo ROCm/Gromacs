@@ -36,6 +36,8 @@ file(GLOB NBNXM_SOURCES kernels_reference/*.cpp kernels_simd_4xm/*.cpp kernels_s
 
 if(GMX_USE_CUDA)
     add_subdirectory(cuda)
+elseif(GMX_USE_HIP)
+    add_subdirectory(hip)
 endif()
 
 if(GMX_USE_OPENCL)

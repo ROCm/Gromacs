@@ -113,6 +113,21 @@
 #        define OPENCL_FUNC_TERM_WITH_RETURN(arg) NULL_FUNC_TERM_WITH_RETURN(arg)
 
 #    endif
+#    if GMX_GPU == GMX_GPU_ROCM
+
+/* HIP support is enabled, so OpenCL-specific functions need empty
+ *  * implementations, while HIP-specific functions will have real
+ *   * code defined somewhere. */
+#        define HIP_FUNC_QUALIFIER REAL_FUNC_QUALIFIER
+#        define HIP_FUNC_ARGUMENT REAL_FUNC_ARGUMENT
+#        define HIP_FUNC_TERM REAL_FUNC_TERM
+#        define HIP_FUNC_TERM_WITH_RETURN(arg) REAL_FUNC_TERM_WITH_RETURN(arg)
+#        define OPENCL_FUNC_QUALIFIER NULL_FUNC_QUALIFIER
+#        define OPENCL_FUNC_ARGUMENT NULL_FUNC_ARGUMENT
+#        define OPENCL_FUNC_TERM NULL_FUNC_TERM
+#        define OPENCL_FUNC_TERM_WITH_RETURN(arg) NULL_FUNC_TERM_WITH_RETURN(arg)
+
+#    endif
 
 #elif GMX_GPU == GMX_GPU_NONE
 

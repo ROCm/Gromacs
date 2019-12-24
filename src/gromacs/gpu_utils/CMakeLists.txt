@@ -56,6 +56,13 @@ elseif(GMX_USE_CUDA)
         pinning.cu
         pmalloc_cuda.cu
         )
+elseif(GMX_USE_HIP)
+    gmx_add_libgromacs_sources(
+        cudautils.hip.cpp
+        gpu_utils.hip.cpp
+        pinning.hip.cpp
+        pmalloc_cuda.hip.cpp
+        )
 endif()
 
 if (BUILD_TESTING)

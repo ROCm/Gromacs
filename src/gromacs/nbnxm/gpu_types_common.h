@@ -57,6 +57,9 @@
 #    include "gromacs/gpu_utils/gpuregiontimer.cuh"
 #endif
 
+#if GMX_GPU == GMX_GPU_ROCM
+#    include "gromacs/gpu_utils/gpuregiontimer.hip.h"
+#endif
 namespace Nbnxm
 {
 

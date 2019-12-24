@@ -48,6 +48,8 @@
 
 #    if GMX_GPU == GMX_GPU_CUDA
 #        include "gromacs/gpu_utils/cudautils.cuh"
+#    elif GMX_GPU == GMX_GPU_ROCM
+#        include "gromacs/gpu_utils/cudautils.hip.h"
 #    endif
 #    include "gromacs/gpu_utils/devicebuffer.h"
 #    if GMX_GPU == GMX_GPU_OPENCL
@@ -92,7 +94,7 @@ StatePropagatorDataGpu::Impl::Impl(const void*        pmeStream,
         GMX_UNUSED_VALUE(nonLocalStream);
     }
 
-    if (GMX_GPU == GMX_GPU_CUDA)
+    if (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM)
     {
         if (pmeStream != nullptr)
         {
@@ -112,6 +114,10 @@ StatePropagatorDataGpu::Impl::Impl(const void*        pmeStream,
         cudaError_t stat;
         stat = cudaStreamCreate(&updateStream_);
         CU_RET_ERR(stat, "CUDA stream creation failed in StatePropagatorDataGpu");
+#elif GMX_GPU == GMX_GPU_ROCM
+        hipError_t stat;
+        stat = hipStreamCreate(&updateStream_);
+        CU_RET_ERR(stat, "HIP stream creation failed in StatePropagatorDataGpu"); //cm todo
 #    endif
         GMX_UNUSED_VALUE(deviceContext);
     }
@@ -208,7 +214,7 @@ void StatePropagatorDataGpu::Impl::reinit(int numAtomsLocal, int numAtomsAll)
     // Clearing of the forces can be done in local stream since the nonlocal stream cannot reach
     // the force accumulation stage before syncing with the local stream. Only done in CUDA,
     // since the force buffer ops are not implemented in OpenCL.
-    if (GMX_GPU == GMX_GPU_CUDA && d_fCapacity_ != d_fOldCapacity)
+    if ((GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM) && d_fCapacity_ != d_fOldCapacity)
     {
         clearDeviceBufferAsync(&d_f_, 0, d_fCapacity_, localStream_);
     }
@@ -339,7 +345,7 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesToGpu(const gmx::ArrayRef<cons
     //   - it's not needed, copy is done in the same stream as the only consumer task (PME)
     //   - we don't consume the events in OpenCL which is not allowed by GpuEventSynchronizer (would leak memory).
     // TODO: remove this by adding an event-mark free flavor of this function
-    if (GMX_GPU == GMX_GPU_CUDA)
+    if (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM)
     {
         xReadyOnDevice_[atomLocality].markEvent(commandStream);
     }

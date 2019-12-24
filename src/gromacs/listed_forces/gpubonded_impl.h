@@ -48,8 +48,13 @@
 #ifndef GMX_LISTED_FORCES_GPUBONDED_IMPL_H
 #define GMX_LISTED_FORCES_GPUBONDED_IMPL_H
 
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gpu_vec.hip.h"
+#include "gromacs/gpu_utils/gputraits.hip.h"
+#else
 #include "gromacs/gpu_utils/gpu_vec.cuh"
 #include "gromacs/gpu_utils/gputraits.cuh"
+#endif
 #include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/listed_forces/gpubonded.h"
 #include "gromacs/pbcutil/pbc_aiuc.h"

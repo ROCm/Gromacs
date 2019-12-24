@@ -177,7 +177,7 @@ void pme_gpu_prepare_computation(gmx_pme_t*     pme,
 void pme_gpu_launch_spread(gmx_pme_t* pme, GpuEventSynchronizer* xReadyOnDevice, gmx_wallcycle* wcycle)
 {
     GMX_ASSERT(pme_gpu_active(pme), "This should be a GPU run of PME but it is not enabled.");
-    GMX_ASSERT(xReadyOnDevice || !pme->bPPnode || (GMX_GPU != GMX_GPU_CUDA),
+    GMX_ASSERT(xReadyOnDevice || !pme->bPPnode || ((GMX_GPU != GMX_GPU_CUDA) && (GMX_GPU != GMX_GPU_ROCM)),
                "Need a valid xReadyOnDevice on PP+PME ranks with CUDA.");
 
     PmeGpu* pmeGpu = pme->gpu;
@@ -324,7 +324,7 @@ bool pme_gpu_try_finish_task(gmx_pme_t*            pme,
     // time needed for that checking, but do not yet record that the
     // gather has occured.
     bool           needToSynchronize      = true;
-    constexpr bool c_streamQuerySupported = (GMX_GPU == GMX_GPU_CUDA);
+    constexpr bool c_streamQuerySupported = (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM);
     // TODO: implement c_streamQuerySupported with an additional GpuEventSynchronizer per stream (#2521)
     if ((completionKind == GpuTaskCompletion::Check) && c_streamQuerySupported)
     {

@@ -36,6 +36,8 @@ file(GLOB DOMDEC_SOURCES *.cpp)
 
 if(GMX_USE_CUDA)
   file(GLOB DOMDEC_CUDA_SOURCES gpuhaloexchange_impl.cu)
+elseif(GMX_USE_HIP)
+  file(GLOB DOMDEC_CUDA_SOURCES gpuhaloexchange_impl.hip.cpp)
 endif()
 
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${DOMDEC_SOURCES} ${DOMDEC_CUDA_SOURCES} PARENT_SCOPE)

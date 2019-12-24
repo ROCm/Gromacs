@@ -44,7 +44,11 @@
 #define GMX_PMEFORCESENDERGPU_IMPL_H
 
 #include "gromacs/ewald/pme_force_sender_gpu.h"
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
+#else
 #include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
+#endif
 #include "gromacs/utility/arrayref.h"
 
 namespace gmx
@@ -77,8 +81,13 @@ public:
     void sendFToPpCudaDirect(int ppRank);
 
 private:
+#if GMX_GPU == GMX_GPU_ROCM
+    //! HIP stream for PME operations
+    hipStream_t pmeStream_ = nullptr;
+#else
     //! CUDA stream for PME operations
     cudaStream_t pmeStream_ = nullptr;
+#endif
     //! Event triggered when to allow remote PP stream to syn with pme stream
     GpuEventSynchronizer pmeSync_;
     //! communicator for simulation

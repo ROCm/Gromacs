@@ -41,11 +41,15 @@ file(GLOB MDTYPES_SOURCES
     observableshistory.cpp
     state.cpp)
 
-if(GMX_USE_CUDA OR GMX_USE_OPENCL)
+if(GMX_USE_CUDA OR GMX_USE_OPENCL OR GMX_USE_HIP)
     gmx_add_libgromacs_sources(
        state_propagator_data_gpu_impl_gpu.cpp
        )
-    if(GMX_USE_CUDA)
+    if(GMX_USE_HIP)
+        gmx_add_hip_sources(
+            state_propagator_data_gpu_impl_gpu.cpp
+            )
+    elseif(GMX_USE_CUDA)
         gmx_compile_cpp_as_cuda(
             state_propagator_data_gpu_impl_gpu.cpp
             )

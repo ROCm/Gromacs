@@ -100,7 +100,7 @@
 
 /*! \brief environment variable to enable GPU P2P communication */
 static const bool c_enableGpuPmePpComms =
-        (getenv("GMX_GPU_PME_PP_COMMS") != nullptr) && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA);
+        (getenv("GMX_GPU_PME_PP_COMMS") != nullptr) && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM);
 
 static real* mk_nbfp(const gmx_ffparams_t* idef, gmx_bool bBHAM)
 {

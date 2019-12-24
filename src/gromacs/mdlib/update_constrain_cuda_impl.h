@@ -48,7 +48,11 @@
 
 #include "gmxpre.h"
 
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
+#else
 #include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
+#endif
 #include "gromacs/mdlib/leapfrog_cuda.cuh"
 #include "gromacs/mdlib/lincs_cuda.cuh"
 #include "gromacs/mdlib/settle_cuda.cuh"

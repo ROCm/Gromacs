@@ -53,8 +53,13 @@ namespace gmx
  *
  * Does not throw.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER void pinBuffer(void*       HIP_FUNC_ARGUMENT(pointer),
+                                   std::size_t HIP_FUNC_ARGUMENT(numBytes)) noexcept HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER void pinBuffer(void*       CUDA_FUNC_ARGUMENT(pointer),
                                    std::size_t CUDA_FUNC_ARGUMENT(numBytes)) noexcept CUDA_FUNC_TERM;
+#endif
 
 /*! \brief Unpin the allocation.
  *
@@ -63,6 +68,10 @@ CUDA_FUNC_QUALIFIER void pinBuffer(void*       CUDA_FUNC_ARGUMENT(pointer),
  *
  * Does not throw.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER void unpinBuffer(void* HIP_FUNC_ARGUMENT(pointer)) noexcept HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER void unpinBuffer(void* CUDA_FUNC_ARGUMENT(pointer)) noexcept CUDA_FUNC_TERM;
+#endif
 
 } // namespace gmx

@@ -50,7 +50,7 @@
 #include "gromacs/ewald/pme_force_sender_gpu.h"
 #include "gromacs/utility/arrayref.h"
 
-#if GMX_GPU != GMX_GPU_CUDA
+#if GMX_GPU != GMX_GPU_CUDA && GMX_GPU != GMX_GPU_ROCM
 
 namespace gmx
 {

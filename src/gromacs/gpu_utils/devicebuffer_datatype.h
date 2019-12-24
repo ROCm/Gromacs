@@ -46,7 +46,7 @@
 
 #include "config.h"
 
-#if GMX_GPU == GMX_GPU_CUDA
+#if GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM
 
 //! \brief A device-side buffer of ValueTypes
 template<typename ValueType>

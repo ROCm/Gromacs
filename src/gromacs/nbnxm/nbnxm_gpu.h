@@ -225,9 +225,15 @@ int nbnxn_gpu_pick_ewald_kernel_type(const interaction_const_t gmx_unused& ic)
 
 /*! \brief Initialization for X buffer operations on GPU.
  * Called on the NS step and performs (re-)allocations and memory copies. !*/
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void nbnxn_gpu_init_x_to_nbat_x(const Nbnxm::GridSet gmx_unused& gridSet,
+                                gmx_nbnxn_gpu_t gmx_unused* gpu_nbv) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void nbnxn_gpu_init_x_to_nbat_x(const Nbnxm::GridSet gmx_unused& gridSet,
                                 gmx_nbnxn_gpu_t gmx_unused* gpu_nbv) CUDA_FUNC_TERM;
+#endif
 
 /*! \brief X buffer operations on GPU: performs conversion from rvec to nb format.
  *
@@ -240,6 +246,17 @@ void nbnxn_gpu_init_x_to_nbat_x(const Nbnxm::GridSet gmx_unused& gridSet,
  * \param[in]     gridId           Index of the grid being converted.
  * \param[in]     numColumnsMax    Maximum number of columns in the grid.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void nbnxn_gpu_x_to_nbat_x(const Nbnxm::Grid gmx_unused& grid,
+                           bool gmx_unused setFillerCoords,
+                           gmx_nbnxn_gpu_t gmx_unused* gpu_nbv,
+                           DeviceBuffer<float> gmx_unused d_x,
+                           GpuEventSynchronizer gmx_unused* xReadyOnDevice,
+                           gmx::AtomLocality gmx_unused locality,
+                           int gmx_unused gridId,
+                           int gmx_unused numColumnsMax) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void nbnxn_gpu_x_to_nbat_x(const Nbnxm::Grid gmx_unused& grid,
                            bool gmx_unused setFillerCoords,
@@ -249,14 +266,21 @@ void nbnxn_gpu_x_to_nbat_x(const Nbnxm::Grid gmx_unused& grid,
                            gmx::AtomLocality gmx_unused locality,
                            int gmx_unused gridId,
                            int gmx_unused numColumnsMax) CUDA_FUNC_TERM;
+#endif
 
 /*! \brief Sync the nonlocal stream with dependent tasks in the local queue.
  * \param[in] nb                   The nonbonded data GPU structure
  * \param[in] interactionLocality  Local or NonLocal sync point
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void nbnxnInsertNonlocalGpuDependency(const gmx_nbnxn_gpu_t gmx_unused* nb,
+                                      gmx::InteractionLocality gmx_unused interactionLocality) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void nbnxnInsertNonlocalGpuDependency(const gmx_nbnxn_gpu_t gmx_unused* nb,
                                       gmx::InteractionLocality gmx_unused interactionLocality) CUDA_FUNC_TERM;
+#endif
 
 /*! \brief Set up internal flags that indicate what type of short-range work there is.
  *
@@ -289,11 +313,19 @@ bool haveGpuShortRangeWork(const gmx_nbnxn_gpu_t gmx_unused* nb, gmx::AtomLocali
         GPU_FUNC_TERM_WITH_RETURN(false);
 
 /*! \brief Initialization for F buffer operations on GPU */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void nbnxn_gpu_init_add_nbat_f_to_f(const int gmx_unused* cell,
+                                    gmx_nbnxn_gpu_t gmx_unused* gpu_nbv,
+                                    int gmx_unused       natoms_total,
+                                    GpuEventSynchronizer gmx_unused* localReductionDone) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void nbnxn_gpu_init_add_nbat_f_to_f(const int gmx_unused* cell,
                                     gmx_nbnxn_gpu_t gmx_unused* gpu_nbv,
                                     int gmx_unused       natoms_total,
                                     GpuEventSynchronizer gmx_unused* localReductionDone) CUDA_FUNC_TERM;
+#endif
 
 /*! \brief Force buffer operations on GPU.
  *
@@ -311,6 +343,18 @@ void nbnxn_gpu_init_add_nbat_f_to_f(const int gmx_unused* cell,
  * \param[in]   accumulateForce      Whether there are usefull data already in the total force buffer.
  *
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void nbnxn_gpu_add_nbat_f_to_f(gmx::AtomLocality gmx_unused atomLocality,
+                               DeviceBuffer<float> gmx_unused totalForcesDevice,
+                               gmx_nbnxn_gpu_t gmx_unused* gpu_nbv,
+                               void gmx_unused*                           pmeForcesDevice,
+                               gmx::ArrayRef<GpuEventSynchronizer* const> gmx_unused dependencyList,
+                               int gmx_unused atomStart,
+                               int gmx_unused numAtoms,
+                               bool gmx_unused useGpuFPmeReduction,
+                               bool gmx_unused accumulateForce) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void nbnxn_gpu_add_nbat_f_to_f(gmx::AtomLocality gmx_unused atomLocality,
                                DeviceBuffer<float> gmx_unused totalForcesDevice,
@@ -321,12 +365,18 @@ void nbnxn_gpu_add_nbat_f_to_f(gmx::AtomLocality gmx_unused atomLocality,
                                int gmx_unused numAtoms,
                                bool gmx_unused useGpuFPmeReduction,
                                bool gmx_unused accumulateForce) CUDA_FUNC_TERM;
+#endif
 
 /*! \brief sync CPU thread on coordinate copy to device
  * \param[in] nb                   The nonbonded data GPU structure
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void nbnxn_wait_x_on_device(gmx_nbnxn_gpu_t gmx_unused* nb) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void nbnxn_wait_x_on_device(gmx_nbnxn_gpu_t gmx_unused* nb) CUDA_FUNC_TERM;
+#endif
 
 } // namespace Nbnxm
 #endif

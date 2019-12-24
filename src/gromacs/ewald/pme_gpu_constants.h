@@ -55,6 +55,8 @@
 
 #if GMX_GPU == GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/cuda_arch_utils.cuh" // for warp_size
+#elif GMX_GPU == GMX_GPU_ROCM
+#    include "gromacs/gpu_utils/hip_arch_utils.h" // for warp_size
 #endif
 
 /* General settings for PME GPU behaviour */
@@ -169,7 +171,7 @@ constexpr int c_solveMaxWarpsPerBlock = 8;
 constexpr int c_gatherMaxWarpsPerBlock = 4;
 
 
-#if GMX_GPU == GMX_GPU_CUDA
+#if GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM
 
 /* All the guys below are dependent on warp_size and should ideally be removed from the host-side code,
  * as we have to do that for OpenCL already.

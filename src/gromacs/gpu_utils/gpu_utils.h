@@ -174,8 +174,13 @@ void init_gpu(const gmx_device_info_t* GPU_FUNC_ARGUMENT(deviceInfo)) GPU_FUNC_T
  *
  * \returns                 true if no error occurs during the freeing.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void free_gpu(const gmx_device_info_t* HIP_FUNC_ARGUMENT(deviceInfo)) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void free_gpu(const gmx_device_info_t* CUDA_FUNC_ARGUMENT(deviceInfo)) CUDA_FUNC_TERM;
+#endif
 
 /*! \brief Return a pointer to the device info for \c deviceId
  *
@@ -194,8 +199,13 @@ gmx_device_info_t* getDeviceInfo(const gmx_gpu_info_t& GPU_FUNC_ARGUMENT(gpu_inf
  *
  * \returns                 device ID of the GPU in use at the time of the call
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+int get_current_cuda_gpu_device_id() HIP_FUNC_TERM_WITH_RETURN(-1);
+#else
 CUDA_FUNC_QUALIFIER
 int get_current_cuda_gpu_device_id() CUDA_FUNC_TERM_WITH_RETURN(-1);
+#endif
 
 /*! \brief Formats and returns a device information string for a given GPU.
  *
@@ -240,8 +250,13 @@ bool buildSupportsNonbondedOnGpu(std::string* error);
  *
  *  Note that this is implemented only for the CUDA API.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void startGpuProfiler() HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void startGpuProfiler() CUDA_FUNC_TERM;
+#endif
 
 
 /*! \brief Resets the GPU profiler if mdrun is being profiled.
@@ -254,8 +269,13 @@ void startGpuProfiler() CUDA_FUNC_TERM;
  *
  * Note that this is implemented only for the CUDA API.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void resetGpuProfiler() HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void resetGpuProfiler() CUDA_FUNC_TERM;
+#endif
 
 
 /*! \brief Stops the CUDA profiler if mdrun is being profiled.
@@ -266,19 +286,35 @@ void resetGpuProfiler() CUDA_FUNC_TERM;
  *
  *  Note that this is implemented only for the CUDA API.
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void stopGpuProfiler() HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void stopGpuProfiler() CUDA_FUNC_TERM;
+#endif
 
 //! Tells whether the host buffer was pinned for non-blocking transfers. Only implemented for CUDA.
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+bool isHostMemoryPinned(const void* HIP_FUNC_ARGUMENT(h_ptr)) HIP_FUNC_TERM_WITH_RETURN(false);
+#else
 CUDA_FUNC_QUALIFIER
 bool isHostMemoryPinned(const void* CUDA_FUNC_ARGUMENT(h_ptr)) CUDA_FUNC_TERM_WITH_RETURN(false);
+#endif
 
 /*! \brief Enable peer access between GPUs where supported
  * \param[in] gpuIdsToUse   List of GPU IDs in use
  * \param[in] mdlog         Logger object
  */
+#if GMX_GPU == GMX_GPU_ROCM
+HIP_FUNC_QUALIFIER
+void setupGpuDevicePeerAccess(const std::vector<int>& HIP_FUNC_ARGUMENT(gpuIdsToUse),
+                              const gmx::MDLogger&    HIP_FUNC_ARGUMENT(mdlog)) HIP_FUNC_TERM;
+#else
 CUDA_FUNC_QUALIFIER
 void setupGpuDevicePeerAccess(const std::vector<int>& CUDA_FUNC_ARGUMENT(gpuIdsToUse),
                               const gmx::MDLogger&    CUDA_FUNC_ARGUMENT(mdlog)) CUDA_FUNC_TERM;
+#endif
 
 #endif

@@ -51,7 +51,7 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxmpi.h"
 
-#if GMX_GPU != GMX_GPU_CUDA
+#if GMX_GPU != GMX_GPU_CUDA && GMX_GPU != GMX_GPU_ROCM
 
 namespace gmx
 {

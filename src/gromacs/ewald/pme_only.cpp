@@ -101,7 +101,7 @@
 
 /*! \brief environment variable to enable GPU P2P communication */
 static const bool c_enableGpuPmePpComms =
-        (getenv("GMX_GPU_PME_PP_COMMS") != nullptr) && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA);
+        (getenv("GMX_GPU_PME_PP_COMMS") != nullptr) && GMX_THREAD_MPI && ((GMX_GPU == GMX_GPU_CUDA) || (GMX_GPU == GMX_GPU_ROCM));
 
 /*! \brief Master PP-PME communication data structure */
 struct gmx_pme_pp
@@ -425,7 +425,7 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
                     // This rank will have its data accessed directly by PP rank, so needs to send the remote addresses.
                     rvec* d_x = nullptr;
                     rvec* d_f = nullptr;
-#    if (GMX_GPU == GMX_GPU_CUDA) // avoid invalid cast for OpenCL
+#    if (GMX_GPU == GMX_GPU_CUDA) || (GMX_GPU == GMX_GPU_ROCM)// avoid invalid cast for OpenCL
                     d_x = reinterpret_cast<rvec*>(pme_gpu_get_device_x(pme));
                     d_f = reinterpret_cast<rvec*>(pme_gpu_get_device_f(pme));
 #    endif

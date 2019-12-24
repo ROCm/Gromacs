@@ -44,7 +44,11 @@
 #define GMX_PME_PP_COMM_GPU_IMPL_H
 
 #include "gromacs/ewald/pme_pp_comm_gpu.h"
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
+#else
 #include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
+#endif
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/gmxmpi.h"
 
@@ -115,8 +119,13 @@ public:
     void* getForcesReadySynchronizer();
 
 private:
+#if GMX_GPU == GMX_GPU_ROCM
+    //! HIP stream used for the communication operations in this class
+    hipStream_t pmePpCommStream_ = nullptr;
+#else
     //! CUDA stream used for the communication operations in this class
     cudaStream_t pmePpCommStream_ = nullptr;
+#endif
     //! Remote location of PME coordinate data buffer
     void* remotePmeXBuffer_ = nullptr;
     //! Remote location of PME force data buffer

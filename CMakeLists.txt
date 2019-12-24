@@ -211,12 +211,27 @@ set(REQUIRED_OPENCL_MIN_VERSION ${REQUIRED_OPENCL_MIN_VERSION_MAJOR}.${REQUIRED_
 if(NOT GMX_USE_OPENCL)
     # CUDA detection is done only if GMX_USE_OPENCL is OFF.
     include(gmxManageGPU)
-    set(GMX_USE_CUDA ${GMX_GPU})
-    if(GMX_GPU)
+#----------------------
+    if(GMX_GPU_USE_AMD)
+        set(GMX_USE_HIP ${GMX_GPU})
+    elseif(GMX_GPU_USE_NVIDIA)
+        set(GMX_USE_CUDA ${GMX_GPU})
+    endif()
+    if(GMX_GPU AND GMX_GPU_USE_AMD)
+        set(GMX_GPU_ACCELERATION_FRAMEWORK "GMX_GPU_ROCM")
+    elseif(GMX_GPU AND GMX_GPU_USE_NVIDIA)
         set(GMX_GPU_ACCELERATION_FRAMEWORK "GMX_GPU_CUDA")
     else()
         set(GMX_GPU_ACCELERATION_FRAMEWORK "GMX_GPU_NONE")
     endif()
+#----------------------
+#    set(GMX_USE_CUDA ${GMX_GPU})
+#    if(GMX_GPU)
+#        set(GMX_GPU_ACCELERATION_FRAMEWORK "GMX_GPU_CUDA")
+#    else()
+#        set(GMX_GPU_ACCELERATION_FRAMEWORK "GMX_GPU_NONE")
+#    endif()
+#-----------------------
 else()
     #Now the OpenCL path (for both AMD and NVIDIA)
     if(GMX_GPU)
@@ -575,7 +590,7 @@ include(gmxManageLmfit)
 if(GMX_GPU)
     # now that we have detected the dependencies, do the second configure pass
     gmx_gpu_setup()
-    if (GMX_CLANG_CUDA)
+    if (GMX_USE_CUDA AND GMX_CLANG_CUDA)
         list(APPEND GMX_EXTRA_LIBRARIES ${GMX_CUDA_CLANG_LINK_LIBS})
         link_directories("${GMX_CUDA_CLANG_LINK_DIRS}")
     endif()
@@ -902,8 +917,11 @@ endif()
 
 gmx_cpack_write_config()
 
-# Issue a warning if NVIDIA GPUs were detected, but CUDA was not found.
+# Issue a warning if NVIDIA/AMD GPUs were detected, but CUDA/ROCm was not found.
 # Don't bother the user after the first configure pass.
+if (GMX_GPU_USE_AMD AND (CUDA_NOTFOUND_AUTO AND GMX_DETECT_GPU_AVAILABLE) AND NOT GMX_GPU_DETECTION_DONE)
+    message(WARNING "${ROCM_NOTFOUND_MESSAGE}")
+endif()
 if ((CUDA_NOTFOUND_AUTO AND GMX_DETECT_GPU_AVAILABLE) AND NOT GMX_GPU_DETECTION_DONE)
     message(WARNING "${CUDA_NOTFOUND_MESSAGE}")
 endif()

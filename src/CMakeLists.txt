@@ -45,7 +45,9 @@ if(GMX_USE_CUDA)
 
     get_cuda_compiler_info(CUDA_COMPILER_INFO CUDA_DEVICE_COMPILER_FLAGS CUDA_HOST_COMPILER_FLAGS)
 endif()
-
+if(GMX_GPU_USE_AMD)
+    get_hip_compiler_info(HIP_COMPILER_INFO HIP_DEVICE_COMPILER_FLAGS HIP_HOST_COMPILER_FLAGS)
+endif()
 string(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
 configure_file(config.h.cmakein config.h)
 configure_file(gmxpre-config.h.cmakein gmxpre-config.h)

@@ -50,6 +50,8 @@
 #include "gromacs/gpu_utils/devicebuffer.h"
 #if GMX_GPU == GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
+#elif GMX_GPU == GMX_GPU_ROCM
+#    include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
 #elif GMX_GPU == GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gpueventsynchronizer_ocl.h"
 #endif

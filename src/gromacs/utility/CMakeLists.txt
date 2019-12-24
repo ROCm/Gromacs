@@ -34,7 +34,11 @@
 
 file(GLOB UTILITY_SOURCES *.cpp)
 if (GMX_GPU AND NOT GMX_USE_OPENCL)
+if(GMX_USE_CUDA)
     gmx_add_libgromacs_sources(cuda_version_information.cu)
+elseif(GMX_USE_HIP)
+    gmx_add_libgromacs_sources(cuda_version_information.hip.cpp)
+endif()
 endif()
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${UTILITY_SOURCES} PARENT_SCOPE)
 

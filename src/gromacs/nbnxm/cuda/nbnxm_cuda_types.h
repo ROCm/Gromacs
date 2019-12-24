@@ -47,9 +47,14 @@
 #define NBNXM_CUDA_TYPES_H
 
 #include "gromacs/gpu_utils/cuda_arch_utils.cuh"
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/cudautils.hip.h"
+#include "gromacs/gpu_utils/gputraits.hip.h"
+#else
 #include "gromacs/gpu_utils/cudautils.cuh"
-#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/gpu_utils/gputraits.cuh"
+#endif
+#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/nbnxm/gpu_types_common.h"
 #include "gromacs/nbnxm/nbnxm.h"

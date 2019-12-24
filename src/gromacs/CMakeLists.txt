@@ -34,7 +34,7 @@
 
 set(LIBGROMACS_SOURCES)
 
-if (GMX_CLANG_CUDA)
+if (GMX_USE_CUDA AND GMX_CLANG_CUDA)
     include(gmxClangCudaUtils)
 endif()
 
@@ -42,6 +42,11 @@ set_property(GLOBAL PROPERTY GMX_LIBGROMACS_SOURCES)
 set_property(GLOBAL PROPERTY GMX_LIBGROMACS_GPU_IMPL_SOURCES)
 set_property(GLOBAL PROPERTY GMX_INSTALLED_HEADERS)
 set_property(GLOBAL PROPERTY GMX_AVX_512_SOURCE)
+
+if (GMX_USE_HIP)
+    set_property(GLOBAL PROPERTY GMX_GROMACS_HIP_SOURCES)
+    set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND false)
+endif()
 
 set(libgromacs_object_library_dependencies "")
 function (_gmx_add_files_to_property PROPERTY)
@@ -63,6 +68,10 @@ endfunction ()
 # approach, at least for the build system. See Redmine #2530
 function (gmx_compile_cpp_as_cuda)
     _gmx_add_files_to_property(GMX_LIBGROMACS_GPU_IMPL_SOURCES ${ARGN})
+endfunction ()
+
+function (gmx_add_hip_sources)
+    _gmx_add_files_to_property(GMX_GROMACS_HIP_SOURCES ${ARGN})
 endfunction ()
 
 # Add these contents first because linking their tests can take a lot
@@ -120,6 +129,7 @@ endif()
 
 get_property(PROPERTY_SOURCES GLOBAL PROPERTY GMX_LIBGROMACS_SOURCES)
 list(APPEND LIBGROMACS_SOURCES ${GMXLIB_SOURCES} ${MDLIB_SOURCES} ${PROPERTY_SOURCES})
+list(REMOVE_DUPLICATES LIBGROMACS_SOURCES)
 
 # This would be the standard way to include thread_mpi, but
 # we want libgromacs to link the functions directly
@@ -166,7 +176,7 @@ if (GMX_USE_CUDA)
 endif()
 
 # set up CUDA compilation with clang
-if (GMX_CLANG_CUDA)
+if (GMX_USE_CUDA AND GMX_CLANG_CUDA)
     foreach (_file ${LIBGROMACS_SOURCES})
         get_filename_component(_ext ${_file} EXT)
         get_source_file_property(_cuda_source_format ${_file} CUDA_SOURCE_PROPERTY_FORMAT)
@@ -176,7 +186,31 @@ if (GMX_CLANG_CUDA)
     endforeach()
 endif()
 
-if (GMX_USE_CUDA)
+if (GMX_USE_HIP)
+    foreach(hip_file ${LIBGROMACS_SOURCES})
+       if(${hip_file} MATCHES "\\.hip.cpp$" )
+           set_source_files_properties(${hip_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+       endif()
+    endforeach()
+
+    get_property(PROPERTY_HIP_SOURCES GLOBAL PROPERTY GMX_GROMACS_HIP_SOURCES)
+
+    foreach(hip_file ${PROPERTY_HIP_SOURCES})
+       set_source_files_properties(${hip_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+    endforeach()
+
+    get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+
+    if (NOT HIP_ADD_LIBRARY_FOUND )
+       list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
+       find_package(HIP REQUIRED)
+       set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
+    endif()
+
+    hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++14" HCC_OPTIONS "" NVCC_OPTIONS)
+
+    target_link_libraries(libgromacs PRIVATE roc::rocfft)
+elseif (GMX_USE_CUDA)
     # Work around FindCUDA that prevents using target_link_libraries()
     # with keywords otherwise...
     set(CUDA_LIBRARIES PRIVATE ${CUDA_LIBRARIES})

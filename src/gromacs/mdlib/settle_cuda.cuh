@@ -45,7 +45,11 @@
 
 #include "gmxpre.h"
 
+#if GMX_GPU == GMX_GPU_ROCM
+#include "gromacs/gpu_utils/gputraits.hip.h"
+#else
 #include "gromacs/gpu_utils/gputraits.cuh"
+#endif
 #include "gromacs/math/functions.h"
 #include "gromacs/math/invertmatrix.h"
 #include "gromacs/math/vec.h"

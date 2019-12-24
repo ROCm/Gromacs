@@ -211,12 +211,12 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
     devFlags.enableGpuBufferOps = (getenv("GMX_USE_GPU_BUFFER_OPS") != nullptr)
-                                  && (GMX_GPU == GMX_GPU_CUDA) && useGpuForNonbonded;
+                                  && (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM) && useGpuForNonbonded;
     devFlags.forceGpuUpdateDefaultWithDD = (getenv("GMX_FORCE_UPDATE_DEFAULT_GPU") != nullptr);
     devFlags.enableGpuHaloExchange =
-            (getenv("GMX_GPU_DD_COMMS") != nullptr && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA));
+            (getenv("GMX_GPU_DD_COMMS") != nullptr && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM));
     devFlags.enableGpuPmePPComm =
-            (getenv("GMX_GPU_PME_PP_COMMS") != nullptr && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA));
+            (getenv("GMX_GPU_PME_PP_COMMS") != nullptr && GMX_THREAD_MPI && (GMX_GPU == GMX_GPU_CUDA || GMX_GPU == GMX_GPU_ROCM));
 #pragma GCC diagnostic pop
 
     if (devFlags.enableGpuBufferOps)

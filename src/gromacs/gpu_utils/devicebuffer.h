@@ -54,6 +54,8 @@
 #    include "gromacs/gpu_utils/devicebuffer.cuh"
 #elif GMX_GPU == GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/devicebuffer_ocl.h"
+#elif GMX_GPU == GMX_GPU_ROCM
+#    include "gromacs/gpu_utils/devicebuffer.hip.h"
 #else
 #    error "devicebuffer.h included on non-GPU build!"
 #endif
@@ -95,7 +97,7 @@ void reallocateDeviceBuffer(DeviceBuffer<ValueType>* buffer,
         }
 
         *currentMaxNumValues = over_alloc_large(numValues);
-        allocateDeviceBuffer(buffer, *currentMaxNumValues, deviceContext);
+        (void)allocateDeviceBuffer(buffer, *currentMaxNumValues, deviceContext);
     }
     /* size could have changed without actual reallocation */
     *currentNumValues = numValues;
