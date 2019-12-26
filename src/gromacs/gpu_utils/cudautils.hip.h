@@ -345,12 +345,14 @@ void launchGpuKernel(void (*kernel)(Args...),
                      const KernelLaunchConfig& config,
                      CommandEvent* /*timingEvent */,
                      const char*                               kernelName,
-                     const std::array<void*, sizeof...(Args)>& kernelArgs)
+//                     const std::array<void*, sizeof...(Args)>& kernelArgs)
+                     Args ... kernelArgs)                     
 {
     dim3 blockSize(config.blockSize[0], config.blockSize[1], config.blockSize[2]);
     dim3 gridSize(config.gridSize[0], config.gridSize[1], config.gridSize[2]);
-    hipLaunchKernel((void*)kernel, gridSize, blockSize, const_cast<void**>(kernelArgs.data()),
-                     config.sharedMemorySize, config.stream);
+ //   hipLaunchKernel((void*)kernel, gridSize, blockSize, const_cast<void**>(kernelArgs.data()),
+ //                    config.sharedMemorySize, config.stream);
+    hipLaunchKernelGGL(kernel, gridSize, blockSize, config.sharedMemorySize, config.stream, std::move(kernelArgs)...);                   
 
     hipError_t status = hipGetLastError();
     if (hipSuccess != status)

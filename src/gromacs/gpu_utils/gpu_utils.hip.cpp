@@ -206,8 +206,9 @@ static int do_sanity_checks(int dev_id, const hipDeviceProp_t& dev_prop)
 
     KernelLaunchConfig config;
     config.blockSize[0]       = 512;
-    const auto dummyArguments = prepareGpuKernelArguments(k_dummy_test, config);
-    launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel", dummyArguments);
+    //const auto dummyArguments = prepareGpuKernelArguments(k_dummy_test, config);
+    //launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel", dummyArguments);
+    launchGpuKernel(k_dummy_test, config, nullptr, "Dummy kernel");
     if (hipDeviceSynchronize() != hipSuccess)
     {
         return -1;

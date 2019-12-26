@@ -558,9 +558,10 @@ void gpu_launch_kernel(gmx_nbnxn_hip_t* nb, const gmx::StepWorkload& stepWork, c
     const auto kernel      = select_nbnxn_kernel(
             nbp->eeltype, nbp->vdwtype, stepWork.computeEnergy,
             (plist->haveFreshList && !nb->timers->interaction[iloc].didPrune), nb->dev_info);
-    const auto kernelArgs =
-            prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
-    launchGpuKernel(kernel, config, timingEvent, "k_calc_nb", kernelArgs);
+//    const auto kernelArgs =
+//            prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
+//    launchGpuKernel(kernel, config, timingEvent, "k_calc_nb", kernelArgs);
+    launchGpuKernel(kernel, config, timingEvent, "k_calc_nb",  *adat, *nbp, *plist, stepWork.computeVirial);
 
     if (bDoTime)
     {
@@ -682,8 +683,9 @@ void gpu_launch_kernel_pruneonly(gmx_nbnxn_hip_t* nb, const InteractionLocality 
     constexpr char kernelName[] = "k_pruneonly";
     const auto     kernel =
             plist->haveFreshList ? nbnxn_kernel_prune_cuda<true> : nbnxn_kernel_prune_cuda<false>;
-    const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
-    launchGpuKernel(kernel, config, timingEvent, kernelName, kernelArgs);
+    //const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
+    //launchGpuKernel(kernel, config, timingEvent, kernelName, kernelArgs);
+    launchGpuKernel(kernel, config, timingEvent, kernelName, *adat, *nbp, *plist, numParts, part);
 
     /* TODO: consider a more elegant way to track which kernel has been called
        (combined or separate 1st pass prune, rolling prune). */
@@ -862,10 +864,12 @@ void nbnxn_gpu_x_to_nbat_x(const Nbnxm::Grid&        grid,
         const int* d_atomIndices = nb->atomIndices;
         const int* d_cxy_na      = &nb->cxy_na[numColumnsMax * gridId];
         const int* d_cxy_ind     = &nb->cxy_ind[numColumnsMax * gridId];
-        const auto kernelArgs    = prepareGpuKernelArguments(
-                kernelFn, config, &numColumns, &d_xq, &setFillerCoords, &d_x, &d_atomIndices,
-                &d_cxy_na, &d_cxy_ind, &cellOffset, &numAtomsPerCell);
-        launchGpuKernel(kernelFn, config, nullptr, "XbufferOps", kernelArgs);
+//        const auto kernelArgs    = prepareGpuKernelArguments(
+//                kernelFn, config, &numColumns, &d_xq, &setFillerCoords, &d_x, &d_atomIndices,
+//                &d_cxy_na, &d_cxy_ind, &cellOffset, &numAtomsPerCell);
+//        launchGpuKernel(kernelFn, config, nullptr, "XbufferOps", kernelArgs);
+        launchGpuKernel(kernelFn, config, nullptr, "XbufferOps",
+                        numColumns, d_xq, setFillerCoords, const_cast<const float3*>(reinterpret_cast<float3*>(d_x)), d_atomIndices, d_cxy_na, d_cxy_ind, cellOffset, numAtomsPerCell);
     }
 
     // TODO: note that this is not necessary when there are no local atoms, that is:
@@ -936,10 +940,11 @@ void nbnxn_gpu_add_nbat_f_to_f(const AtomLocality                         atomLo
     float3*       d_fTotal = (float3*)totalForcesDevice;
     const int*    d_cell   = nb->cell;
 
-    const auto kernelArgs = prepareGpuKernelArguments(kernelFn, config, &d_fNB, &d_fPme, &d_fTotal,
-                                                      &d_cell, &atomStart, &numAtoms);
+    //const auto kernelArgs = prepareGpuKernelArguments(kernelFn, config, &d_fNB, &d_fPme, &d_fTotal,
+    //                                                  &d_cell, &atomStart, &numAtoms);
 
-    launchGpuKernel(kernelFn, config, nullptr, "FbufferOps", kernelArgs);
+    //launchGpuKernel(kernelFn, config, nullptr, "FbufferOps", kernelArgs);
+    launchGpuKernel(kernelFn, config, nullptr, "FbufferOps", d_fNB, d_fPme, d_fTotal, d_cell, atomStart, numAtoms);
 
     if (atomLocality == AtomLocality::Local)
     {
