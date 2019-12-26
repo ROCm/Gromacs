@@ -1270,6 +1270,17 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
 
     pme_gpu_start_timing(pmeGpu, timingId);
     auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
+#if GMX_GPU == GMX_GPU_ROCM
+#if c_canEmbedBuffers
+    launchGpuKernel(kernelPtr, config, timingEvent, "PME spline/spread", *kernelParamsPtr);
+#else
+    launchGpuKernel(kernelPtr, config, timingEvent, "PME spline/spread",
+                    *kernelParamsPtr, kernelParamsPtr->atoms.d_theta, kernelParamsPtr->atoms.d_dtheta,
+                    kernelParamsPtr->atoms.d_gridlineIndices, kernelParamsPtr->grid.d_realGrid,
+                    kernelParamsPtr->grid.d_fractShiftsTable, kernelParamsPtr->grid.d_gridlineIndicesTable,
+                    kernelParamsPtr->atoms.d_coefficients, kernelParamsPtr->atoms.d_coordinates);
+#endif
+#else
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
 #else
@@ -1282,6 +1293,7 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
 #endif
 
     launchGpuKernel(kernelPtr, config, timingEvent, "PME spline/spread", kernelArgs);
+#endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     const bool copyBackGrid =
@@ -1375,6 +1387,16 @@ void pme_gpu_solve(const PmeGpu* pmeGpu, t_complex* h_grid, GridOrdering gridOrd
 
     pme_gpu_start_timing(pmeGpu, timingId);
     auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
+#if GMX_GPU == GMX_GPU_ROCM
+#if c_canEmbedBuffers
+    launchGpuKernel(kernelPtr, config, timingEvent, "PME solve", *kernelParamsPtr);
+#else
+    launchGpuKernel(kernelPtr, config, timingEvent, "PME solve",
+                    *kernelParamsPtr, kernelParamsPtr->grid.d_splineModuli,
+                    kernelParamsPtr->constants.d_virialAndEnergy,
+                    kernelParamsPtr->grid.d_fourierGrid);
+#endif
+#else
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
 #else
@@ -1383,6 +1405,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu, t_complex* h_grid, GridOrdering gridOrd
             &kernelParamsPtr->constants.d_virialAndEnergy, &kernelParamsPtr->grid.d_fourierGrid);
 #endif
     launchGpuKernel(kernelPtr, config, timingEvent, "PME solve", kernelArgs);
+#endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     if (computeEnergyAndVirial)
@@ -1509,6 +1532,17 @@ void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const
     pme_gpu_start_timing(pmeGpu, timingId);
     auto*       timingEvent     = pme_gpu_fetch_timing_event(pmeGpu, timingId);
     const auto* kernelParamsPtr = pmeGpu->kernelParams.get();
+#if GMX_GPU == GMX_GPU_ROCM
+#if c_canEmbedBuffers
+    launchGpuKernel(kernelPtr, config, timingEvent, "PME gather", *kernelParamsPtr);
+#else
+    launchGpuKernel(kernelPtr, config, timingEvent, "PME gather",
+                    *kernelParamsPtr, kernelParamsPtr->atoms.d_coefficients,
+                    kernelParamsPtr->grid.d_realGrid, kernelParamsPtr->atoms.d_theta,
+                    kernelParamsPtr->atoms.d_dtheta, kernelParamsPtr->atoms.d_gridlineIndices,
+                    kernelParamsPtr->atoms.d_forces);
+#endif
+#else
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
 #else
@@ -1519,6 +1553,7 @@ void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const
             &kernelParamsPtr->atoms.d_forces);
 #endif
     launchGpuKernel(kernelPtr, config, timingEvent, "PME gather", kernelArgs);
+#endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     if (pmeGpu->settings.useGpuForceReduction)

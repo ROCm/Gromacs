@@ -894,9 +894,10 @@ void GpuBonded::Impl::launchKernel(const t_forcerec* fr, const matrix box)
     kernelParams_.scaleFactor = fr->ic->epsfac * fr->fudgeQQ;
     kernelParams_.pbcAiuc     = pbcAiuc;
 
-    const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, &kernelParams_);
+    //const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, &kernelParams_);
 
-    launchGpuKernel(kernelPtr, config, nullptr, "exec_kernel_gpu<calcVir, calcEner>", kernelArgs);
+    //launchGpuKernel(kernelPtr, config, nullptr, "exec_kernel_gpu<calcVir, calcEner>", kernelArgs);
+    launchGpuKernel(kernelPtr, config, nullptr, "exec_kernel_gpu<calcVir, calcEner>", kernelParams_);
 }
 
 void GpuBonded::launchKernel(const t_forcerec* fr, const gmx::StepWorkload& stepWork, const matrix box)
