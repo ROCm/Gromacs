@@ -220,7 +220,6 @@ __launch_bounds__(THREADS_PER_BLOCK)
     unsigned int  tidxz = threadIdx.z;
 #    endif
     unsigned int bidx  = blockIdx.x;
-    unsigned int widx  = tidx / warp_size; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -376,8 +375,8 @@ __launch_bounds__(THREADS_PER_BLOCK)
      */
     for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
-        wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
-        imask     = pl_cj4[j4].imei[widx].imask;
+        wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
+        imask     = pl_cj4[j4].imei[0].imask;
         wexcl     = excl[wexcl_idx].pair[(tidx) & (warp_size - 1)];
 
 #    ifndef PRUNE_NBL
@@ -385,9 +384,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif
         {
             /* Pre-load cj into shared memory on both warps separately */
-            if ((tidxj == 0 | tidxj == 4) & (tidxi < c_nbnxnGpuJgroupSize))
+            if (((tidxj * hipBlockDim_x) % warp_size == 0) & (tidxi < c_nbnxnGpuJgroupSize))
             {
-                cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
+                cjs[tidxi] = pl_cj4[j4].cj[tidxi];
             }
 //            __syncwarp(c_fullWarpMask); //cm todo
               __all(1);
@@ -402,7 +401,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
                 {
                     mask_ji = (1U << (jm * c_numClPerSupercl));
 
-                    cj = cjs[jm + (tidxj & 4) * c_nbnxnGpuJgroupSize / c_splitClSize];
+                    cj = cjs[jm];
                     aj = cj * c_clSize + tidxj;
 
                     /* load j atom data */
@@ -617,7 +616,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    ifdef PRUNE_NBL
             /* Update the imask with the new one which does not contain the
                out of range clusters anymore. */
-            pl_cj4[j4].imei[widx].imask = imask;
+            pl_cj4[j4].imei[0].imask = imask;
 #    endif
         }
         // avoid shared memory WAR hazards between loop iterations
@@ -640,10 +639,10 @@ __launch_bounds__(THREADS_PER_BLOCK)
         reduce_force_i_warp_shfl(fci_buf[i], f, &fshift_buf, bCalcFshift, tidxj, ai, c_fullWarpMask);
     }
 
-    /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && (tidxj & 3) < 3)
+    /* aadd up local shift forces into global mem, tidxj indexes x,y,z */
+    if (bCalcFshift && tidxj < 3)
     {
-        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + (tidxj & 3), fshift_buf);
+        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
     }
 
 #    ifdef CALC_ENERGIES
