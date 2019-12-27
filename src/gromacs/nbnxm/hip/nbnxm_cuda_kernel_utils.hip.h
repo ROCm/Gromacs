@@ -501,7 +501,7 @@ static __forceinline__ __device__ void
     }
 
 //    f.x += __shfl_down_sync(activemask, f.x, 4);
-      f.x += __shfl_down(f.x, 4);
+    f.x += __shfl_down(f.x, 4);
 
     if (tidxi < 3)
     {
@@ -642,12 +642,12 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
         fin.x = fin.z;
     }
 
-    fin.x += __shfl_down(fin.x, 4*c_clSize); //review
+    fin.x += __shfl_down(fin.x, 4*c_clSize);
 
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-    if ((tidxj & 3) < 3)
+    if (tidxj < 3)
     {
-        atomicAdd(&fout[aidx].x + (tidxj & 3), fin.x);
+        atomicAdd(&fout[aidx].x + tidxj, fin.x);
 
         if (bCalcFshift)
         {
@@ -700,8 +700,8 @@ static __forceinline__ __device__ void
     int i, sh;
 
     sh = 1;
-#    pragma unroll warp_size_log2 //review
-    for (i = 0; i < warp_size_log2; i++) //review
+#    pragma unroll warp_size_log2
+    for (i = 0; i < warp_size_log2; i++)
     {
 /*
         E_lj += __shfl_down_sync(activemask, E_lj, sh);
@@ -713,7 +713,7 @@ static __forceinline__ __device__ void
     }
 
     /* The first thread in the warp writes the reduced energies */
-    if (tidx == 0) //review
+    if (tidx == 0)
     {
         atomicAdd(e_lj, E_lj);
         atomicAdd(e_el, E_el);
