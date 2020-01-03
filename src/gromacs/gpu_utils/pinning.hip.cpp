@@ -81,7 +81,7 @@ void pinBuffer(void* pointer, std::size_t numBytes) noexcept
 
     // These errors can only arise from a coding error somewhere.
     GMX_RELEASE_ASSERT(
-            stat != hipErrorInvalidValue && stat != cudaErrorNotSupported
+            stat != hipErrorInvalidValue && stat != hipErrorNotSupported
                     && stat != hipErrorHostMemoryAlreadyRegistered,
             formatString("%s %s: %s", errorMessage, hipGetErrorName(stat), hipGetErrorString(stat))
                     .c_str());

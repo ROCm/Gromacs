@@ -287,14 +287,14 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
     nbnxn_cu_kfunc_ptr_t res;
 
     GMX_ASSERT(eeltype < eelCuNR,
-               "The electrostatics type requested is not implemented in the CUDA kernels.");
+               "The electrostatics type requested is not implemented in the HIP kernels.");
     GMX_ASSERT(evdwtype < evdwCuNR,
-               "The VdW type requested is not implemented in the CUDA kernels.");
+               "The VdW type requested is not implemented in the HIP kernels.");
 
     /* assert assumptions made by the kernels */
     GMX_ASSERT(c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit
-                       == devInfo->prop.hipWarpSize,
-               "The CUDA kernels require the "
+                       == devInfo->prop.warpSize,
+               "The HIP kernels require the "
                "cluster_size_i*cluster_size_j/nbnxn_gpu_clusterpair_split to match the warp size "
                "of the architecture targeted.");
 
