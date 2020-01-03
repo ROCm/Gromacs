@@ -32,29 +32,20 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef CUDA_ARCH_UTILS_CUH_
-#define CUDA_ARCH_UTILS_CUH_
+#ifndef HIP_ARCH_UTILS_H_
+#define HIP_ARCH_UTILS_H_
 
 #include "gromacs/utility/basedefinitions.h"
 
 /*! \file
- *  \brief CUDA arch dependent definitions.
+ *  \brief HIP arch dependent definitions.
  *
  *  \author Szilard Pall <pall.szilard@gmail.com>
  */
 
-/* GMX_PTX_ARCH is set to the virtual arch (PTX) version targeted by
- * the current compiler pass or zero for the host pass and it is
- * intended to be used instead of __CUDA_ARCH__.
- */
 #define HIP_PI_F 3.141592654f
-#ifndef __CUDA_ARCH__
-#    define GMX_PTX_ARCH 0
-#else
-#    define GMX_PTX_ARCH __CUDA_ARCH__
-#endif
 
-/* Until CC 5.2 and likely for the near future all NVIDIA architectures
+/* Until CC 5.2 and likely for the near future all AMD architectures
    have a warp size of 32, but this could change later. If it does, the
    following constants should depend on the value of GMX_PTX_ARCH.
  */
@@ -63,7 +54,7 @@ static const int warp_size_log2 = 6;
 /*! \brief Bitmask corresponding to all threads active in a warp.
  *  NOTE that here too we assume 32-wide warps.
  */
-static const unsigned int c_fullWarpMask = 0xffffffff;
+static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
 
 /*! \brief Allow disabling CUDA textures using the GMX_DISABLE_CUDA_TEXTURES macro.
  *
@@ -74,46 +65,31 @@ static const unsigned int c_fullWarpMask = 0xffffffff;
  *  to have fallback for texture-less reads (direct/LDG loads), all new code needs
  *  to provide fallback code.
  */
-#if defined(GMX_DISABLE_CUDA_TEXTURES) || (defined(__clang__) && defined(__CUDA__))
+#if defined(GMX_DISABLE_CUDA_TEXTURES) || (defined(__clang__) && defined(__HIPCC__))
 #    define DISABLE_CUDA_TEXTURES 1
 #else
 #    define DISABLE_CUDA_TEXTURES 0
 #endif
-
 /*! \brief True if the use of texture fetch in the CUDA kernels is disabled. */
 static const bool c_disableCudaTextures = DISABLE_CUDA_TEXTURES;
 
 
-/* CUDA architecture technical characteristics. Needs macros because it is used
+/* HIP architecture technical characteristics. Needs macros because it is used
  * in the __launch_bounds__ function qualifiers and might need it in preprocessor
  * conditionals.
  *
  */
-#if GMX_PTX_ARCH > 0
-#    if GMX_PTX_ARCH <= 370 // CC 3.x
-#        define GMX_CUDA_MAX_BLOCKS_PER_MP 16
-#        define GMX_CUDA_MAX_THREADS_PER_MP 2048
-#    else // CC 5.x, 6.x
-/* Note that this final branch covers all future architectures (current gen
- * is 6.x as of writing), hence assuming that these *currently defined* upper
- * limits will not be lowered.
- */
-#        define GMX_CUDA_MAX_BLOCKS_PER_MP 32
-#        define GMX_CUDA_MAX_THREADS_PER_MP 2048
-#    endif
-#else
-#    define GMX_CUDA_MAX_BLOCKS_PER_MP 0
-#    define GMX_CUDA_MAX_THREADS_PER_MP 0
-#endif
+#define GMX_CUDA_MAX_BLOCKS_PER_MP 0
+#define GMX_CUDA_MAX_THREADS_PER_MP 0
 
 // Macro defined for clang CUDA device compilation in the presence of debug symbols
 // used to work around codegen bug that breaks some kernels when assertions are on
 // at -O1 and higher (tested with clang 6-8).
-#if defined(__clang__) && defined(__CUDA__) && defined(__CUDA_ARCH__) && !defined(NDEBUG)
+#if defined(__clang__) && defined(__HIPCC__) && !defined(NDEBUG)
 #    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __attribute__((optnone))
 #else
 #    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE
 #endif
 
 
-#endif /* CUDA_ARCH_UTILS_CUH_ */
+#endif /* HIP_ARCH_UTILS_H_ */
