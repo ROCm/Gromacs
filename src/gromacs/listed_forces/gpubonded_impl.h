@@ -48,6 +48,8 @@
 #ifndef GMX_LISTED_FORCES_GPUBONDED_IMPL_H
 #define GMX_LISTED_FORCES_GPUBONDED_IMPL_H
 
+#include "config.h"
+
 #if GMX_GPU == GMX_GPU_ROCM
 #include "gromacs/gpu_utils/gpu_vec.hip.h"
 #include "gromacs/gpu_utils/gputraits.hip.h"

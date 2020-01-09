@@ -33,6 +33,10 @@
 # the research papers on the package. Check out http://www.gromacs.org.
 
 file(GLOB MDLIB_SOURCES *.cpp)
+list(REMOVE_ITEM MDLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lincs_cuda.hip.cpp)
+list(REMOVE_ITEM MDLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/settle_cuda.hip.cpp)
+list(REMOVE_ITEM MDLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/leapfrog_cuda.hip.cpp)
+list(REMOVE_ITEM MDLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/update_constrain_cuda_impl.hip.cpp)
 
 set(MDLIB_SOURCES ${MDLIB_SOURCES} PARENT_SCOPE)
 if (BUILD_TESTING)

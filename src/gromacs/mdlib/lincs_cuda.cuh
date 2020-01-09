@@ -44,6 +44,8 @@
 #ifndef GMX_MDLIB_LINCS_CUDA_CUH
 #define GMX_MDLIB_LINCS_CUDA_CUH
 
+#include "config.h"
+
 #if GMX_GPU == GMX_GPU_ROCM
 #include "gromacs/gpu_utils/gputraits.hip.h"
 #else
