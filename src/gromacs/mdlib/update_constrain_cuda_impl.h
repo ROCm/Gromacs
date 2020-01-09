@@ -48,6 +48,8 @@
 
 #include "gmxpre.h"
 
+#include "config.h"
+
 #if GMX_GPU == GMX_GPU_ROCM
 #include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
 #else

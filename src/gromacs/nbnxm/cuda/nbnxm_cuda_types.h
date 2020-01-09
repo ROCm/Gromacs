@@ -46,6 +46,8 @@
 #ifndef NBNXM_CUDA_TYPES_H
 #define NBNXM_CUDA_TYPES_H
 
+#include "config.h"
+
 #include "gromacs/gpu_utils/cuda_arch_utils.cuh"
 #if GMX_GPU == GMX_GPU_ROCM
 #include "gromacs/gpu_utils/cudautils.hip.h"
