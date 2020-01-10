@@ -150,7 +150,11 @@ constexpr int c_pmeSpreadGatherMinWarpSize4ThPerAtom = c_pmeSpreadGatherThreadsP
  * Then the numbers of atoms which would fit in the padded GPU buffers have to be divisible by this.
  * There are debug asserts for this divisibility in pme_gpu_spread() and pme_gpu_gather().
  */
+#if GMX_GPU == GMX_GPU_ROCM
+constexpr int c_pmeAtomDataAlignment = 128;
+#else
 constexpr int c_pmeAtomDataAlignment = 64;
+#endif
 
 /*
  * The execution widths for PME GPU kernels, used both on host and device for correct scheduling.
