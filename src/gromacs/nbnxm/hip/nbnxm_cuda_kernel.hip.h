@@ -211,15 +211,15 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
-    unsigned int tidxi = threadIdx.x;
-    unsigned int tidxj = threadIdx.y;
-    unsigned int tidx  = threadIdx.y * blockDim.x + threadIdx.x;
-#    if NTHREAD_Z == 1
-    unsigned int tidxz = 0;
-#    else
-    unsigned int  tidxz = threadIdx.z;
-#    endif
-    unsigned int bidx  = blockIdx.x;
+    unsigned int tidxi  = hipThreadIdx_x;
+    unsigned int tidxj  = hipThreadIdx_y;
+    unsigned int tidx   = hipThreadIdx_y * hipBlockDim_x + hipThreadIdx_x;
+#if NTHREAD_Z == 1
+    unsigned int tidxz  = 0;
+#else
+    unsigned int tidxz  = hipThreadIdx_z;
+#endif
+    unsigned int bidx   = hipBlockIdx_x;
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
