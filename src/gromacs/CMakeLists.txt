@@ -207,6 +207,16 @@ if (GMX_USE_HIP)
        set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
     endif()
 
+    if(NOT GMX_THREAD_MPI)
+        find_package(MPI)
+        if(MPI_C_FOUND)
+            execute_process(
+                COMMAND ${MPI_C_COMPILER} -showme:incdirs
+                OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE)
+            include_directories(SYSTEM ${MPI_INCDIRS})
+        endif()
+    endif()
     hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++14" HCC_OPTIONS "" NVCC_OPTIONS)
 
     target_link_libraries(libgromacs PRIVATE roc::rocfft)
