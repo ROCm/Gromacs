@@ -48,8 +48,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <hip/hip_profile.h>
-
 #include "gromacs/gpu_utils/cudautils.hip.h"
 #include "gromacs/gpu_utils/pmalloc_cuda.h"
 #include "gromacs/hardware/gpu_hw_info.h"
@@ -65,13 +63,9 @@
 #include "gromacs/utility/stringutil.h"
 
 /*! \internal \brief
- * Max number of devices supported by CUDA (for consistency checking).
- *
- * In reality it is 16 with CUDA <=v5.0, but let's stay on the safe side.
+ * Max number of devices supported by ROCM (for consistency checking).
  */
-static int cuda_max_device_count = 32;
-
-static bool cudaProfilerRun = ((getenv("NVPROF_ID") != nullptr));
+static int rocm_max_device_count = 32;
 
 /** Dummy kernel used for sanity checking. */
 static __global__ void k_dummy_test(void) {}
@@ -84,14 +78,12 @@ static void checkCompiledTargetCompatibility(int deviceId, const hipDeviceProp_t
     if (hipErrorInvalidDeviceFunction == stat)
     {
         gmx_fatal(FARGS,
-                  "The %s binary does not include support for the CUDA architecture of a "
+                  "The %s binary does not include support for the ROCM architecture of a "
                   "detected GPU: %s, ID #%d (compute capability %d.%d). "
                   "By default, GROMACS supports all architectures of compute "
                   "capability >= 3.0, so your GPU "
                   "might be rare, or some architectures were disabled in the build. "
-                  "Consult the install guide for how to use the GMX_CUDA_TARGET_SM and "
-                  "GMX_CUDA_TARGET_COMPUTE CMake variables to add this architecture. "
-                  "To work around this error, use the CUDA_VISIBLE_DEVICES environment"
+                  "To work around this error, use the HIP_VISIBLE_DEVICES environment"
                   "variable to pass a list of GPUs that excludes the ID %d.",
                   gmx::getProgramContext().displayName(), deviceProp.name, deviceId,
                   deviceProp.major, deviceProp.minor, deviceId);
@@ -111,13 +103,13 @@ bool isHostMemoryPinned(const void* h_ptr)
         case hipSuccess: result = true; break;
 
         case hipErrorInvalidValue:
-            // If the buffer was not pinned, then it will not be recognized by CUDA at all
+            // If the buffer was not pinned, then it will not be recognized by ROCM at all
             result = false;
             // Reset the last error status
             hipGetLastError();
             break;
 
-        default: CU_RET_ERR(stat, "Unexpected CUDA error");
+        default: CU_RET_ERR(stat, "Unexpected ROCM error");
     }
     return result;
 }
@@ -125,7 +117,7 @@ bool isHostMemoryPinned(const void* h_ptr)
 /*!
  * \brief Runs GPU sanity checks.
  *
- * Runs a series of checks to determine that the given GPU and underlying CUDA
+ * Runs a series of checks to determine that the given GPU and underlying ROCM
  * driver/runtime functions properly.
  *
  * \param[in]  dev_id      the device ID of the GPU or -1 if the device has already been initialized
@@ -146,14 +138,14 @@ static int do_sanity_checks(int dev_id, const hipDeviceProp_t& dev_prop)
         return -1;
     }
 
-    /* no CUDA compatible device at all */
+    /* no ROCM compatible device at all */
     if (dev_count == 0)
     {
         return -1;
     }
 
     /* things might go horribly wrong if cudart is not compatible with the driver */
-    if (dev_count < 0 || dev_count > cuda_max_device_count)
+    if (dev_count < 0 || dev_count > rocm_max_device_count)
     {
         return -1;
     }
@@ -179,7 +171,7 @@ static int do_sanity_checks(int dev_id, const hipDeviceProp_t& dev_prop)
         }
     }
 
-    /* both major & minor is 9999 if no CUDA capable devices are present */
+    /* both major & minor is 9999 if no ROCM capable devices are present */
     if (dev_prop.major == 9999 && dev_prop.minor == 9999)
     {
         return -1;
@@ -343,7 +335,7 @@ bool isGpuDetectionFunctional(std::string* errorMessage)
         // Can't detect GPUs if there is no driver
         if (errorMessage != nullptr)
         {
-            errorMessage->assign("No valid CUDA driver found");
+            errorMessage->assign("No valid ROCM driver found");
         }
         return false;
     }
@@ -357,7 +349,7 @@ bool isGpuDetectionFunctional(std::string* errorMessage)
             /* hipGetDeviceCount failed which means that there is
              * something wrong with the machine: driver-runtime
              * mismatch, all GPUs being busy in exclusive mode,
-             * invalid CUDA_VISIBLE_DEVICES, or some other condition
+             * invalid HIP_VISIBLE_DEVICES, or some other condition
              * which should result in GROMACS issuing at least a
              * warning. */
             errorMessage->assign(hipGetErrorString(stat));
@@ -365,10 +357,10 @@ bool isGpuDetectionFunctional(std::string* errorMessage)
 
         // Consume the error now that we have prepared to handle
         // it. This stops it reappearing next time we check for
-        // errors. Note that if CUDA_VISIBLE_DEVICES does not contain
+        // errors. Note that if HIP_VISIBLE_DEVICES does not contain
         // valid devices, then hipGetLastError returns the
         // (undocumented) hipErrorNoDevice, but this should not be a
-        // problem as there should be no future CUDA API calls.
+        // problem as there should be no future HIP API calls.
         // NVIDIA bug report #2038718 has been filed.
         hipGetLastError();
         // Can't detect GPUs
@@ -391,7 +383,7 @@ void findGpus(gmx_gpu_info_t* gpu_info)
     if (stat != hipSuccess)
     {
         GMX_THROW(gmx::InternalError(
-                "Invalid call of findGpus() when CUDA API returned an error, perhaps "
+                "Invalid call of findGpus() when HIP API returned an error, perhaps "
                 "canDetectGpus() was not called appropriately beforehand."));
     }
 
@@ -427,7 +419,7 @@ void findGpus(gmx_gpu_info_t* gpu_info)
         else
         {
             // TODO:
-            //  - we inspect the CUDA API state to retrieve and record any
+            //  - we inspect the HIP API state to retrieve and record any
             //    errors that occurred during is_gmx_supported_gpu_id() here,
             //    but this would be more elegant done within is_gmx_supported_gpu_id()
             //    and only return a string with the error if one was encountered.
@@ -435,7 +427,7 @@ void findGpus(gmx_gpu_info_t* gpu_info)
             //  - we'll end up warning also in cases where users would already
             //    get an error before mdrun aborts.
             //
-            // Here we also clear the CUDA API error state so potential
+            // Here we also clear the HIP API error state so potential
             // errors during sanity checks don't propagate.
             if ((stat = hipGetLastError()) != hipSuccess)
             {
@@ -447,7 +439,7 @@ void findGpus(gmx_gpu_info_t* gpu_info)
 
     stat = hipPeekAtLastError();
     GMX_RELEASE_ASSERT(stat == hipSuccess,
-                       gmx::formatString("We promise to return with clean CUDA state, but "
+                       gmx::formatString("We promise to return with clean ROCM state, but "
                                          "non-success state encountered: %s: %s",
                                          hipGetErrorName(stat), hipGetErrorString(stat))
                                .c_str());
@@ -475,9 +467,8 @@ void get_gpu_device_info_string(char* s, const gmx_gpu_info_t& gpu_info, int ind
     }
     else
     {
-        sprintf(s, "#%d: NVIDIA %s, compute cap.: %d.%d, ECC: %3s, stat: %s", dinfo->id,
-                dinfo->prop.name, dinfo->prop.major, dinfo->prop.minor,
-                dinfo->prop.ECCEnabled ? "yes" : " no", gpu_detect_res_str[dinfo->stat]);
+        sprintf(s, "#%d: AMD %s, compute cap.: %d.%d, stat: %s", dinfo->id,
+                dinfo->prop.name, dinfo->prop.major, dinfo->prop.minor, gpu_detect_res_str[dinfo->stat]);
     }
 }
 
@@ -496,45 +487,45 @@ size_t sizeof_gpu_dev_info(void)
 
 void startGpuProfiler(void)
 {
-    /* The NVPROF_ID environment variable is set by nvprof and indicates that
-       mdrun is executed in the CUDA profiler.
-       If nvprof was run is with "--profile-from-start off", the profiler will
-       be started here. This way we can avoid tracing the CUDA events from the
-       first part of the run. Starting the profiler again does nothing.
-     */
+//todo
+/*
     if (cudaProfilerRun)
     {
         hipError_t stat;
         stat = hipProfilerStart();
         CU_RET_ERR(stat, "hipProfilerStart failed");
     }
+*/
 }
 
 void stopGpuProfiler(void)
 {
     /* Stopping the nvidia here allows us to eliminate the subsequent
        API calls from the trace, e.g. uninitialization and cleanup. */
+//todo
+/*
     if (cudaProfilerRun)
     {
         hipError_t stat;
         stat = hipProfilerStop();
         CU_RET_ERR(stat, "hipProfilerStop failed");
     }
+*/
 }
 
 void resetGpuProfiler(void)
 {
-    /* With CUDA <=7.5 the profiler can't be properly reset; we can only start
-     *  the profiling here (can't stop it) which will achieve the desired effect if
-     *  the run was started with the profiling disabled.
-     *
+     /*
      * TODO: add a stop (or replace it with reset) when this will work correctly in CUDA.
      * stopGpuProfiler();
      */
+//todo
+/*
     if (cudaProfilerRun)
     {
         startGpuProfiler();
     }
+*/
 }
 
 int gpu_info_get_stat(const gmx_gpu_info_t& info, int index)
