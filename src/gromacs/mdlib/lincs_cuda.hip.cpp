@@ -76,11 +76,40 @@
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/topology.h"
 
+#define GMX_ATOMIC_OVERWRITE
+
+
+
+#ifdef GMX_ATOMIC_OVERWRITE
+ __device__ __forceinline__  void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
+  const int* address_as_ull = (int*)address;
+  int old = *address_as_ull;
+  int assumed;
+
+  do {
+    assumed = old;
+    old = atomicCAS((int*)address_as_ull, assumed,
+                    __float_as_int(val +
+                    __int_as_float(assumed)));
+  } while (assumed != old);
+
+}
+ __device__ __forceinline__  void atomicAddOverWriteForFloat3(const float3* __restrict__ address,const float3 val) {
+  
+    atomicAddOverWriteForFloat(&address->x, val.x);
+    atomicAddOverWriteForFloat(&address->y, val.y);
+    atomicAddOverWriteForFloat(&address->z, val.z);
+
+}
+#endif
+
 namespace gmx
 {
 
 //! Number of CUDA threads in a block
-constexpr static int c_threadsPerBlock = 256;
+//constexpr static int c_threadsPerBlock = 256;
+//! Number of HIP threads in a block from 256 to 512
+constexpr static int c_threadsPerBlock = 512; 
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
 
@@ -258,8 +287,16 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Writing for all but dummy constraints
     if (!isDummyThread)
     {
-        atomicAdd(&gm_xp[i], -tmp * inverseMassi);
-        atomicAdd(&gm_xp[j], tmp * inverseMassj);
+	#ifdef GMX_ATOMIC_OVERWRITE
+		atomicAddOverWriteForFloat3(&gm_xp[i], -tmp * inverseMassi);
+	        atomicAddOverWriteForFloat3(&gm_xp[j], tmp * inverseMassj);
+	#else
+
+                atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+                atomicAdd(&gm_xp[j], tmp * inverseMassj);
+
+	#endif
+
     }
 
     /*
@@ -326,8 +363,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (!isDummyThread)
         {
             float3 tmp = rc * sqrtmu_sol;
-            atomicAdd(&gm_xp[i], -tmp * inverseMassi);
-            atomicAdd(&gm_xp[j], tmp * inverseMassj);
+	    #ifdef GMX_ATOMIC_OVERWRITE
+		    atomicAddOverWriteForFloat3(&gm_xp[i], -tmp * inverseMassi);
+		    atomicAddOverWriteForFloat3(&gm_xp[j], tmp * inverseMassj);
+	    #else
+	            atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+	            atomicAdd(&gm_xp[j], tmp * inverseMassj);
+	    #endif
         }
     }
 
@@ -335,8 +377,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     if (updateVelocities && !isDummyThread)
     {
         float3 tmp = rc * invdt * lagrangeScaled;
-        atomicAdd(&gm_v[i], -tmp * inverseMassi);
-        atomicAdd(&gm_v[j], tmp * inverseMassj);
+	#ifdef GMX_ATOMIC_OVERWRITE
+		atomicAddOverWriteForFloat3(&gm_v[i], -tmp * inverseMassi);
+		atomicAddOverWriteForFloat3(&gm_v[j], tmp * inverseMassj);
+	#else
+	        atomicAdd(&gm_v[i], -tmp * inverseMassi);
+        	atomicAdd(&gm_v[j], tmp * inverseMassj);
+	#endif
     }
 
 
@@ -394,7 +441,12 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // First 6 threads in the block add the results of 6 tensor components to the global memory address.
         if (threadIdx.x < 6)
         {
-            atomicAdd(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
+            	#ifdef GMX_ATOMIC_OVERWRITE
+			atomicAddOverWriteForFloat(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);	
+		#else
+			atomicAdd(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
+		#endif
+
         }
     }
 
