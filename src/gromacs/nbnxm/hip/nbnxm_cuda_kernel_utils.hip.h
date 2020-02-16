@@ -73,6 +73,19 @@ static const unsigned __device__ superClInteractionMask = ((1U << c_numClPerSupe
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
+static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
+  const int* address_as_ull = (int*)address;
+  int old = *address_as_ull;
+  int assumed;
+
+  do {
+    assumed = old;
+    old = atomicCAS((int*)address_as_ull, assumed,
+                    __float_as_int(val +
+                    __int_as_float(assumed)));
+  } while (assumed != old);
+
+}
 
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
 static __forceinline__ __device__ void
@@ -505,7 +518,7 @@ static __forceinline__ __device__ void
 
     if (tidxi < 3)
     {
-        atomicAdd((&fout[aidx].x) + tidxi, f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].x) + tidxi, f.x);
     }
 }
 
@@ -647,7 +660,7 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if (tidxj < 3)
     {
-        atomicAdd(&fout[aidx].x + tidxj, fin.x);
+        atomicAddOverWriteForFloat(&fout[aidx].x + tidxj, fin.x);
 
         if (bCalcFshift)
         {
@@ -715,8 +728,8 @@ static __forceinline__ __device__ void
     /* The first thread in the warp writes the reduced energies */
     if (tidx == 0)
     {
-        atomicAdd(e_lj, E_lj);
-        atomicAdd(e_el, E_el);
+        atomicAddOverWriteForFloat(e_lj, E_lj);
+        atomicAddOverWriteForFloat(e_el, E_el);
     }
 }
 
