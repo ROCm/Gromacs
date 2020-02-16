@@ -130,6 +130,7 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
+
 #if GMX_PTX_ARCH == 370
 #    define NTHREAD_Z (2)
 #    define MIN_BLOCKS_PER_MP (16)
@@ -395,6 +396,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
                - with pruning leads to register spilling;
                - on Kepler and later it is much slower;
                Tested with up to nvcc 7.5 */
+#    if !defined PRUNE_NBL
+#        pragma unroll 4
+#    endif
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imask & (superClInteractionMask << (jm * c_numClPerSupercl)))
@@ -476,9 +480,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif     /* LJ_COMB */
 
                                 // Ensure distance do not become so small that r^-12 overflows
-                                r2      = std::max<float>(r2, NBNXN_MIN_RSQ);
+                                r2      = fmaxf(r2, NBNXN_MIN_RSQ);
 
-                                inv_r  = rsqrt(r2);
+                                inv_r  = rsqrtf(r2);
                                 inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                                 inv_r6 = inv_r2 * inv_r2 * inv_r2;
@@ -633,6 +637,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
     float fshift_buf = 0.0f;
 
     /* reduce i forces */
+#    if !defined PRUNE_NBL
+#        pragma unroll 8
+#    endif
     for (i = 0; i < c_numClPerSupercl; i++)
     {
         ai = (sci * c_numClPerSupercl + i) * c_clSize + tidxi;
@@ -642,7 +649,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
     /* aadd up local shift forces into global mem, tidxj indexes x,y,z */
     if (bCalcFshift && tidxj < 3)
     {
-        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
     }
 
 #    ifdef CALC_ENERGIES
