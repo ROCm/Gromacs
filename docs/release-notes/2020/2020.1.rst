@@ -139,6 +139,14 @@ have temporary names, but all content will be in sync.
 
 :issue:`2440`
 
+Fix simulations using graph and modular simulations
+"""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Simulations using modular simulator and a graph object would fail with a
+segmentation fault.
+
+:issue:`3389`
+
 Fix center of mass motion removal with frozen atoms
 """""""""""""""""""""""""""""""""""""""""""""""""""
 
