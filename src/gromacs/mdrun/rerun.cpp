@@ -544,7 +544,7 @@ void gmx::LegacySimulator::do_rerun()
         }
 
         force_flags = (GMX_FORCE_STATECHANGED | GMX_FORCE_DYNAMICBOX | GMX_FORCE_ALLFORCES
-                       | (GMX_GPU ? GMX_FORCE_VIRIAL : 0) | // TODO: Get rid of this once #2649 is solved
+                       | GMX_FORCE_VIRIAL |  // TODO: Get rid of this once #2649 and #3400 are solved
                        GMX_FORCE_ENERGY | (doFreeEnergyPerturbation ? GMX_FORCE_DHDL : 0));
 
         if (shellfc)
