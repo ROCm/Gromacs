@@ -112,7 +112,7 @@ steps.
 
 :issue:`3388`
 
-Avoid integer overflow when using dispersioncorrection
+Avoid integer overflow when using dispersion correction
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 A change in the integer type storing the index meant that the value could overflow
@@ -138,6 +138,15 @@ can get out of sync. Now in very unlikely cases some checkpoint files might
 have temporary names, but all content will be in sync.
 
 :issue:`2440`
+
+Fix temperature calculation when center of mass motion is removed for part of the system
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+In the uncommon case where the center of mass motion is removed for part of the system
+but not the whole system, the number of degrees of freedom for the part without
+COMM removal would be incorrectly lowered by 3.
+
+:issue:`3406`
 
 Fix possible issue with picking undefined NB kernel types
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
