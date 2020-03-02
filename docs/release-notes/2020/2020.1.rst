@@ -131,15 +131,6 @@ have temporary names, but all content will be in sync.
 
 :issue:`2440`
 
-Remove frozen atoms from center of mass removal groups
-""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-Frozen atoms would still contribute to the mass of the group, while not being moved,
-leading to the movement of the remaining issues to be too small. Now, frozen atoms are
-removed from the center of mass removal groups to avoid this.
-
-:issue:`2553`
-
 Fix possible issue with picking undefined NB kernel types
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
