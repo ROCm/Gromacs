@@ -140,34 +140,31 @@ static __global__ void nbnxn_gpu_add_nbat_f_to_f_kernel(const float3* __restrict
                                                         const int atomStart,
                                                         const int numAtoms)
 {
-
-    /* map particle-level parallelism to 1D CUDA thread and block index */
+    /* map particle-level parallelism to 1D HIP thread and block index */
     const int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
 
     /* perform addition for each particle*/
     if (threadIndex < numAtoms)
     {
-
-        const int i        = gm_cell[atomStart + threadIndex];
-        float3*   gm_fDest = &gm_fTotal[atomStart + threadIndex];
-        float3    temp;
+        const int atomStart_threadIndex = atomStart + threadIndex;
+        const int i        = gm_cell[atomStart_threadIndex];
+        float3*   gm_fDest = &gm_fTotal[atomStart_threadIndex];
+        float4    temp;
 
         if (accumulateForce)
         {
-            temp = *gm_fDest;
-            //temp += gm_fNB[i]; //cm todo
-            temp = temp + gm_fNB[i];
+            temp = (float4){(*gm_fDest).x, (*gm_fDest).y, (*gm_fDest).z, 0};
+            temp = temp + (float4){gm_fNB[i].x, gm_fNB[i].y, gm_fNB[i].z, 0};
         }
         else
         {
-            temp = gm_fNB[i];
+            temp = __ldg((float4*)&gm_fNB[i]);
         }
         if (addPmeForce)
         {
-            //temp += gm_fPme[atomStart + threadIndex]; //cm todo
-            temp = temp + gm_fPme[atomStart + threadIndex];
+            temp = temp + (float4){gm_fPme[atomStart_threadIndex].x, gm_fPme[atomStart_threadIndex].y, gm_fPme[atomStart_threadIndex].z, 0};
         }
-        *gm_fDest = temp;
+        *gm_fDest = (float3){temp.x, temp.y, temp.z};
     }
     return;
 }
