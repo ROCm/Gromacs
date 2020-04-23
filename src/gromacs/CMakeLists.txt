@@ -214,6 +214,7 @@ if (GMX_USE_HIP)
                 COMMAND ${MPI_C_COMPILER} -showme:incdirs
                 OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
                 ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE)
+            separate_arguments(MPI_INCDIRS)
             include_directories(SYSTEM ${MPI_INCDIRS})
         endif()
     endif()
