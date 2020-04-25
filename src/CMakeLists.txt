@@ -48,10 +48,6 @@ endif()
 if(GMX_USE_HIP)
     get_hip_compiler_info(HIP_COMPILER_INFO HIP_DEVICE_COMPILER_FLAGS HIP_HOST_COMPILER_FLAGS)
 endif()
-string(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
-configure_file(config.h.cmakein config.h)
-configure_file(gmxpre-config.h.cmakein gmxpre-config.h)
-configure_file(buildinfo.h.cmakein buildinfo.h ESCAPE_QUOTES)
 # Make a file with compiler flags used for libgromacs for each
 # langauge and build configuration.  The one that corresponds to
 # CMAKE_BUILD_TYPE is #included into buildinfo.h and populates the
@@ -151,3 +147,18 @@ if (GMXAPI)
    endif()
    add_subdirectory(api)
 endif()
+
+# Configure header files with configuration-specific values. This step
+# should follow all introspection e.g. looking for headers and
+# libraries. If not, cmake will need to change the contents of the
+# file upon subsequent runs of cmake. This can mean that
+#
+#  cmake $src && make && make test
+#
+# requires building all the source files that depend on the changed
+# header file in both of the make stages. That's slow, and is useless
+# busy work for ccache, too.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
+configure_file(config.h.cmakein config.h)
+configure_file(gmxpre-config.h.cmakein gmxpre-config.h)
+configure_file(buildinfo.h.cmakein buildinfo.h ESCAPE_QUOTES)
