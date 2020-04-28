@@ -723,7 +723,11 @@ void gpu_free(gmx_nbnxn_hip_t* nb)
     CU_RET_ERR(stat, "hipEventDestroy failed on timers->misc_ops_and_local_H2D_done");
 
     delete nb->timers;
-    if (nb->bDoTime)
+    /*
+     This check is preventing proper cleanup of streams causing ISSUE reported in SWDEV-232965
+     It is safe to remove as validation check for use of streams is done in the for condition loop.
+     */
+    //if (nb->bDoTime)
     {
         /* The non-local counters/stream (second in the array) are needed only with DD. */
         for (int i = 0; i <= (nb->bUseTwoStreams ? 1 : 0); i++)
