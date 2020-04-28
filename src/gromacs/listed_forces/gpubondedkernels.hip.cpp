@@ -139,6 +139,15 @@ __device__ void bonds_gpu(const int       i,
             for (int m = 0; m < DIM; m++)
             {
                 float fij = fbond * dx[m];
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet(&gm_f[ai][m], fij);
+                atomicAddNoRet(&gm_f[aj][m], -fij);
+                if (calcVir && ki != CENTRAL)
+                {
+                    atomicAddNoRet(&sm_fShiftLoc[ki][m], fij);
+                    atomicAddNoRet(&sm_fShiftLoc[CENTRAL][m], -fij);
+                }
+#else
                 atomicAdd(&gm_f[ai][m], fij);
                 atomicAdd(&gm_f[aj][m], -fij);
                 if (calcVir && ki != CENTRAL)
@@ -146,6 +155,7 @@ __device__ void bonds_gpu(const int       i,
                     atomicAdd(&sm_fShiftLoc[ki][m], fij);
                     atomicAdd(&sm_fShiftLoc[CENTRAL][m], -fij);
                 }
+#endif
             }
         }
     }
@@ -233,6 +243,17 @@ __device__ void angles_gpu(const int       i,
                 f_i[m] = -(cik * r_kj[m] - cii * r_ij[m]);
                 f_k[m] = -(cik * r_ij[m] - ckk * r_kj[m]);
                 f_j[m] = -f_i[m] - f_k[m];
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet(&gm_f[ai][m], f_i[m]);
+                atomicAddNoRet(&gm_f[aj][m], f_j[m]);
+                atomicAddNoRet(&gm_f[ak][m], f_k[m]);
+                if (calcVir)
+                {
+                    atomicAddNoRet(&sm_fShiftLoc[t1][m], f_i[m]);
+                    atomicAddNoRet(&sm_fShiftLoc[CENTRAL][m], f_j[m]);
+                    atomicAddNoRet(&sm_fShiftLoc[t2][m], f_k[m]);
+                }
+#else
                 atomicAdd(&gm_f[ai][m], f_i[m]);
                 atomicAdd(&gm_f[aj][m], f_j[m]);
                 atomicAdd(&gm_f[ak][m], f_k[m]);
@@ -242,6 +263,7 @@ __device__ void angles_gpu(const int       i,
                     atomicAdd(&sm_fShiftLoc[CENTRAL][m], f_j[m]);
                     atomicAdd(&sm_fShiftLoc[t2][m], f_k[m]);
                 }
+#endif
             }
         }
     }
@@ -320,6 +342,17 @@ __device__ void urey_bradley_gpu(const int       i,
                 f_i[m] = -(cik * r_kj[m] - cii * r_ij[m]);
                 f_k[m] = -(cik * r_ij[m] - ckk * r_kj[m]);
                 f_j[m] = -f_i[m] - f_k[m];
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet(&gm_f[ai][m], f_i[m]);
+                atomicAddNoRet(&gm_f[aj][m], f_j[m]);
+                atomicAddNoRet(&gm_f[ak][m], f_k[m]);
+                if (calcVir)
+                {
+                    atomicAddNoRet(&sm_fShiftLoc[t1][m], f_i[m]);
+                    atomicAddNoRet(&sm_fShiftLoc[CENTRAL][m], f_j[m]);
+                    atomicAddNoRet(&sm_fShiftLoc[t2][m], f_k[m]);
+                }
+#else
                 atomicAdd(&gm_f[ai][m], f_i[m]);
                 atomicAdd(&gm_f[aj][m], f_j[m]);
                 atomicAdd(&gm_f[ak][m], f_k[m]);
@@ -329,6 +362,7 @@ __device__ void urey_bradley_gpu(const int       i,
                     atomicAdd(&sm_fShiftLoc[CENTRAL][m], f_j[m]);
                     atomicAdd(&sm_fShiftLoc[t2][m], f_k[m]);
                 }
+#endif
             }
         }
 
@@ -346,6 +380,16 @@ __device__ void urey_bradley_gpu(const int       i,
             for (int m = 0; m < DIM; m++)
             {
                 float fik = fbond * r_ik[m];
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet(&gm_f[ai][m], fik);
+                atomicAddNoRet(&gm_f[ak][m], -fik);
+
+                if (calcVir && ki != CENTRAL)
+                {
+                    atomicAddNoRet(&sm_fShiftLoc[ki][m], fik);
+                    atomicAddNoRet(&sm_fShiftLoc[CENTRAL][m], -fik);
+                }
+#else
                 atomicAdd(&gm_f[ai][m], fik);
                 atomicAdd(&gm_f[ak][m], -fik);
 
@@ -354,6 +398,7 @@ __device__ void urey_bradley_gpu(const int       i,
                     atomicAdd(&sm_fShiftLoc[ki][m], fik);
                     atomicAdd(&sm_fShiftLoc[CENTRAL][m], -fik);
                 }
+#endif
             }
         }
     }
@@ -451,10 +496,17 @@ __device__ static void do_dih_fup_gpu(const int      i,
 #pragma unroll
         for (int m = 0; (m < DIM); m++)
         {
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+            atomicAddNoRet(&gm_f[i][m], f_i[m]);
+            atomicAddNoRet(&gm_f[j][m], -f_j[m]);
+            atomicAddNoRet(&gm_f[k][m], -f_k[m]);
+            atomicAddNoRet(&gm_f[l][m], f_l[m]);
+#else
             atomicAdd(&gm_f[i][m], f_i[m]);
             atomicAdd(&gm_f[j][m], -f_j[m]);
             atomicAdd(&gm_f[k][m], -f_k[m]);
             atomicAdd(&gm_f[l][m], f_l[m]);
+#endif
         }
 
         if (calcVir)
@@ -465,10 +517,17 @@ __device__ static void do_dih_fup_gpu(const int      i,
 #pragma unroll
             for (int m = 0; (m < DIM); m++)
             {
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet(&sm_fShiftLoc[t1][m], f_i[m]);
+                atomicAddNoRet(&sm_fShiftLoc[CENTRAL][m], -f_j[m]);
+                atomicAddNoRet(&sm_fShiftLoc[t2][m], -f_k[m]);
+                atomicAddNoRet(&sm_fShiftLoc[t3][m], f_l[m]);
+#else
                 atomicAdd(&sm_fShiftLoc[t1][m], f_i[m]);
                 atomicAdd(&sm_fShiftLoc[CENTRAL][m], -f_j[m]);
                 atomicAdd(&sm_fShiftLoc[t2][m], -f_k[m]);
                 atomicAdd(&sm_fShiftLoc[t3][m], f_l[m]);
+#endif
             }
         }
     }
@@ -741,6 +800,15 @@ __device__ void pairs_gpu(const int       i,
 #pragma unroll
         for (int m = 0; m < DIM; m++)
         {
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+            atomicAddNoRet(&gm_f[ai][m], f[m]);
+            atomicAddNoRet(&gm_f[aj][m], -f[m]);
+            if (calcVir && fshift_index != CENTRAL)
+            {
+                atomicAddNoRet(&sm_fShiftLoc[fshift_index][m], f[m]);
+                atomicAddNoRet(&sm_fShiftLoc[CENTRAL][m], -f[m]);
+            }
+#else
             atomicAdd(&gm_f[ai][m], f[m]);
             atomicAdd(&gm_f[aj][m], -f[m]);
             if (calcVir && fshift_index != CENTRAL)
@@ -748,6 +816,7 @@ __device__ void pairs_gpu(const int       i,
                 atomicAdd(&sm_fShiftLoc[fshift_index][m], f[m]);
                 atomicAdd(&sm_fShiftLoc[CENTRAL][m], -f[m]);
             }
+#endif
         }
 
         if (calcEner)
@@ -846,9 +915,15 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
     {
         float* vtotVdw  = kernelParams.d_vTot + F_LJ14;
         float* vtotElec = kernelParams.d_vTot + F_COUL14;
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+        atomicAddNoRet(kernelParams.d_vTot + fType, vtot_loc);
+        atomicAddNoRet(vtotVdw, vtotVdw_loc);
+        atomicAddNoRet(vtotElec, vtotElec_loc);
+#else
         atomicAdd(kernelParams.d_vTot + fType, vtot_loc);
         atomicAdd(vtotVdw, vtotVdw_loc);
         atomicAdd(vtotElec, vtotElec_loc);
+#endif
     }
     /* Accumulate shift vectors from shared memory to global memory on the first SHIFTS threads of the block. */
     if (calcVir)
