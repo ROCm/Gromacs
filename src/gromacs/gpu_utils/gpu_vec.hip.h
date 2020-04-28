@@ -84,9 +84,15 @@ __forceinline__ __device__ void ivec_add_gpu(const ivec a, const ivec b, ivec c)
 
 __forceinline__ __device__ void fvec_inc_atomic(fvec a, const fvec b)
 {
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+    atomicAddNoRet(&a[XX], b[XX]);
+    atomicAddNoRet(&a[YY], b[YY]);
+    atomicAddNoRet(&a[ZZ], b[ZZ]);
+#else
     atomicAdd(&a[XX], b[XX]);
     atomicAdd(&a[YY], b[YY]);
     atomicAdd(&a[ZZ], b[ZZ]);
+#endif
 }
 
 __forceinline__ __device__ void fvec_inc_gpu(fvec a, const fvec b)
@@ -104,9 +110,15 @@ __forceinline__ __device__ void fvec_inc_gpu(fvec a, const fvec b)
 
 __forceinline__ __device__ void fvec_dec_atomic(fvec a, const fvec b)
 {
+#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+    atomicAddNoRet(&a[XX], -1.0f * b[XX]);
+    atomicAddNoRet(&a[YY], -1.0f * b[YY]);
+    atomicAddNoRet(&a[ZZ], -1.0f * b[ZZ]);
+#else
     atomicAdd(&a[XX], -1.0f * b[XX]);
     atomicAdd(&a[YY], -1.0f * b[YY]);
     atomicAdd(&a[ZZ], -1.0f * b[ZZ]);
+#endif
 }
 
 __forceinline__ __device__ void fvec_dec_gpu(fvec a, const fvec b)
