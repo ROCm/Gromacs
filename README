@@ -88,3 +88,10 @@ Don't hesitate to contact us if you are interested.
                        Good luck with your simulations!
 
                               The GROMACS Crew
+
+
+### GROMACS HIP PORT
+
+* [Build Notes - Single Node MPI version](https://github.com/ROCmSoftwarePlatform/Gromacs/blob/develop-2020.1/README_MPI.txt)
+* [Build Notes - Single Node threadMPI version](https://github.com/ROCmSoftwarePlatform/Gromacs/blob/develop-2020.1/README_threadMPI.txt)
+* [Tests](https://github.com/ROCmSoftwarePlatform/Gromacs/blob/develop-2020.1/README_tests.txt)
