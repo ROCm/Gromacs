@@ -253,9 +253,9 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             if (writeSmDtheta || writeGlobal)
             {
                 /* Differentiation and storing the spline derivatives (dtheta) */
-//#pragma unroll
                 const int ithyMin = useOrderThreads ? 0 : orderIndex;
                 const int ithyMax = useOrderThreads ? order : orderIndex + 1;
+#pragma unroll
                 for (int o = ithyMin; o < ithyMax; o++)
                 //for (o = 0; o < order; o++)
                 {
@@ -289,9 +289,9 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             splineData[0] = div * (1.0f - dr) * splineData[0];
 
             /* Storing the spline values (theta) */
-//#pragma unroll
             const int ithyMin = useOrderThreads ? 0 : orderIndex;
             const int ithyMax = useOrderThreads ? order : orderIndex + 1;
+#pragma unroll
             for (int o = ithyMin; o < ithyMax; o++)
             //for (o = 0; o < order; o++)
             {
