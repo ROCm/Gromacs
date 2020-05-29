@@ -133,7 +133,7 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
             const int splineIndexY = getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, YY, ithy);
             float       thetaY = sm_theta[splineIndexY];
             const float Val    = thetaZ * thetaY * (*atomCharge);
-            assert(isfinite(Val));
+            //assert(isfinite(Val));
             const int offset = iy * pnz + iz;
 
 #pragma unroll
@@ -148,8 +148,8 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
                 const int splineIndexX =
                         getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
                 const float thetaX = sm_theta[splineIndexX];
-                assert(isfinite(thetaX));
-                assert(isfinite(gm_grid[gridIndexGlobal]));
+                //assert(isfinite(thetaX));
+                //assert(isfinite(gm_grid[gridIndexGlobal]));
 #if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
                 atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
 #else
@@ -254,7 +254,7 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
             atomX.y = kernelParams.atoms.d_coordinates[atomIndexGlobal * DIM + YY];
             atomX.z = kernelParams.atoms.d_coordinates[atomIndexGlobal * DIM + ZZ];
         }
-        calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal>(
+        calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, useOrderThreads>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
 //        __syncwarp();
         __all(1);
