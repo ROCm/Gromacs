@@ -404,7 +404,7 @@ void pme_gpu_reinit_computation(const gmx_pme_t* pme, gmx_wallcycle* wcycle)
     pme_gpu_update_timings(pme->gpu);
 
     pme_gpu_clear_grids(pme->gpu);
-    pme_gpu_clear_energy_virial(pme->gpu);
+    //pme_gpu_clear_energy_virial(pme->gpu);
 
     wallcycle_sub_stop(wcycle, ewcsLAUNCH_GPU_PME);
     wallcycle_stop(wcycle, ewcLAUNCH_GPU);

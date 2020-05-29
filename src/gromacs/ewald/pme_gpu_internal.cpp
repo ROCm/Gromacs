@@ -144,8 +144,57 @@ void pme_gpu_synchronize(const PmeGpu* pmeGpu)
 
 void pme_gpu_alloc_energy_virial(PmeGpu* pmeGpu)
 {
+    int majorDim = -1, middleDim = -1, minorDim = -1;
+    const auto gridOrdering = pme_gpu_uses_dd(pmeGpu) ? GridOrdering::YZX : GridOrdering::XYZ;
+    switch (gridOrdering)
+    {
+        case GridOrdering::YZX:
+            majorDim  = YY;
+            middleDim = ZZ;
+            minorDim  = XX;
+            break;
+
+        case GridOrdering::XYZ:
+            majorDim  = XX;
+            middleDim = YY;
+            minorDim  = ZZ;
+            break;
+
+        default: GMX_ASSERT(false, "Implement grid ordering here and below for the kernel launch");
+    }
+    const int maxBlockSize = pmeGpu->programHandle_->impl_->solveMaxWorkGroupSize;
+    const int gridLineSize      = pmeGpu->kernelParams->grid.complexGridSize[minorDim];
+    const int gridLinesPerBlock = std::max(maxBlockSize / gridLineSize, 1);
+    const int blocksPerGridLine = (gridLineSize + maxBlockSize - 1) / maxBlockSize;
+    int       cellsPerBlock;
+    if (blocksPerGridLine == 1)
+    {
+        cellsPerBlock = gridLineSize * gridLinesPerBlock;
+    }
+    else
+    {
+        cellsPerBlock = (gridLineSize + blocksPerGridLine - 1) / blocksPerGridLine;
+    }
+    const int hipWarpSize  = pmeGpu->programHandle_->impl_->warpSize;
+    const int blockSize = (cellsPerBlock + hipWarpSize - 1) / hipWarpSize * hipWarpSize;
+
+    static_assert(GMX_GPU != GMX_GPU_CUDA || c_solveMaxWarpsPerBlock / 2 >= 4,
+                  "The CUDA solve energy kernels needs at least 4 warps. "
+                  "Here we launch at least half of the max warps.");
+
+    KernelLaunchConfig config;
+    config.blockSize[0] = blockSize;
+    config.gridSize[0]  = blocksPerGridLine;
+    // rounding up to full warps so that shuffle operations produce defined results
+    config.gridSize[1] = (pmeGpu->kernelParams->grid.complexGridSize[middleDim] + gridLinesPerBlock - 1)
+                         / gridLinesPerBlock;
+    config.gridSize[2] = pmeGpu->kernelParams->grid.complexGridSize[majorDim];
+    config.stream      = pmeGpu->archSpecific->pmeStream;
+//// all above in this function is copied from pme_gpu_solve below in this file, because we need the gridSize of
+//// the pme_solve kernel. This is not a decent implementation, but since pme_gpu_alloc_energy_virial executes
+//// only once per run, we currently accept it.
     const size_t energyAndVirialSize = c_virialAndEnergyCount * sizeof(float);
-    allocateDeviceBuffer(&pmeGpu->kernelParams->constants.d_virialAndEnergy, c_virialAndEnergyCount,
+    allocateDeviceBuffer(&pmeGpu->kernelParams->constants.d_virialAndEnergy, c_virialAndEnergyCount*(config.gridSize[0]*config.gridSize[1]*config.gridSize[2] +1),
                          pmeGpu->archSpecific->context);
     pmalloc(reinterpret_cast<void**>(&pmeGpu->staging.h_virialAndEnergy), energyAndVirialSize);
 }
@@ -889,7 +938,7 @@ static void pme_gpu_init(gmx_pme_t* pme, const gmx_device_info_t* gpuInfo, PmeGp
     pmeGpu->initializedClfftLibrary_ = std::make_unique<gmx::ClfftInitializer>();
 
     pme_gpu_init_internal(pmeGpu);
-    pme_gpu_alloc_energy_virial(pmeGpu);
+    //pme_gpu_alloc_energy_virial(pmeGpu);
 
     pme_gpu_copy_common_data_from(pme);
 
@@ -999,6 +1048,7 @@ void pme_gpu_reinit(gmx_pme_t* pme, const gmx_device_info_t* gpuInfo, PmeGpuProg
     pme_gpu_reinit_timings(pme->gpu);
 
     pme_gpu_reinit_grids(pme->gpu);
+    pme_gpu_alloc_energy_virial(pme->gpu);
     // Note: if timing the reinit launch overhead becomes more relevant
     // (e.g. with regulat PP-PME re-balancing), we should pass wcycle here.
     pme_gpu_reinit_computation(pme, nullptr);
@@ -1310,6 +1360,83 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
     }
 }
 
+//  Used for the rerduction of virial and energy results of pme_solve_kernel.
+
+
+//  In the original CUDA version, the 6 virials and 1 energy in each pme_solve_kernel are simply
+
+
+//  added to the gpu global memory using atomicAdd. It's OK in CUDA, but in hip the atomicAdd of float
+
+
+//  variable is extremely slow. Therefore, in hip we make the pme_solve_kernel write the virial and
+
+
+//  energy results to global memory directly, each kernel block of the pme_solve_kernel write 7 results,
+
+
+//  without any addition to results of other blocks. Then the following kernel is launched to the same
+
+
+//  stream of pme_solve_kernel to reduce the virial and energy results. For every virial or energy variable,
+
+
+//  we launch only one block of this kernel. It reads a type of virial or energy variable from the global
+
+
+//  memory (solve_BLOCKS in amount), recudes them to one result and writes it to the global memory.
+
+
+//  parameters:
+
+
+//  in -- results of virials and energy writed to global memory by the pme_solve_kernel
+
+
+//  out -- result reduced by this kernel and will be write the global memory
+
+
+//  blockSize -- blockSize of this kernel
+
+
+//  solve_BLOCKS -- blockSize of the pme_solve_kernel, also the total number of variables to reduce in
+
+
+//                  each of pme_solve_reduceEnergy kernel.
+
+
+__global__ void pme_solve_reduceEnergy(float *in, float *out, const int blockSize, const int solve_BLOCKS)
+{
+    float local_item;
+    const int num_iters = solve_BLOCKS / blockSize + 1;
+    HIP_DYNAMIC_SHARED(float, shm);
+    const int shm_length = blockSize / 64;
+    if(threadIdx.x < shm_length)
+       shm[threadIdx.x] = 0;
+    for(int iter = 0; iter < num_iters; ++iter)
+    {
+       int current_item = threadIdx.x + iter * blockSize;
+       if(current_item < solve_BLOCKS)
+       {
+          local_item = in[current_item];
+          for (int i=32; i>=1; i/=2)
+             local_item += __shfl_xor(local_item, i, 64);
+          const int shm_item_id = threadIdx.x / 64;
+          if((threadIdx.x & 0x3f) == 0)
+             shm[shm_item_id] += local_item;
+          __syncthreads();
+       }
+    }
+
+
+    if(threadIdx.x == 0)
+    {
+         for(int i = 1; i < shm_length; ++i)
+            shm[0] += shm[i];
+         *out = shm[0];
+    }
+}
+
 void pme_gpu_solve(const PmeGpu* pmeGpu, t_complex* h_grid, GridOrdering gridOrdering, bool computeEnergyAndVirial)
 {
     const bool copyInputAndOutputGrid = pme_gpu_is_testing(pmeGpu) || !pme_gpu_performs_FFT(pmeGpu);
@@ -1407,7 +1534,19 @@ void pme_gpu_solve(const PmeGpu* pmeGpu, t_complex* h_grid, GridOrdering gridOrd
     launchGpuKernel(kernelPtr, config, timingEvent, "PME solve", kernelArgs);
 #endif
     pme_gpu_stop_timing(pmeGpu, timingId);
+    if(computeEnergyAndVirial)
+    {
+       const int solve_blocks = config.gridSize[0] * config.gridSize[1] * config.gridSize[2];
+       const int add_blocks  = solve_blocks / 1024 + 1;
 
+       for(int i = 0; i < 7; ++i)
+       {
+           int offset = i * solve_blocks;
+           hipLaunchKernelGGL(pme_solve_reduceEnergy, dim3(add_blocks),
+                              dim3(1024), add_blocks/64 + 1, pmeGpu->archSpecific->pmeStream, kernelParamsPtr->constants.d_virialAndEnergy + 7 + offset, 
+                              kernelParamsPtr->constants.d_virialAndEnergy + i, 1024, solve_blocks);
+       }
+    }  
     if (computeEnergyAndVirial)
     {
         copyFromDeviceBuffer(pmeGpu->staging.h_virialAndEnergy,
