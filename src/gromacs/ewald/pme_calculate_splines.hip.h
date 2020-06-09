@@ -53,7 +53,7 @@
 #include "pme_grid.h"
 
 //! Controls if the atom and charge data is prefeched into shared memory or loaded per thread from global
-static const bool c_useAtomDataPrefetch = true;
+static const bool c_useAtomDataPrefetch = false;
 
 /*! \brief
  * General purpose function for loading atom-related data from global to shared memory.
