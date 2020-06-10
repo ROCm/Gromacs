@@ -59,9 +59,6 @@ constexpr bool c_wrapY = true;
 template<const int order, const bool computeSplines, const bool spreadCharges, const bool wrapX, const bool wrapY, const bool writeGlobal, const bool orderThreads>
 __global__ void pme_spline_and_spread_kernel(const PmeGpuHipKernelParams kernelParams);
 
-template<const int order, const bool computeSplines, const bool spreadCharges, const bool wrapX, const bool wrapY, const bool writeGlobal, const bool orderThreads>
-__global__ void pme_spline_and_spread_useorder_kernel(const PmeGpuHipKernelParams kernelParams);
-
 // Add extern declarations to inform that there will be a definition
 // provided in another translation unit.
 extern template __global__ void pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, true, true>(
@@ -79,10 +76,6 @@ extern template __global__ void pme_spline_and_spread_kernel<c_pmeOrder, false, 
 extern template __global__ void pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, true>(
         const PmeGpuHipKernelParams);
 extern template __global__ void pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, false>(
-        const PmeGpuHipKernelParams);
-
-
-extern template __global__ void pme_spline_and_spread_useorder_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, true>(
         const PmeGpuHipKernelParams);
 
 template<GridOrdering gridOrdering, bool computeEnergyAndVirial>
@@ -125,8 +118,7 @@ PmeGpuProgramImpl::PmeGpuProgramImpl(const gmx_device_info_t*)
     splineAndSpreadKernel =
             pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, false>;
     splineAndSpreadKernelThPerAtom4 =
-            //pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, true>;
-            pme_spline_and_spread_useorder_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, true>;
+            pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, false, true>;
     splineAndSpreadKernelWriteSplines =
             pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, true, false>;
     splineAndSpreadKernelWriteSplinesThPerAtom4 =

@@ -47,7 +47,6 @@ gmx_add_libgromacs_sources(
     pme_solve.cpp
     pme_spline_work.cpp
     pme_spread.cpp
-    pme_spread_useorder.hip.cpp
     # Files that implement stubs
     pme_gpu_program.cpp
     pme_pp_comm_gpu_impl.cpp
@@ -82,7 +81,6 @@ elseif (GMX_USE_HIP)
         pme_gpu_3dfft.hip.cpp
         pme_solve.hip.cpp
         pme_spread.hip.cpp
-        pme_spread_useorder.hip.cpp
         pme_gpu_program_impl.hip.cpp
         pme_pp_comm_gpu_impl.hip.cpp
         pme_force_sender_gpu_impl.hip.cpp
