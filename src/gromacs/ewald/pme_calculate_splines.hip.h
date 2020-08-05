@@ -215,6 +215,7 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
                         sm_gridlineIndices[sharedMemoryIndex];
             }
         }
+        __syncthreads();
 
         /* B-spline calculation */
 
