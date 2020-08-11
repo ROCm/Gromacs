@@ -385,9 +385,11 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif
         {
             /* Pre-load cj into shared memory on both warps separately */
-            if (((tidxj * hipBlockDim_x) % warp_size == 0) & (tidxi < c_nbnxnGpuJgroupSize))
+            if (tidxi == 0)
             {
-                cjs[tidxi] = pl_cj4[j4].cj[tidxi];
+                for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
+                    cjs[i] = pl_cj4[j4].cj[i];
+		}
             }
 //            __syncwarp(c_fullWarpMask); //cm todo
               __all(1);
