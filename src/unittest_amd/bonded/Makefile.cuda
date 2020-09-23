@@ -1,0 +1,15 @@
+NVCC=/usr/local/cuda/bin/nvcc
+
+EXECUTABLE=bondedCheck_cuda
+
+all: $(EXECUTABLE)
+
+CXXFLAGS := -g -std=c++11 
+LDFLAGS := 
+
+bondedCheck_cuda: bondedCheck.cu
+	$(NVCC) $(CXXFLAGS) -o $@ $^
+
+clean:
+	rm -f $(EXECUTABLE) *.o 
+

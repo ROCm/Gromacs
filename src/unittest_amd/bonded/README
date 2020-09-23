@@ -1,0 +1,10 @@
+
+  To build on ROCM
+    #> make -f Makefile.hip clean
+    #> make -f Makefile.hip 
+
+
+  To build on Cuda
+    #> make -f Makefile.cuda clean
+    #> make -f Makefile.cuda
+

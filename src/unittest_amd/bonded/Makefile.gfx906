@@ -1,0 +1,17 @@
+HIPCC=/opt/rocm/bin/hipcc
+
+EXECUTABLE=bondedCheck_hip.out
+
+all: $(EXECUTABLE)
+
+CXXFLAGS := -g -std=c++11 -D_HIP_KERNEL_TEST_ 
+LDFLAGS := 
+
+%.out: %.o 
+	$(HIPCC) -o $@ $^
+
+%.o: %.cpp
+	$(HIPCC) $(CXXFLAGS) -c -o $@ $^ 
+
+clean:
+	rm -f $(EXECUTABLE) *.o 

@@ -1,0 +1,15 @@
+NVCC=/usr/local/cuda/bin/nvcc
+
+EXECUTABLE=bufferOpsCheck_cuda
+
+all: $(EXECUTABLE)
+
+CXXFLAGS := -g -std=c++11 
+LDFLAGS := 
+
+bufferOpsCheck_cuda: bufferOpsCheck.cu
+	$(NVCC) $(CXXFLAGS) -o $@ $^
+
+clean:
+	rm -f $(EXECUTABLE) *.o 
+

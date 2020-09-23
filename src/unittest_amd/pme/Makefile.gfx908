@@ -1,0 +1,39 @@
+HIP_PATH?= $(wildcard /opt/rocm/hip)
+ifeq (,$(HIP_PATH))
+        HIP_PATH=../../..
+endif
+
+HIPCC=$(HIP_PATH)/bin/hipcc
+
+TARGET=hcc
+
+SOURCES = spread.hip.cpp gather.hip.cpp solve.hip.cpp spread-atomicAddNoRet.hip.cpp solve-atomicAddNoRet.hip.cpp
+OBJECTS = $(SOURCES:.cpp=.o)
+
+EXECUTABLE=spread.out gather.out solve.out spread-atomicAddNoRet.out solve-atomicAddNoRet.out
+
+
+all: $(EXECUTABLE)
+
+CXXFLAGS =-g
+
+CXX=$(HIPCC)
+
+spread.out: spread.hip.o
+	$(HIPCC) -DHCC_ENABLE_ACCELERATOR_PRINTF -o $@ $^
+
+gather.out: gather.hip.o
+	$(HIPCC) -DHCC_ENABLE_ACCELERATOR_PRINTF -o $@ $^
+
+solve.out: solve.hip.o
+	$(HIPCC) -DDEBUG -DHCC_ENABLE_ACCELERATOR_PRINTF -o $@ $^
+
+spread-atomicAddNoRet.out: spread-atomicAddNoRet.hip.o
+	$(HIPCC) -DHCC_ENABLE_ACCELERATOR_PRINTF -o $@ $^
+
+solve-atomicAddNoRet.out: solve-atomicAddNoRet.hip.o
+	$(HIPCC) -DDEBUG -DHCC_ENABLE_ACCELERATOR_PRINTF -o $@ $^
+clean:
+	rm -f $(EXECUTABLE)
+	rm -f $(OBJECTS)
+	rm -f $(HIP_PATH)/src/*.o
