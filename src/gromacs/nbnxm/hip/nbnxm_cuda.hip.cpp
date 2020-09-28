@@ -102,7 +102,7 @@
 #undef FUNCTION_DECLARATION_ONLY
 
 /* Now generate the function definitions if we are using a single compilation unit. */
-#if GMX_CUDA_NB_SINGLE_COMPILATION_UNIT
+#if GMX_ROCM_NB_SINGLE_COMPILATION_UNIT
 #    include "nbnxm_cuda_kernel_F_noprune.hip.cpp"
 #    include "nbnxm_cuda_kernel_F_prune.hip.cpp"
 #    include "nbnxm_cuda_kernel_VF_noprune.hip.cpp"
