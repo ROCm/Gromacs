@@ -40,7 +40,7 @@ cd build
 make -j$(nproc)
 make -j$(nproc) install
 cd ~
-git clone https://github.com/open-mpi/ompi.git -b v4.0.1
+git clone https://github.com/open-mpi/ompi.git -b v4.0.3
 cd ompi
 ./autogen.pl
 mkdir build
@@ -123,7 +123,7 @@ cd build
 make -j$(nproc)
 make -j$(nproc) install
 cd $INSTALL_DIR
-git clone https://github.com/open-mpi/ompi.git -b v4.0.1
+git clone https://github.com/open-mpi/ompi.git -b v4.0.3
 cd ompi
 ./autogen.pl
 mkdir build
