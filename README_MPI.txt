@@ -93,6 +93,7 @@ wget -qO - http://repo.radeon.com/rocm/apt/debian/rocm.gpg.key | sudo apt-key ad
 echo 'deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main' | sudo tee /etc/apt/sources.list.d/rocm.list
 apt update
 apt install rocm-dkms rocfft
+sh -c 'echo -e "gfx803\ngfx900\ngfx906" >> /opt/rocm/bin/target.lst'
 reboot
 
 //install OpenMPI, UCX and Gdrcopy
