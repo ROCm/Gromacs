@@ -43,6 +43,8 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <mpi.h>
+#include <fstream>
 
 #include "gromacs/nbnxm/nbnxm_gpu.h"
 
@@ -458,6 +460,152 @@ void gpu_copy_xq_to_gpu(gmx_nbnxn_hip_t* nb, const nbnxn_atomdata_t* nbatom, con
     nbnxnInsertNonlocalGpuDependency(nb, iloc);
 }
 
+void printNbParam(cu_atomdata_t* adat, cu_plist_t* plist, cu_nbparam_t* nbp, const char* fileName) {
+    std::ofstream myfile(fileName, std::ofstream::out);
+
+    int natoms = adat->natoms;
+
+    float *xq   = new float[natoms*4];
+    float *e_lj = new float[1];
+    float *e_el = new float[1];
+
+    float *fshift    = new float[SHIFTS*3];
+    float *shift_vec = new float[SHIFTS*3];
+    float *lj_comb   = new float[natoms*2];
+
+    int *atom_types = new int[natoms];
+
+    cu_copy_D2H_sync(xq, adat->xq,
+                      natoms * sizeof(*adat->xq));
+
+    cu_copy_D2H_sync(e_lj, adat->e_lj,
+                      sizeof(*adat->e_lj));
+    cu_copy_D2H_sync(e_el, adat->e_el,
+                      sizeof(*adat->e_el));
+
+    cu_copy_D2H_sync(fshift, adat->fshift,
+                      SHIFTS * sizeof(*adat->fshift));
+    cu_copy_D2H_sync(shift_vec, adat->shift_vec,
+                      SHIFTS * sizeof(*adat->shift_vec));
+
+    cu_copy_D2H_sync(lj_comb, adat->lj_comb,
+                      natoms * sizeof(*adat->lj_comb));
+    cu_copy_D2H_sync(atom_types, adat->atom_types,
+                      natoms * sizeof(*adat->atom_types));
+
+    myfile << "basic.natoms:" << natoms << std::endl;
+    myfile << "basic.natoms_local:" << adat->natoms_local << std::endl;
+    myfile << "basic.nalloc:" << adat->nalloc << std::endl;
+    myfile << "basic.ntypes:" << adat->ntypes << std::endl;
+    myfile << "basic.bShiftVecUploaded:" << adat->bShiftVecUploaded << std::endl;
+    myfile << "basic.na_c:" << plist->na_c << std::endl;
+    myfile << "basic.nsci:" << plist->nsci << std::endl;
+    myfile << "basic.sci_nalloc:" << plist->sci_nalloc << std::endl;
+    myfile << "basic.ncj4:" << plist->ncj4 << std::endl;
+    myfile << "basic.cj4_nalloc:" << plist->cj4_nalloc << std::endl;
+    myfile << "basic.nimask:" << plist->nimask << std::endl;
+    myfile << "basic.imask_nalloc:" << plist->imask_nalloc << std::endl;
+    myfile << "basic.nexcl:" << plist->nexcl << std::endl;
+    myfile << "basic.excl_nalloc:" << plist->excl_nalloc << std::endl;
+
+    for (int i = 0; i < natoms*4; i++) {
+        myfile << "xq[" << i << "]:" << xq[i] << std::endl;
+    }
+
+    myfile << "e_lj:" << e_lj[0] << std::endl;
+    myfile << "e_el:" << e_el[0] << std::endl;
+
+    for (int i = 0; i < SHIFTS*3; i++) {
+        myfile << "fshift[" << i << "]:" << fshift[i] << std::endl;
+    }
+    for (int i = 0; i < SHIFTS*3; i++) {
+        myfile << "shift_vec[" << i << "]:" << shift_vec[i] << std::endl;
+    }
+
+    for (int i = 0; i < natoms*2; i++) {
+        myfile << "lj_comb[" << i << "]:" << lj_comb[i] << std::endl;
+    }
+
+    for (int i = 0; i < natoms; i++) {
+        myfile << "atom_types[" << i << "]:" << atom_types[i] << std::endl;
+    }
+
+    int nsci = plist->nsci;
+    nbnxn_sci_t* sci = new nbnxn_sci_t[nsci];
+    cu_copy_D2H_sync(sci, plist->sci,
+                      nsci * sizeof(*plist->sci));
+
+    for (int i = 0; i < nsci; i++) {
+        myfile << "sci[" << i << "].sci:"           << sci[i].sci << std::endl;
+        myfile << "sci[" << i << "].shift:"         << sci[i].shift << std::endl;
+        myfile << "sci[" << i << "].cj4_ind_start:" << sci[i].cj4_ind_start << std::endl;
+        myfile << "sci[" << i << "].cj4_ind_end:"   << sci[i].cj4_ind_end << std::endl;
+    }
+    int ncj4 = plist->ncj4;
+    nbnxn_cj4_t* cj4 = new nbnxn_cj4_t[ncj4];
+    cu_copy_D2H_sync(cj4, plist->cj4,
+                      ncj4 * sizeof(*plist->cj4));
+
+    for (int i = 0; i < ncj4; i++) {
+        for (int j = 0; j < c_nbnxnGpuJgroupSize; j++) {
+            myfile << "cj4[" << i << "]:" << cj4[i].cj[j] << std::endl;
+        }
+        for (int k = 0; k < c_nbnxnGpuClusterpairSplit; k++) {
+            myfile << "cj4[" << i << "]:" << cj4[i].imei[k].imask << std::endl;
+            myfile << "cj4[" << i << "]:" << cj4[i].imei[k].excl_ind << std::endl;
+        }
+    }
+
+    int nexcl = plist->nexcl;
+    nbnxn_excl_t* excl = new nbnxn_excl_t[nexcl];
+    cu_copy_D2H_sync(excl, plist->excl,
+                      nexcl * sizeof(*plist->excl));
+
+    for (int i = 0; i < nexcl; i++) {
+        for(int j = 0; j < c_nbnxnGpuExclSize; j++) {
+            myfile << "excl[" << i << "]:" << excl[i].pair[j] << std::endl;
+        }
+    }
+
+    myfile << "nbp.eeltype:"  << nbp->eeltype  << std::endl;
+    myfile << "nbp.vdwtype:"  << nbp->vdwtype  << std::endl;
+
+    myfile << "nbp.epsfac:"        << nbp->epsfac        << std::endl;
+    myfile << "nbp.c_rf:"          << nbp->c_rf          << std::endl;
+    myfile << "nbp.two_k_rf:"      << nbp->two_k_rf      << std::endl;
+    myfile << "nbp.ewald_beta:"    << nbp->ewald_beta    << std::endl;
+    myfile << "nbp.sh_ewald:"      << nbp->sh_ewald      << std::endl;
+    myfile << "nbp.sh_lj_ewald:"   << nbp->sh_lj_ewald   << std::endl;
+    myfile << "nbp.ewaldcoeff_lj:" << nbp->ewaldcoeff_lj << std::endl;
+
+    myfile << "nbp.rcoulomb_sq:" << nbp->rcoulomb_sq << std::endl;
+
+    myfile << "nbp.rvdw_sq:"           << nbp->rvdw_sq << std::endl;
+    myfile << "nbp.rvdw_switch:"       << nbp->rvdw_switch << std::endl;
+    myfile << "nbp.rlistOuter_sq:"     << nbp->rlistOuter_sq << std::endl;
+    myfile << "nbp.rlistInner_sq:"     << nbp->rlistInner_sq << std::endl;
+    myfile << "nbp.useDynamicPruning:" << nbp->rlistInner_sq << std::endl;
+
+    myfile << "nbp.dispersion_shift.c2:"   << nbp->dispersion_shift.c2 << std::endl;
+    myfile << "nbp.dispersion_shift.c3:"   << nbp->dispersion_shift.c3 << std::endl;
+    myfile << "nbp.dispersion_shift.cpot:" << nbp->dispersion_shift.cpot << std::endl;
+    myfile << "nbp.repulsion_shift.c2:"    << nbp->repulsion_shift.c2 << std::endl;
+    myfile << "nbp.repulsion_shift.c3:"    << nbp->repulsion_shift.c3 << std::endl;
+    myfile << "nbp.repulsion_shift.cpot:"  << nbp->repulsion_shift.cpot << std::endl;
+
+    int nbfpSize = 2*adat->ntypes*adat->ntypes;
+    float *nbfp  = new float[nbfpSize];
+
+    cu_copy_D2H_sync(nbfp, nbp->nbfp,
+                      nbfpSize * sizeof(*nbp->nbfp));
+
+    for (int i = 0; i < nbfpSize; i++) {
+        myfile << "nbp.nbfp["  << i << "]:" << nbfp[i] << std::endl;
+    }
+
+    myfile.close();
+}
+
 /*! As we execute nonbonded workload in separate streams, before launching
    the kernel we need to make sure that he following operations have completed:
    - atomdata allocation and related H2D transfers (every nstlist step);
@@ -542,6 +690,19 @@ void gpu_launch_kernel(gmx_nbnxn_hip_t* nb, const gmx::StepWorkload& stepWork, c
     config.gridSize[0]      = nblock;
     config.sharedMemorySize = calc_shmem_required_nonbonded(num_threads_z, nb->dev_info, nbp);
     config.stream           = stream;
+
+    //int rank;
+    //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    //if (rank == 0) {
+    //    char fileName[50];
+    //    static int seqNum = 1;
+    //    sprintf(fileName, "%d_%d_%d_%d_%d_%d.txt", nbp->eeltype, nbp->vdwtype, stepWork.computeEnergy,
+    //                        (plist->haveFreshList && !nb->timers->interaction[iloc].didPrune),
+    //                         static_cast<int>(iloc), seqNum++);
+    //    
+    //    printNbParam(adat, plist, nbp, fileName);
+    //}
 
     if (debug)
     {
