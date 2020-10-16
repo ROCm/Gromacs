@@ -55,6 +55,9 @@
 #    include <hipfft.h>
 
 #    include "gromacs/gpu_utils/gputraits.hip.h"
+#if GMX_ROCM_USE_XFFT
+#    include <xfft.h>
+#endif
 #elif GMX_GPU == GMX_GPU_OPENCL
 #    include <clFFT.h>
 
@@ -99,6 +102,11 @@ private:
     hipfftHandle   planC2R_;
     hipfftReal*    realGrid_;
     hipfftComplex* complexGrid_;
+#if GMX_ROCM_USE_XFFT
+    xfftR2CPlan_t  xfftPlanR2C_;
+    xfftC2RPlan_t  xfftPlanC2R_;
+    bool           xfftSupported_;
+#endif
 #elif GMX_GPU == GMX_GPU_OPENCL
     clfftPlanHandle               planR2C_;
     clfftPlanHandle               planC2R_;

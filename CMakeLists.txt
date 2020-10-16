@@ -200,6 +200,8 @@ option(GMX_USE_OPENCL "Enable OpenCL acceleration" OFF)
 
 option(GMX_INSTALL_LEGACY_API "Install legacy headers" OFF)
 
+option(GMX_ROCM_USE_XFFT "Enable XFFT on ROCm" OFF)
+
 # The earliest version of the CUDA toolkit that supports c++14 is 9.0
 set(REQUIRED_CUDA_VERSION 9.0)
 set(REQUIRED_CUDA_COMPUTE_CAPABILITY 3.0)
@@ -241,6 +243,10 @@ else()
     else()
         message(FATAL_ERROR "OpenCL requested but GPU option is not enabled (try -DGMX_GPU=on) ")
     endif()
+endif()
+
+if(NOT GMX_USE_HIP)
+    set(GMX_ROCM_USE_XFFT OFF)
 endif()
 
 gmx_option_multichoice(

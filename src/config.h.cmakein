@@ -405,6 +405,10 @@
 /* Use Interactive Molecular Dynamics */
 #cmakedefine01 GMX_IMD
 
+
+/* Enable XFFT on ROCm */
+#cmakedefine01 GMX_ROCM_USE_XFFT
+
 /*! \endcond */
 
 #endif

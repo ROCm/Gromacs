@@ -227,6 +227,13 @@ if (GMX_USE_HIP)
     endif()
 
     target_link_libraries(libgromacs PRIVATE roc::rocfft)
+    if (GMX_ROCM_USE_XFFT)
+        add_subdirectory(../external/xfft xfft-build)
+        add_dependencies(libgromacs xfft)
+        target_include_directories(libgromacs PRIVATE
+        	$<BUILD_INTERFACE:${xfft_INCLUDE_DIR}>)
+        target_link_libraries(libgromacs PRIVATE $<BUILD_INTERFACE:${xfft_LIBRARIES}>)
+    endif()
 elseif (GMX_USE_CUDA)
     # Work around FindCUDA that prevents using target_link_libraries()
     # with keywords otherwise...

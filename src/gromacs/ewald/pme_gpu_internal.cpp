@@ -351,7 +351,6 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
     // Multiplied by 2 because we count complex grid size for complex numbers, but all allocations/pointers are float
     if (pmeGpu->archSpecific->performOutOfPlaceFFT)
     {
-        /* 2 separate grids */
         reallocateDeviceBuffer(&kernelParamsPtr->grid.d_fourierGrid, newComplexGridSize,
                                &pmeGpu->archSpecific->complexGridSize,
                                &pmeGpu->archSpecific->complexGridSizeAlloc, pmeGpu->archSpecific->context);
