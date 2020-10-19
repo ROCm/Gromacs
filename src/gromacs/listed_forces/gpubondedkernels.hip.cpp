@@ -840,6 +840,18 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
     float      vtotElec_loc = 0;
     __shared__ fvec sm_fShiftLoc[SHIFTS];
 
+    // two extra elements, one for F_LJ14 and one for F_COUL14
+    constexpr uint32_t atomic_shared_mem_size = numFTypesOnGpu + 2;
+    constexpr uint32_t F_LJ14_shared_index    = numFTypesOnGpu;
+    constexpr uint32_t F_COUL14_shared_index  = numFTypesOnGpu + 1;
+
+    __shared__ float d_vTot_shared[atomic_shared_mem_size];
+    if(threadIdx.x < atomic_shared_mem_size)
+    {
+        d_vTot_shared[threadIdx.x] = 0.0f;
+    }
+    __syncthreads();
+
     if (calcVir)
     {
         if (threadIdx.x < SHIFTS)
@@ -851,7 +863,7 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
         __syncthreads();
     }
 
-    int  fType;
+    int  fType, fType_shared_index;
     bool threadComputedPotential = false;
 #pragma unroll
     for (int j = 0; j < numFTypesOnGpu; j++)
@@ -862,6 +874,7 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
             int            fTypeTid = tid - kernelParams.fTypeRangeStart[j];
             const t_iatom* iatoms   = kernelParams.d_iatoms[j];
             fType                   = kernelParams.fTypesOnGpu[j];
+            fType_shared_index      = j;
             if (calcEner)
             {
                 threadComputedPotential = true;
@@ -913,18 +926,61 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
 
     if (threadComputedPotential)
     {
-        float* vtotVdw  = kernelParams.d_vTot + F_LJ14;
-        float* vtotElec = kernelParams.d_vTot + F_COUL14;
-#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
-        atomicAddNoRet(kernelParams.d_vTot + fType, vtot_loc);
-        atomicAddNoRet(vtotVdw, vtotVdw_loc);
-        atomicAddNoRet(vtotElec, vtotElec_loc);
-#else
-        atomicAdd(kernelParams.d_vTot + fType, vtot_loc);
-        atomicAdd(vtotVdw, vtotVdw_loc);
-        atomicAdd(vtotElec, vtotElec_loc);
-#endif
+
+        float vtot_shuffle = vtot_loc;
+        float vtotVdw_shuffle = vtotVdw_loc;
+        float vtotElec_shuffle = vtotElec_loc;
+
+        // TODO use warpSize instead of hardcoded 32?
+        #pragma unroll
+        for (unsigned int offset = 32; offset > 0; offset >>= 1)
+        {
+            vtot_shuffle += __shfl_down(vtot_shuffle, offset);
+            vtotVdw_shuffle += __shfl_down(vtotVdw_shuffle, offset);
+            vtotElec_shuffle += __shfl_down(vtotElec_shuffle, offset);
+        }
+
+        if ((threadIdx.x & 63) == 0)
+        {
+            #if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet((&d_vTot_shared[fType_shared_index]), vtot_shuffle);
+                atomicAddNoRet((&d_vTot_shared[F_LJ14_shared_index]), vtotVdw_shuffle);
+                atomicAddNoRet((&d_vTot_shared[F_COUL14_shared_index]), vtotElec_shuffle);
+            #else
+                atomicAdd((&d_vTot_shared[fType_shared_index]), vtot_shuffle);
+                atomicAdd((&d_vTot_shared[F_LJ14_shared_index]), vtotVdw_shuffle);
+                atomicAdd((&d_vTot_shared[F_COUL14_shared_index]), vtotElec_shuffle);
+            #endif
+        }
     }
+
+    __syncthreads();
+    if(calcEner && threadIdx.x < numFTypesOnGpu)
+    {
+
+        fType = kernelParams.fTypesOnGpu[threadIdx.x];
+        float vtot_loc_block = d_vTot_shared[threadIdx.x];
+        #if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+            atomicAddNoRet((kernelParams.d_vTot + fType), vtot_loc_block);
+        #else
+            atomicAdd((kernelParams.d_vTot + fType), vtot_loc_block);
+        #endif
+
+        if(threadIdx.x == 0)
+        {
+            float vtotVdw_block = d_vTot_shared[F_LJ14_shared_index];
+            float vtotElec_block = d_vTot_shared[F_COUL14_shared_index];
+
+            #if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                atomicAddNoRet(kernelParams.d_vTot + F_LJ14, vtotVdw_block);
+                atomicAddNoRet(kernelParams.d_vTot + F_COUL14, vtotElec_block);
+            #else
+                atomicAdd(kernelParams.d_vTot + F_LJ14, vtotVdw_block);
+                atomicAdd(kernelParams.d_vTot + F_COUL14, vtotElec_block);
+            #endif
+        }
+    }
+
     /* Accumulate shift vectors from shared memory to global memory on the first SHIFTS threads of the block. */
     if (calcVir)
     {
