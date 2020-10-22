@@ -99,7 +99,7 @@ struct BondedCudaKernelParameters
     int fTypeRangeStart[numFTypesOnGpu];
     //! The end index in the range of each interaction type
     int fTypeRangeEnd[numFTypesOnGpu];
-
+    
     //! Force parameters (on GPU)
     t_iparams* d_forceParams;
     //! Coordinates before the timestep (on GPU)
