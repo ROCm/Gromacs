@@ -649,9 +649,22 @@ __launch_bounds__(THREADS_PER_BLOCK)
     }
 
     /* aadd up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && tidxj < 3)
+    if ( bCalcFshift)
     {
-        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+        #pragma unroll
+        for (unsigned int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
+        {
+            fshift_buf += __shfl_down(fshift_buf, offset);
+        }
+        
+        if( tidxi == 0 && tidxj < 3 )
+        {
+            #if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+                    atomicAddNoRet(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+            #else
+                    atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+            #endif
+        }
     }
 
 #    ifdef CALC_ENERGIES
