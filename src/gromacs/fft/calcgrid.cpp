@@ -44,6 +44,10 @@
 
 #include "gromacs/utility/fatalerror.h"
 
+static const int GMX_FORCE_GRID_X  = getenv("GMX_FORCE_GRID_X") != nullptr ? atoi(getenv("GMX_FORCE_GRID_X")) : 0;
+static const int GMX_FORCE_GRID_Y  = getenv("GMX_FORCE_GRID_Y") != nullptr ? atoi(getenv("GMX_FORCE_GRID_Y")) : 0;
+static const int GMX_FORCE_GRID_Z  = getenv("GMX_FORCE_GRID_Z") != nullptr ? atoi(getenv("GMX_FORCE_GRID_Z")) : 0;
+
 /* The grid sizes below are based on timing of a 3D cubic grid in fftw
  * compiled with SSE using 4 threads in fft5d.c.
  * A grid size is removed when a larger grid is faster.
@@ -103,6 +107,13 @@ real calcFftGrid(FILE* fp, const matrix box, real gridSpacing, int minGridPoints
     n[XX] = *nx;
     n[YY] = *ny;
     n[ZZ] = *nz;
+
+    if(GMX_FORCE_GRID_X & GMX_FORCE_GRID_Y & GMX_FORCE_GRID_Z)
+    {
+        n[XX] = GMX_FORCE_GRID_X;
+        n[YY] = GMX_FORCE_GRID_Y;
+        n[ZZ] = GMX_FORCE_GRID_Z;
+    }
 
     if ((*nx <= 0) || (*ny <= 0) || (*nz <= 0))
     {

@@ -81,6 +81,10 @@
 
 #include "pme_internal.h"
 
+static const int GMX_FORCE_GRID_X  = getenv("GMX_FORCE_GRID_X") != nullptr ? atoi(getenv("GMX_FORCE_GRID_X")) : 0;
+static const int GMX_FORCE_GRID_Y  = getenv("GMX_FORCE_GRID_Y") != nullptr ? atoi(getenv("GMX_FORCE_GRID_Y")) : 0;
+static const int GMX_FORCE_GRID_Z  = getenv("GMX_FORCE_GRID_Z") != nullptr ? atoi(getenv("GMX_FORCE_GRID_Z")) : 0;
+
 /*! \brief Parameters and settings for one PP-PME setup */
 struct pme_setup_t
 {
@@ -757,6 +761,18 @@ static void pme_load_balance(pme_load_balancing_t*          pme_lb,
         {
             /* We are done optimizing, use the fastest setup we found */
             pme_lb->cur = pme_lb->fastest;
+
+            if(GMX_FORCE_GRID_X & GMX_FORCE_GRID_Y & GMX_FORCE_GRID_Z)
+            {
+                for(size_t i = 0; i < pme_lb->setup.size(); i++)
+                {
+                    if(pme_lb->setup[i].grid[XX]== GMX_FORCE_GRID_X && pme_lb->setup[i].grid[YY] == GMX_FORCE_GRID_Y && pme_lb->setup[i].grid[ZZ] == GMX_FORCE_GRID_Z)
+                    {
+                        pme_lb->cur = i;
+                        break;
+                    }
+                }
+            }
         }
     }
 
