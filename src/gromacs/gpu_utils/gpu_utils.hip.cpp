@@ -591,6 +591,7 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     std::string message = gmx::formatString(
             "Note: Peer access enabled between the following GPU pairs in the node:\n ");
     bool peerAccessEnabled = false;
+    std::string missing_links;
 
     for (unsigned int i = 0; i < gpuIdsToUse.size(); i++)
     {
@@ -623,6 +624,10 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
                     message           = gmx::formatString("%s%d->%d ", message.c_str(), gpuA, gpuB);
                     peerAccessEnabled = true;
                 }
+                else
+                {
+                    missing_links += std::string{"{"} + std::to_string(gpuA) + "," + std::to_string(gpuB) + "}";
+                }
             }
         }
     }
@@ -638,5 +643,15 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     if (peerAccessEnabled)
     {
         GMX_LOG(mdlog.info).asParagraph().appendTextFormatted("%s", message.c_str());
+    }
+
+    if (!missing_links.empty())
+    {
+        GMX_LOG(mdlog.error)
+                    .asParagraph()
+                    .appendTextFormatted(
+                            "GPU peer access is a boolean feature and assumes total connectivity between GPUs. "
+                            "List of missing link between GPU ids: %s",
+                            missing_links.c_str());
     }
 }
