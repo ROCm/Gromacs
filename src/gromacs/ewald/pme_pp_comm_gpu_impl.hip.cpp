@@ -49,6 +49,7 @@
 
 #include "gromacs/gpu_utils/cudautils.hip.h"
 #include "gromacs/gpu_utils/devicebuffer.h"
+#include "gromacs/gpu_utils/gpu_copy_kernel.h"
 #include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
 #include "gromacs/utility/gmxmpi.h"
 
@@ -126,9 +127,28 @@ void PmePpCommGpu::Impl::sendCoordinatesToPmeCudaDirect(void* sendPtr,
     // ensure stream waits until coordinate data is available on device
     coordinatesReadyOnDeviceEvent->enqueueWaitEvent(pmePpCommStream_);
 
-    hipError_t stat = hipMemcpyAsync(remotePmeXBuffer_, sendPtr, sendSize * DIM * sizeof(float),
-                                       hipMemcpyDefault, pmePpCommStream_);
-    CU_RET_ERR(stat, "hipMemcpyAsync on Send to PME CUDA direct data transfer failed");
+    if(!sendPmeCoordinatesFromGpu)
+    {
+        hipError_t stat = hipMemcpyAsync(remotePmeXBuffer_, sendPtr, sendSize * DIM * sizeof(float),
+                                           hipMemcpyDefault, pmePpCommStream_);
+        CU_RET_ERR(stat, "hipMemcpyAsync on Send to PME CUDA direct data transfer failed");
+    } else {
+        KernelLaunchConfig config;
+        constexpr unsigned int blockSize = 256;
+        constexpr unsigned int itemsPerThread = 12;
+        constexpr unsigned int itemsPerBlock = blockSize * itemsPerThread;
+
+        config.blockSize[0] = blockSize;
+        config.blockSize[1] = 1;
+        config.blockSize[2] = 1;
+        config.gridSize[0]  = (sendSize * DIM + itemsPerBlock) / itemsPerBlock;
+        config.gridSize[1]  = 1;
+        config.gridSize[2]  = 1;
+        config.stream       = pmePpCommStream_;
+
+        auto kernelPtr            = kernel_copy<blockSize,itemsPerThread>;
+        launchGpuKernel(kernelPtr, config, nullptr, "kernel_copy", sendPtr, remotePmeXBuffer_, (unsigned int)(sendSize * DIM));
+    }
 
     // Record and send event to allow PME task to sync to above transfer before commencing force calculations
     pmeCoordinatesSynchronizer_.markEvent(pmePpCommStream_);

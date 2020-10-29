@@ -56,6 +56,7 @@
 #include "gromacs/domdec/gpuhaloexchange.h"
 #include "gromacs/gpu_utils/cudautils.hip.h"
 #include "gromacs/gpu_utils/devicebuffer.h"
+#include "gromacs/gpu_utils/gpu_copy_kernel.h"
 #include "gromacs/gpu_utils/gpueventsynchronizer.hip.h"
 #include "gromacs/gpu_utils/vectype_ops.cuh"
 #include "gromacs/pbcutil/ishift.h"
@@ -350,7 +351,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(void* sendPtr,
                                                               int   recvRank)
 {
 
-    hipError_t  stat;
+    //hipError_t  stat;
     hipStream_t stream = nonLocalStream_;
 
     // We asynchronously push data to remote rank. The remote
@@ -362,9 +363,24 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(void* sendPtr,
     // send data to neighbor, if any data exists to send
     if (sendSize > 0)
     {
-        stat = hipMemcpyAsync(remotePtr, sendPtr, sendSize * DIM * sizeof(float),
-                               hipMemcpyDeviceToDevice, stream);
-        CU_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec CUDA direct data transfer failed");
+        /*stat = hipMemcpyAsync(remotePtr, sendPtr, sendSize * DIM * sizeof(float),
+                               hipMemcpyDeviceToDevice, stream);*/
+        KernelLaunchConfig config;
+        constexpr unsigned int blockSize = 256;
+        constexpr unsigned int itemsPerThread = 12;
+        constexpr unsigned int itemsPerBlock = blockSize * itemsPerThread;
+
+        config.blockSize[0] = blockSize;
+        config.blockSize[1] = 1;
+        config.blockSize[2] = 1;
+        config.gridSize[0]  = (sendSize * DIM + itemsPerBlock) / itemsPerBlock;
+        config.gridSize[1]  = 1;
+        config.gridSize[2]  = 1;
+        config.stream       = stream;
+
+        auto kernelPtr            = kernel_copy<blockSize,itemsPerThread>;
+        launchGpuKernel(kernelPtr, config, nullptr, "kernel_copy", sendPtr, remotePtr, (unsigned int)(sendSize * DIM));
+        //CU_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec CUDA direct data transfer failed");
     }
 
 #if GMX_MPI
