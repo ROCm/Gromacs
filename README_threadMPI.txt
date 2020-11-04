@@ -16,7 +16,7 @@ sudo yum clean all
 sudo sh -c 'echo -e "[ROCm]\nname=ROCm\nbaseurl=http://repo.radeon.com/rocm/yum/rpm\nenabled=1\ngpgcheck=0" >> /etc/yum.repos.d/rocm.repo'
 sudo yum install -y   hsakmt-roct hsakmt-roct-dev hsa-rocr-dev hsa-ext-rocr-dev rocm-opencl rocm-opencl-devel rocm-smi rocm-utils rocminfo hcc atmi hip_base hip_doc hip_hc hip_samples hsa-amd-aqlprofile rocm-clang-oclcomgr rocfft
 sudo yum install -y   miopen-hip cxlactivitylogger miopengemm rocblas rocrand rocfft hipblas
-sudo sh -c 'echo -e "gfx803\ngfx900\ngfx906" >> /opt/rocm/bin/target.lst'
+sudo sh -c 'echo -e "gfx803\ngfx900\ngfx906\ngfx908" >> /opt/rocm/bin/target.lst'
 
 //PATH setup
 PATH=/opt/rh/devtoolset-7/root/usr/bin:/opt/rocm/hcc/bin:/opt/rocm/hip/bin:/opt/rocm/bin:/opt/rocm/hcc/bin:${PATH:+:${PATH}}
