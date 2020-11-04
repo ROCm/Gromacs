@@ -16,7 +16,7 @@ yum clean all
 sh -c 'echo -e "[ROCm]\nname=ROCm\nbaseurl=http://repo.radeon.com/rocm/yum/rpm\nenabled=1\ngpgcheck=0" >> /etc/yum.repos.d/rocm.repo'
 yum install -y   hsakmt-roct hsakmt-roct-dev hsa-rocr-dev hsa-ext-rocr-dev rocm-opencl rocm-opencl-devel rocm-smi rocm-utils rocminfo hcc atmi hip_base hip_doc hip_hc hip_samples hsa-amd-aqlprofile rocm-clang-oclcomgr
 yum install -y   miopen-hip cxlactivitylogger miopengemm rocblas rocrand rocfft hipblas
-sh -c 'echo -e "gfx803\ngfx900\ngfx906" >> /opt/rocm/bin/target.lst'
+sh -c 'echo -e "gfx803\ngfx900\ngfx906\ngfx908" >> /opt/rocm/bin/target.lst'
 
 //install OpenMPI, UCX and Gdrcopy
 yum install -y autoconf automake libtool libnuma-devel numactl-devel
