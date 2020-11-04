@@ -24,19 +24,12 @@ yum install -y flex
 INSTALL_DIR=$HOME/mpi_install
 UCX_DIR=$INSTALL_DIR/ucx
 OMPI_DIR=$INSTALL_DIR/ompi
-GDR_DIR=$INSTALL_DIR/gdr
-LD_LIBRARY_PATH=$GDR_DIR/lib64:$LD_LIBRARY_PATH
-git clone https://github.com/NVIDIA/gdrcopy.git -b v1.3
-cd gdrcopy
-mkdir -p $GDR_DIR/lib64 $GDR_DIR/include
-make PREFIX=$GDR_DIR lib install
-cd ~
-git clone https://github.com/openucx/ucx.git -b v1.6.0
+git clone https://github.com/openucx/ucx.git -b v1.8.0
 cd ucx
 ./autogen.sh
 mkdir build
 cd build
-../contrib/configure-release --prefix=$UCX_DIR --with-rocm=/opt/rocm --with-gdrcopy=$GDR_DIR
+../contrib/configure-release --prefix=$UCX_DIR --with-rocm=/opt/rocm
 make -j$(nproc)
 make -j$(nproc) install
 cd ~
@@ -69,9 +62,14 @@ CPLUS_INCLUDE_PATH=$OMPI_DIR/include:${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH
 git clone https://github.com/ROCmSoftwarePlatform/Gromacs.git
 cd Gromacs
 cd build
+
 #make MPI version
 //Please make sure mpicc and mpicxx are from the source build of openmpi which mentioned in 1.1 instead openmpi installed by "yum install"
 cmake3 -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on  -DGMX_SIMD=AVX2_256  -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm ..
+
+#For running Gromacs on AMD Eypc 7742 environment, please add "-DGMX_OPENMP_MAX_THREADS=128"
+cmake3 -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on  -DGMX_SIMD=AVX2_256  -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm -DGMX_OPENMP_MAX_THREADS=128 ..
+
 make -j$(nproc)
 make -j$(nproc) install
 source /usr/local/gromacs/bin/GMXRC
@@ -107,20 +105,13 @@ INSTALL_DIR=$HOME/mpi_install
 INSTALL_DIR=$HOME/mpi_install
 UCX_DIR=$INSTALL_DIR/ucx
 OMPI_DIR=$INSTALL_DIR/ompi
-GDR_DIR=$INSTALL_DIR/gdr
-LD_LIBRARY_PATH=$GDR_DIR/lib64:$LD_LIBRARY_PATH
 
-git clone https://github.com/NVIDIA/gdrcopy.git -b v1.3
-cd gdrcopy
-mkdir -p $GDR_DIR/lib64 $GDR_DIR/include
-make PREFIX=$GDR_DIR lib install
-cd $INSTALL_DIR
-git clone https://github.com/openucx/ucx.git -b v1.6.0
+git clone https://github.com/openucx/ucx.git -b v1.8.0
 cd ucx
 ./autogen.sh
 mkdir build
 cd build
-../contrib/configure-release --prefix=$UCX_DIR --with-rocm=/opt/rocm --with-gdrcopy=$GDR_DIR
+../contrib/configure-release --prefix=$UCX_DIR --with-rocm=/opt/rocm
 make -j$(nproc)
 make -j$(nproc) install
 cd $INSTALL_DIR
@@ -147,9 +138,14 @@ CPLUS_INCLUDE_PATH=$OMPI_DIR/include:${CPLUS_INCLUDE_PATH}
 git clone https://github.com/ROCmSoftwarePlatform/Gromacs.git
 cd Gromacs
 cd build
+
 #make MPI version
 //Please make sure mpicc and mpicxx are from the source build of openmpi which mentioned in 1.1 instead openmpi installed by "yum install"
 cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on  -DGMX_SIMD=AVX2_256  -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm ..
+
+#For running Gromacs on AMD Eypc 7742 environment, please add "-DGMX_OPENMP_MAX_THREADS=128"
+cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on  -DGMX_SIMD=AVX2_256  -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm -DGMX_OPENMP_MAX_THREADS=128 ..
+
 make -j$(nproc)
 make -j$(nproc) install
 source /usr/local/gromacs/bin/GMXRC

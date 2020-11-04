@@ -33,8 +33,13 @@ PATH=/opt/rocm/bin:${PATH:+:${PATH}}
 git clone https://github.com/ROCmSoftwarePlatform/Gromacs.git
 cd Gromacs
 cd build
-#make MPI version
+
+#make Thread MPI version
 cmake3 -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DGMX_MPI=off -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on   -DGMX_SIMD=AVX2_256   -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm ..
+
+#For running Gromacs on AMD Eypc 7742 environment, please add "-DGMX_OPENMP_MAX_THREADS=128"
+cmake3 -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DGMX_MPI=off -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on   -DGMX_SIMD=AVX2_256   -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm -DGMX_OPENMP_MAX_THREADS=128 ..
+
 make -j$(nproc)
 sudo make -j$(nproc) install
 source /usr/local/gromacs/bin/GMXRC
@@ -68,8 +73,13 @@ PATH=/opt/rocm/bin:${PATH}
 git clone https://github.com/ROCmSoftwarePlatform/Gromacs.git
 cd Gromacs
 cd build
-#make MPI version
+
+#make Thread MPI version
 cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DGMX_MPI=off -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on   -DGMX_SIMD=AVX2_256   -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm ..
+
+#For running Gromacs on AMD Eypc 7742 environment, please add "-DGMX_OPENMP_MAX_THREADS=128"
+cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DGMX_MPI=off -DGMX_GPU=on -DGMX_GPU_USE_AMD=on -DGMX_OPENMP=on -DGMX_GPU_DETECTION_DONE=on   -DGMX_SIMD=AVX2_256   -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_PREFIX_PATH=/opt/rocm -DGMX_OPENMP_MAX_THREADS=128 ..
+
 make -j$(nproc)
 sudo make -j$(nproc) install
 source /usr/local/gromacs/bin/GMXRC
