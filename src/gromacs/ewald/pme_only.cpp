@@ -689,6 +689,9 @@ int gmx_pmeonly(struct gmx_pme_t*         pme,
         }
 
         wallcycle_start(wcycle, ewcPMEMESH);
+        wallcycle_start(wcycle, ewcPMEMESH_CPU);
+        pme_gpu_synchronize(pme->gpu);
+
 
         dvdlambda_q  = 0;
         dvdlambda_lj = 0;
@@ -714,11 +717,25 @@ int gmx_pmeonly(struct gmx_pme_t*         pme,
             // TODO: with pme on GPU the receive should make a list of synchronizers and pass it here #3157
             auto xReadyOnDevice = nullptr;
 
+            wallcycle_stop(wcycle, ewcPMEMESH_CPU);
+            wallcycle_start(wcycle, ewcPMEMESH_SPREAD);
             pme_gpu_launch_spread(pme, xReadyOnDevice, wcycle);
+            //pme_gpu_synchronize(pme->gpu);
+            wallcycle_stop(wcycle, ewcPMEMESH_SPREAD);
+            wallcycle_start(wcycle, ewcPMEMESH_FFT);
             pme_gpu_launch_complex_transforms(pme, wcycle);
+            pme_gpu_synchronize(pme->gpu);
+            wallcycle_stop(wcycle, ewcPMEMESH_FFT);
+            wallcycle_start(wcycle, ewcPMEMESH_GATHER);
             pme_gpu_launch_gather(pme, wcycle, PmeForceOutputHandling::Set);
+            wallcycle_stop(wcycle, ewcPMEMESH_GATHER);
+            wallcycle_start(wcycle, ewcPMEMESH_FINISH);
             output = pme_gpu_wait_finish_task(pme, pmeFlags, wcycle);
+            wallcycle_stop(wcycle, ewcPMEMESH_FINISH);
+            wallcycle_start(wcycle, ewcPMEMESH_MEMSET);
             pme_gpu_reinit_computation(pme, wcycle);
+            //pme_gpu_synchronize(pme->gpu);
+            wallcycle_stop(wcycle, ewcPMEMESH_MEMSET);
         }
         else
         {

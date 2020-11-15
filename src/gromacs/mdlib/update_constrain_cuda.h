@@ -50,6 +50,7 @@
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/classhelpers.h"
+#include "gromacs/timing/wallcycle.h"
 
 class GpuEventSynchronizer;
 
@@ -114,7 +115,7 @@ public:
                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                    bool                              doParrinelloRahman,
                    float                             dtPressureCouple,
-                   const matrix                      prVelocityScalingMatrix);
+                   const matrix                      prVelocityScalingMatrix, gmx_wallcycle* wcycle);
 
     /*! \brief Scale coordinates on the GPU for the pressure coupling.
      *

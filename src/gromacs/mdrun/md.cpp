@@ -1293,7 +1293,7 @@ void gmx::LegacySimulator::do_md()
             integrator->integrate(stateGpu->getForcesReadyOnDeviceEvent(
                                           AtomLocality::Local, runScheduleWork->stepWork.useGpuFBufferOps),
                                   ir->delta_t, true, bCalcVir, shake_vir, doTemperatureScaling,
-                                  ekind->tcstat, doParrinelloRahman, ir->nstpcouple * ir->delta_t, M);
+                                  ekind->tcstat, doParrinelloRahman, ir->nstpcouple * ir->delta_t, M, wcycle);
 
             // Copy velocities D2H after update if:
             // - Globals are computed this step (includes the energy output steps).

@@ -199,7 +199,8 @@ void nonbonded_verlet_t::atomdata_add_nbat_f_to_f_gpu(const gmx::AtomLocality lo
     wallcycle_sub_start(wcycle_, ewcsNB_F_BUF_OPS);
 
     reduceForcesGpu(locality, totalForcesDevice, pairSearch_->gridSet(), forcesPmeDevice,
-                    dependencyList, gpu_nbv, useGpuFPmeReduction, accumulateForce);
+                    dependencyList, gpu_nbv, useGpuFPmeReduction, accumulateForce, wcycle_);
+
 
     wallcycle_sub_stop(wcycle_, ewcsNB_F_BUF_OPS);
     wallcycle_stop(wcycle_, ewcNB_XF_BUF_OPS);

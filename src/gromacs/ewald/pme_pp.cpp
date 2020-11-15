@@ -308,6 +308,8 @@ void gmx_pme_send_coordinates(t_forcerec*           fr,
                                coordinatesReadyOnDeviceEvent);
 
     wallcycle_stop(wcycle, ewcPP_PMESENDX);
+    wallcycle_stop(wcycle, ewcPMEWAITCOMM_BUFFER_UPDATE);
+    wallcycle_start(wcycle, ewcPP_PMEWAITRECVF);
 }
 
 void gmx_pme_send_finish(const t_commrec* cr)

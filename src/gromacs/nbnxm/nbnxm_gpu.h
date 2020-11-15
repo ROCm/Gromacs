@@ -353,7 +353,7 @@ void nbnxn_gpu_add_nbat_f_to_f(gmx::AtomLocality gmx_unused atomLocality,
                                int gmx_unused atomStart,
                                int gmx_unused numAtoms,
                                bool gmx_unused useGpuFPmeReduction,
-                               bool gmx_unused accumulateForce) HIP_FUNC_TERM;
+                               bool gmx_unused accumulateForce, gmx_wallcycle* wcycle) HIP_FUNC_TERM;
 #else
 CUDA_FUNC_QUALIFIER
 void nbnxn_gpu_add_nbat_f_to_f(gmx::AtomLocality gmx_unused atomLocality,

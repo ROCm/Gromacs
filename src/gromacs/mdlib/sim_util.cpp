@@ -212,7 +212,7 @@ static void pme_receive_force_ener(t_forcerec*           fr,
     /* In case of node-splitting, the PP nodes receive the long-range
      * forces, virial and energy from the PME nodes here.
      */
-    wallcycle_start(wcycle, ewcPP_PMEWAITRECVF);
+    //wallcycle_start(wcycle, ewcPP_PMEWAITRECVF);
     dvdl_q  = 0;
     dvdl_lj = 0;
     gmx_pme_receive_f(fr->pmePpCommGpu.get(), cr, forceWithVirial, &e_q, &e_lj, &dvdl_q, &dvdl_lj,
@@ -1711,6 +1711,7 @@ void do_force(FILE*                               fplog,
         pme_receive_force_ener(fr, cr, &forceOut.forceWithVirial(), enerd,
                                simulationWork.useGpuPmePpCommunication,
                                stepWork.useGpuPmeFReduction, wcycle);
+        wallcycle_start(wcycle, ewcPMEWAITCOMM_BUFFER_UPDATE);
     }
 
 
@@ -1733,6 +1734,7 @@ void do_force(FILE*                               fplog,
                                    static_cast<GpuEventSynchronizer*>(
                                            fr->pmePpCommGpu->getForcesReadySynchronizer())) // buffer received from other GPU
                         : nullptr; // PME reduction not active on GPU
+
 
         gmx::FixedCapacityVector<GpuEventSynchronizer*, 3> dependencyList;
 
@@ -1797,6 +1799,7 @@ void do_force(FILE*                               fplog,
         }
     }
 
+    wallcycle_start(wcycle, ewcPMEWAITCOMM_FORCE_LAST);
     launchGpuEndOfStepTasks(nbv, fr->gpuBonded, fr->pmedata, enerd, *runScheduleWork,
                             simulationWork.useGpuNonbonded, useGpuPmeOnThisRank, step, wcycle);
 
@@ -1862,4 +1865,5 @@ void do_force(FILE*                               fplog,
      * the balance timing, which is ok as most tasks do communication.
      */
     ddBalanceRegionHandler.openBeforeForceComputationCpu(DdAllowBalanceRegionReopen::no);
+    wallcycle_stop(wcycle, ewcPMEWAITCOMM_FORCE_LAST);
 }

@@ -89,7 +89,8 @@ void PmePpCommGpu::Impl::receiveForceFromPmeCudaDirect(void* recvPtr, int recvSi
     // occur before PME force calc is completed
     GpuEventSynchronizer* pmeSync;
     MPI_Recv(&pmeSync, sizeof(GpuEventSynchronizer*), MPI_BYTE, pmeRank_, 0, comm_, MPI_STATUS_IGNORE);
-    pmeSync->enqueueWaitEvent(pmePpCommStream_);
+    //pmeSync->enqueueWaitEvent(pmePpCommStream_);
+    pmeSync->waitForEvent();
 
     // Pull force data from remote GPU
     void*       pmeForcePtr = receivePmeForceToGpu ? static_cast<void*>(d_pmeForces_) : recvPtr;
@@ -124,7 +125,8 @@ void PmePpCommGpu::Impl::sendCoordinatesToPmeCudaDirect(void* sendPtr,
 {
 #if GMX_MPI
     // ensure stream waits until coordinate data is available on device
-    coordinatesReadyOnDeviceEvent->enqueueWaitEvent(pmePpCommStream_);
+    //coordinatesReadyOnDeviceEvent->enqueueWaitEvent(pmePpCommStream_);
+    coordinatesReadyOnDeviceEvent->waitForEvent();
 
     hipError_t stat = hipMemcpyAsync(remotePmeXBuffer_, sendPtr, sendSize * DIM * sizeof(float),
                                        hipMemcpyDefault, pmePpCommStream_);

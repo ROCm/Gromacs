@@ -392,7 +392,7 @@ GPU_FUNC_QUALIFIER void pme_gpu_spread(const PmeGpu*         GPU_FUNC_ARGUMENT(p
                                        int                   GPU_FUNC_ARGUMENT(gridIndex),
                                        real*                 GPU_FUNC_ARGUMENT(h_grid),
                                        bool                  GPU_FUNC_ARGUMENT(computeSplines),
-                                       bool GPU_FUNC_ARGUMENT(spreadCharges)) GPU_FUNC_TERM;
+                                       bool GPU_FUNC_ARGUMENT(spreadCharges), gmx_wallcycle*  GPU_FUNC_ARGUMENT(wcycle)) GPU_FUNC_TERM;
 
 /*! \libinternal \brief
  * 3D FFT R2C/C2R routine.
@@ -426,7 +426,7 @@ GPU_FUNC_QUALIFIER void pme_gpu_solve(const PmeGpu* GPU_FUNC_ARGUMENT(pmeGpu),
  */
 GPU_FUNC_QUALIFIER void pme_gpu_gather(PmeGpu*                GPU_FUNC_ARGUMENT(pmeGpu),
                                        PmeForceOutputHandling GPU_FUNC_ARGUMENT(forceTreatment),
-                                       const float* GPU_FUNC_ARGUMENT(h_grid)) GPU_FUNC_TERM;
+                                       const float* GPU_FUNC_ARGUMENT(h_grid), gmx_wallcycle*  GPU_FUNC_ARGUMENT(wcycle)) GPU_FUNC_TERM;
 
 /*! \brief Return pointer to device copy of coordinate data.
  * \param[in] pmeGpu         The PME GPU structure.

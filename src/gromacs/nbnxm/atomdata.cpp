@@ -1464,7 +1464,7 @@ void reduceForcesGpu(const gmx::AtomLocality                    locality,
                      gmx::ArrayRef<GpuEventSynchronizer* const> dependencyList,
                      gmx_nbnxn_gpu_t*                           gpu_nbv,
                      bool                                       useGpuFPmeReduction,
-                     bool                                       accumulateForce)
+                     bool                                       accumulateForce, gmx_wallcycle* wcycle)
 {
     int atomsStart = 0;
     int numAtoms   = 0;
@@ -1478,7 +1478,7 @@ void reduceForcesGpu(const gmx::AtomLocality                    locality,
     }
 
     Nbnxm::nbnxn_gpu_add_nbat_f_to_f(locality, totalForcesDevice, gpu_nbv, pmeForcesDevice, dependencyList,
-                                     atomsStart, numAtoms, useGpuFPmeReduction, accumulateForce);
+                                     atomsStart, numAtoms, useGpuFPmeReduction, accumulateForce, wcycle);
 }
 
 void nbnxn_atomdata_add_nbat_fshift_to_fshift(const nbnxn_atomdata_t& nbat, gmx::ArrayRef<gmx::RVec> fshift)

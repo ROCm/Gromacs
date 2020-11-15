@@ -186,12 +186,13 @@ void pme_gpu_launch_spread(gmx_pme_t* pme, GpuEventSynchronizer* xReadyOnDevice,
     real*              fftgrid   = pme->fftgrid[gridIndex];
     if (pmeGpu->settings.currentFlags & GMX_PME_SPREAD)
     {
+        wallcycle_start(wcycle, ewcPME_SPREAD_CPU);
         /* Spread the coefficients on a grid */
         const bool computeSplines = true;
         const bool spreadCharges  = true;
         wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU);
         wallcycle_sub_start_nocount(wcycle, ewcsLAUNCH_GPU_PME);
-        pme_gpu_spread(pmeGpu, xReadyOnDevice, gridIndex, fftgrid, computeSplines, spreadCharges);
+        pme_gpu_spread(pmeGpu, xReadyOnDevice, gridIndex, fftgrid, computeSplines, spreadCharges, wcycle);
         wallcycle_sub_stop(wcycle, ewcsLAUNCH_GPU_PME);
         wallcycle_stop(wcycle, ewcLAUNCH_GPU);
     }
@@ -262,13 +263,13 @@ void pme_gpu_launch_gather(const gmx_pme_t* pme, gmx_wallcycle gmx_unused* wcycl
         return;
     }
 
-    wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU);
-    wallcycle_sub_start_nocount(wcycle, ewcsLAUNCH_GPU_PME);
+    //wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU);
+    //wallcycle_sub_start_nocount(wcycle, ewcsLAUNCH_GPU_PME);
     const unsigned int gridIndex = 0;
     real*              fftgrid   = pme->fftgrid[gridIndex];
-    pme_gpu_gather(pme->gpu, forceTreatment, reinterpret_cast<float*>(fftgrid));
-    wallcycle_sub_stop(wcycle, ewcsLAUNCH_GPU_PME);
-    wallcycle_stop(wcycle, ewcLAUNCH_GPU);
+    pme_gpu_gather(pme->gpu, forceTreatment, reinterpret_cast<float*>(fftgrid), wcycle);
+    //wallcycle_sub_stop(wcycle, ewcsLAUNCH_GPU_PME);
+    //wallcycle_stop(wcycle, ewcLAUNCH_GPU);
 }
 
 //! Accumulate the \c forcesToAdd to \c f, using the available threads.
@@ -363,18 +364,18 @@ bool pme_gpu_try_finish_task(gmx_pme_t*            pme,
 // This is used by PME-only ranks
 PmeOutput pme_gpu_wait_finish_task(gmx_pme_t* pme, const int flags, gmx_wallcycle* wcycle)
 {
+    wallcycle_start(wcycle, ewcWAIT_GPU_PME_GATHER);
     GMX_ASSERT(pme_gpu_active(pme), "This should be a GPU run of PME but it is not enabled.");
 
-    wallcycle_start(wcycle, ewcWAIT_GPU_PME_GATHER);
 
     // Synchronize the whole PME stream at once, including D2H result transfers
     // if there are outputs we need to wait for at this step; we still call getOutputs
     // for uniformity and because it sets the PmeOutput.haveForceOutput_.
-    const bool haveComputedEnergyAndVirial = (flags & GMX_PME_CALC_ENER_VIR) != 0;
-    if (!pme->gpu->settings.useGpuForceReduction || haveComputedEnergyAndVirial)
-    {
-        pme_gpu_synchronize(pme->gpu);
-    }
+    //const bool haveComputedEnergyAndVirial = (flags & GMX_PME_CALC_ENER_VIR) != 0;
+    //if (!pme->gpu->settings.useGpuForceReduction || haveComputedEnergyAndVirial)
+    //{
+    //    pme_gpu_synchronize(pme->gpu);
+    //}
 
     PmeOutput output = pme_gpu_getOutput(*pme, flags);
     wallcycle_stop(wcycle, ewcWAIT_GPU_PME_GATHER);
@@ -398,16 +399,25 @@ void pme_gpu_reinit_computation(const gmx_pme_t* pme, gmx_wallcycle* wcycle)
 {
     GMX_ASSERT(pme_gpu_active(pme), "This should be a GPU run of PME but it is not enabled.");
 
-    wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU);
-    wallcycle_sub_start_nocount(wcycle, ewcsLAUNCH_GPU_PME);
+    //wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU);
+    //wallcycle_sub_start_nocount(wcycle, ewcsLAUNCH_GPU_PME);
+    
 
     pme_gpu_update_timings(pme->gpu);
 
+    wallcycle_start(wcycle, ewcPMEMESH_CLEAR_GRID);
     pme_gpu_clear_grids(pme->gpu);
-    pme_gpu_clear_energy_virial(pme->gpu);
+    pme_gpu_synchronize(pme->gpu);
+    wallcycle_stop(wcycle, ewcPMEMESH_CLEAR_GRID);
 
-    wallcycle_sub_stop(wcycle, ewcsLAUNCH_GPU_PME);
-    wallcycle_stop(wcycle, ewcLAUNCH_GPU);
+    
+    wallcycle_start(wcycle, ewcPMEMESH_CLEAR_VIR);
+    pme_gpu_clear_energy_virial(pme->gpu);
+    pme_gpu_synchronize(pme->gpu);
+    wallcycle_stop(wcycle, ewcPMEMESH_CLEAR_VIR);
+
+    //wallcycle_sub_stop(wcycle, ewcsLAUNCH_GPU_PME);
+    //wallcycle_stop(wcycle, ewcLAUNCH_GPU);
 }
 
 DeviceBuffer<float> pme_gpu_get_device_x(const gmx_pme_t* pme)

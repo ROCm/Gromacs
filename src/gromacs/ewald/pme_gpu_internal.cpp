@@ -65,6 +65,7 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/timing/wallcycle.h"
 
 #if GMX_GPU == GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/pmalloc_cuda.h"
@@ -1190,7 +1191,8 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
                     int gmx_unused gridIndex,
                     real*          h_grid,
                     bool           computeSplines,
-                    bool           spreadCharges)
+                    bool           spreadCharges, 
+                    gmx_wallcycle* wcycle)
 {
     GMX_ASSERT(computeSplines || spreadCharges,
                "PME spline/spread kernel has invalid input (nothing to do)");
@@ -1269,6 +1271,8 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
 
     pme_gpu_start_timing(pmeGpu, timingId);
     auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
+    wallcycle_stop(wcycle, ewcPME_SPREAD_CPU);
+    wallcycle_start(wcycle, ewcPME_SPREAD_GPU);
 #if GMX_GPU == GMX_GPU_ROCM
 #if c_canEmbedBuffers
     launchGpuKernel(kernelPtr, config, timingEvent, "PME spline/spread", *kernelParamsPtr);
@@ -1293,6 +1297,9 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
 
     launchGpuKernel(kernelPtr, config, timingEvent, "PME spline/spread", kernelArgs);
 #endif
+    pme_gpu_synchronize(pmeGpu);
+    wallcycle_stop(wcycle, ewcPME_SPREAD_GPU);
+    wallcycle_start(wcycle, ewcPME_SPREAD_COPY);
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     const bool copyBackGrid =
@@ -1307,6 +1314,7 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
     {
         pme_gpu_copy_output_spread_atom_data(pmeGpu);
     }
+    wallcycle_stop(wcycle, ewcPME_SPREAD_COPY);
 }
 
 void pme_gpu_solve(const PmeGpu* pmeGpu, t_complex* h_grid, GridOrdering gridOrdering, bool computeEnergyAndVirial)
@@ -1473,8 +1481,9 @@ inline auto selectGatherKernelPtr(const PmeGpu*          pmeGpu,
 }
 
 
-void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const float* h_grid)
+void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const float* h_grid, gmx_wallcycle* wcycle)
 {
+    wallcycle_start(wcycle, ewcPMEMESH_GATHER_COPY_IN);
     /* Copying the input CPU forces for reduction */
     if (forceTreatment != PmeForceOutputHandling::Set)
     {
@@ -1490,7 +1499,10 @@ void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const
     {
         pme_gpu_copy_input_gather_atom_data(pmeGpu);
     }
+    pme_gpu_synchronize(pmeGpu);
+    wallcycle_stop(wcycle, ewcPMEMESH_GATHER_COPY_IN);
 
+    wallcycle_start(wcycle, ewcPMEMESH_GATHER_CPU);
     /* Set if we have unit tests */
     const bool   readGlobal             = pmeGpu->settings.copyAllOutputs;
     const size_t blockSize              = pmeGpu->programHandle_->impl_->gatherWorkGroupSize;
@@ -1530,6 +1542,10 @@ void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const
     pme_gpu_start_timing(pmeGpu, timingId);
     auto*       timingEvent     = pme_gpu_fetch_timing_event(pmeGpu, timingId);
     const auto* kernelParamsPtr = pmeGpu->kernelParams.get();
+
+    wallcycle_stop(wcycle, ewcPMEMESH_GATHER_CPU);
+    wallcycle_start(wcycle, ewcPMEMESH_GATHER_GPU);
+    
 #if GMX_GPU == GMX_GPU_ROCM
 #if c_canEmbedBuffers
     launchGpuKernel(kernelPtr, config, timingEvent, "PME gather", *kernelParamsPtr);
@@ -1552,8 +1568,12 @@ void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const
 #endif
     launchGpuKernel(kernelPtr, config, timingEvent, "PME gather", kernelArgs);
 #endif
+    pme_gpu_synchronize(pmeGpu);
+    wallcycle_stop(wcycle, ewcPMEMESH_GATHER_GPU);
     pme_gpu_stop_timing(pmeGpu, timingId);
 
+    
+    wallcycle_start(wcycle, ewcPMEMESH_GATHER_COPY_OUT);
     if (pmeGpu->settings.useGpuForceReduction)
     {
         pmeGpu->archSpecific->pmeForcesReady.markEvent(pmeGpu->archSpecific->pmeStream);
@@ -1562,6 +1582,8 @@ void pme_gpu_gather(PmeGpu* pmeGpu, PmeForceOutputHandling forceTreatment, const
     {
         pme_gpu_copy_output_forces(pmeGpu);
     }
+    pme_gpu_synchronize(pmeGpu);
+    wallcycle_stop(wcycle, ewcPMEMESH_GATHER_COPY_OUT);
 }
 
 DeviceBuffer<float> pme_gpu_get_kernelparam_coordinates(const PmeGpu* pmeGpu)

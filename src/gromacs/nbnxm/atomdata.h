@@ -45,6 +45,7 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/bitmask.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/timing/wallcycle.h"
 
 #include "gpu_types.h"
 
@@ -367,7 +368,7 @@ void reduceForcesGpu(gmx::AtomLocality                          locality,
                      gmx::ArrayRef<GpuEventSynchronizer* const> dependencyList,
                      gmx_nbnxn_gpu_t*                           gpu_nbv,
                      bool                                       useGpuFPmeReduction,
-                     bool                                       accumulateForce);
+                     bool                                       accumulateForce, gmx_wallcycle*     wcycle);
 
 /* Add the fshift force stored in nbat to fshift */
 void nbnxn_atomdata_add_nbat_fshift_to_fshift(const nbnxn_atomdata_t& nbat, gmx::ArrayRef<gmx::RVec> fshift);
