@@ -111,17 +111,21 @@ void UpdateConstrainCuda::Impl::integrate(GpuEventSynchronizer*             fRea
                                           gmx::ArrayRef<const t_grp_tcstat> tcstat,
                                           const bool                        doParrinelloRahman,
                                           const float                       dtPressureCouple,
-                                          const matrix                      prVelocityScalingMatrix)
+                                          const matrix                      prVelocityScalingMatrix, gmx_wallcycle* wcycle)
 {
     // Clearing virial matrix
     // TODO There is no point in having separate virial matrix for constraints
     clear_mat(virial);
 
     // Make sure that the forces are ready on device before proceeding with the update.
-    fReadyOnDevice->enqueueWaitEvent(commandStream_);
+    //fReadyOnDevice->enqueueWaitEvent(commandStream_);
+    wallcycle_start(wcycle, ewcPMEWAITCOMM_BUFFER);
+    fReadyOnDevice->waitForEvent();
+    wallcycle_stop(wcycle, ewcPMEWAITCOMM_BUFFER);
 
     // The integrate should save a copy of the current coordinates in d_xp_ and write updated once
     // into d_x_. The d_xp_ is only needed by constraints.
+    wallcycle_start(wcycle, ewcPMEWAITCOMM_UPDATE);
     integrator_->integrate(d_x_, d_xp_, d_v_, d_f_, dt, doTemperatureScaling, tcstat,
                            doParrinelloRahman, dtPressureCouple, prVelocityScalingMatrix);
     // Constraints need both coordinates before (d_x_) and after (d_xp_) update. However, after constraints
@@ -141,6 +145,8 @@ void UpdateConstrainCuda::Impl::integrate(GpuEventSynchronizer*             fRea
     }
 
     coordinatesReady_->markEvent(commandStream_);
+    coordinatesReady_->waitForEvent();
+    wallcycle_stop(wcycle, ewcPMEWAITCOMM_UPDATE);
 
     return;
 }
@@ -251,10 +257,10 @@ void UpdateConstrainCuda::integrate(GpuEventSynchronizer*             fReadyOnDe
                                     gmx::ArrayRef<const t_grp_tcstat> tcstat,
                                     const bool                        doParrinelloRahman,
                                     const float                       dtPressureCouple,
-                                    const matrix                      prVelocityScalingMatrix)
+                                    const matrix                      prVelocityScalingMatrix, gmx_wallcycle* wcycle)
 {
     impl_->integrate(fReadyOnDevice, dt, updateVelocities, computeVirial, virialScaled, doTemperatureScaling,
-                     tcstat, doParrinelloRahman, dtPressureCouple, prVelocityScalingMatrix);
+                     tcstat, doParrinelloRahman, dtPressureCouple, prVelocityScalingMatrix, wcycle);
 }
 
 void UpdateConstrainCuda::scaleCoordinates(const matrix scalingMatrix)

@@ -889,7 +889,7 @@ void nbnxn_gpu_add_nbat_f_to_f(const AtomLocality                         atomLo
                                int                                        atomStart,
                                int                                        numAtoms,
                                bool                                       useGpuFPmeReduction,
-                               bool                                       accumulateForce)
+                               bool                                       accumulateForce, gmx_wallcycle* wcycle)
 {
     GMX_ASSERT(nb, "Need a valid nbnxn_gpu object");
     GMX_ASSERT(numAtoms != 0, "Cannot call function with no atoms");
@@ -905,10 +905,17 @@ void nbnxn_gpu_add_nbat_f_to_f(const AtomLocality                         atomLo
                "Mismatching number of dependencies and call signature");
 
     // Enqueue wait on all dependencies passed
+    if (atomLocality == AtomLocality::Local)
+        wallcycle_start(wcycle, ewcPMEWAITCOMM_FORCE_SYNC);
     for (auto const synchronizer : dependencyList)
     {
-        synchronizer->enqueueWaitEvent(stream);
+	if (atomLocality == AtomLocality::Local)
+	    synchronizer->waitForEvent();	
+	else 
+            synchronizer->enqueueWaitEvent(stream);
     }
+    if (atomLocality == AtomLocality::Local)
+        wallcycle_stop(wcycle, ewcPMEWAITCOMM_FORCE_SYNC);
 
     /* launch kernel */
 
@@ -940,6 +947,9 @@ void nbnxn_gpu_add_nbat_f_to_f(const AtomLocality                         atomLo
     const auto kernelArgs = prepareGpuKernelArguments(kernelFn, config, &d_fNB, &d_fPme, &d_fTotal,
                                                       &d_cell, &atomStart, &numAtoms);
 
+    if (atomLocality == AtomLocality::Local) {
+        wallcycle_start(wcycle, ewcNB_F_BUF_OPS);
+    }
     launchGpuKernel(kernelFn, config, nullptr, "FbufferOps", kernelArgs);
 
     if (atomLocality == AtomLocality::Local)
@@ -947,6 +957,8 @@ void nbnxn_gpu_add_nbat_f_to_f(const AtomLocality                         atomLo
         GMX_ASSERT(nb->localFReductionDone != nullptr,
                    "localFReductionDone has to be a valid pointer");
         nb->localFReductionDone->markEvent(stream);
+	nb->localFReductionDone->waitForEvent();
+        wallcycle_stop(wcycle, ewcNB_F_BUF_OPS);
     }
 }
 

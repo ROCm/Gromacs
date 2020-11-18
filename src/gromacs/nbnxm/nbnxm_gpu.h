@@ -364,7 +364,7 @@ void nbnxn_gpu_add_nbat_f_to_f(gmx::AtomLocality gmx_unused atomLocality,
                                int gmx_unused atomStart,
                                int gmx_unused numAtoms,
                                bool gmx_unused useGpuFPmeReduction,
-                               bool gmx_unused accumulateForce) CUDA_FUNC_TERM;
+                               bool gmx_unused accumulateForce, gmx_wallcycle* wcycle) CUDA_FUNC_TERM;
 #endif
 
 /*! \brief sync CPU thread on coordinate copy to device
