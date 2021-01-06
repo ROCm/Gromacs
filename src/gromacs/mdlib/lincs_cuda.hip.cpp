@@ -281,7 +281,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Writing for all but dummy constraints
     if (!isDummyThread)
     {
-#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
 #else
@@ -354,7 +354,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (!isDummyThread)
         {
             float3 tmp = rc * sqrtmu_sol;
-#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
             atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
 #else
@@ -368,7 +368,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     if (updateVelocities && !isDummyThread)
     {
         float3 tmp = rc * invdt * lagrangeScaled;
-#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAdd(&gm_v[i], -tmp * inverseMassi);
         atomicAdd(&gm_v[j], tmp * inverseMassj);
 #else
@@ -432,7 +432,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // First 6 threads in the block add the results of 6 tensor components to the global memory address.
         if (threadIdx.x < 6)
         {
-#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
             atomicAddNoRet(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
 #else
             atomicAddOverWriteForFloat(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);

@@ -108,7 +108,7 @@ struct fixed_array
     }
 };
 
-#if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
     #define hipGlobalAtomicAdd(a, b) atomicAddNoRet(a, b);
     #define hipLocalAtomicAdd(a, b) atomicAddLocalNoRet(a, b);
 #else
