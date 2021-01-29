@@ -50,3 +50,10 @@ POSIX and not by C++ was also worked around.
 Miscellaneous
 ^^^^^^^^^^^^^
 * Updated |Gromacs| logos
+=======
+Fixes that affect portability
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Miscellaneous
+^^^^^^^^^^^^^
+
