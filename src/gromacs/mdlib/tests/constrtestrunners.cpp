@@ -137,7 +137,7 @@ void LincsConstraintsRunner::applyConstraints(ConstraintsTestData* testData, t_p
     done_lincs(lincsd);
 }
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP
 void LincsDeviceConstraintsRunner::applyConstraints(ConstraintsTestData* /* testData */, t_pbc /* pbc */)
 {
     GMX_UNUSED_VALUE(testDevice_);

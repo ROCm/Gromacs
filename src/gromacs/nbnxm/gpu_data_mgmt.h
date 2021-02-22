@@ -127,29 +127,52 @@ bool gpu_is_kernel_ewald_analytical(const NbnxmGpu gmx_unused* nb) GPU_FUNC_TERM
 /** Returns an opaque pointer to the GPU command stream
  *  Note: CUDA only.
  */
+#if GMX_GPU_CUDA
 CUDA_FUNC_QUALIFIER
 const DeviceStream* gpu_get_command_stream(NbnxmGpu gmx_unused* nb, gmx::InteractionLocality gmx_unused iloc)
         CUDA_FUNC_TERM_WITH_RETURN(nullptr);
+#elif GMX_GPU_HIP
+HIP_FUNC_QUALIFIER
+const DeviceStream* gpu_get_command_stream(NbnxmGpu gmx_unused* nb, gmx::InteractionLocality gmx_unused iloc)
+        HIP_FUNC_TERM_WITH_RETURN(nullptr);
+#endif
 
 /** Returns an opaque pointer to the GPU coordinate+charge array
  *  Note: CUDA only.
  */
+#if GMX_GPU_CUDA
 CUDA_FUNC_QUALIFIER
 void* gpu_get_xq(NbnxmGpu gmx_unused* nb) CUDA_FUNC_TERM_WITH_RETURN(nullptr);
+#elif GMX_GPU_HIP
+HIP_FUNC_QUALIFIER
+void* gpu_get_xq(NbnxmGpu gmx_unused* nb) HIP_FUNC_TERM_WITH_RETURN(nullptr);
+#endif
 
 /** Returns an opaque pointer to the GPU force array
  *  Note: CUDA only.
  */
+#if GMX_GPU_CUDA
 CUDA_FUNC_QUALIFIER
 DeviceBuffer<gmx::RVec> gpu_get_f(NbnxmGpu gmx_unused* nb)
         CUDA_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
+#elif GMX_GPU_HIP
+HIP_FUNC_QUALIFIER
+DeviceBuffer<gmx::RVec> gpu_get_f(NbnxmGpu gmx_unused* nb)
+        HIP_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
+#endif
 
 /** Returns an opaque pointer to the GPU shift force array
  *  Note: CUDA only.
  */
+#if GMX_GPU_CUDA
 CUDA_FUNC_QUALIFIER
 DeviceBuffer<gmx::RVec> gpu_get_fshift(NbnxmGpu gmx_unused* nb)
         CUDA_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
+#elif GMX_GPU_HIP
+HIP_FUNC_QUALIFIER
+DeviceBuffer<gmx::RVec> gpu_get_fshift(NbnxmGpu gmx_unused* nb)
+        HIP_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
+#endif
 
 } // namespace Nbnxm
 

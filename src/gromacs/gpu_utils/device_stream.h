@@ -50,13 +50,18 @@
 
 #if GMX_GPU_CUDA
 #    include <cuda_runtime.h>
-
+#elif GMX_GPU_HIP
+#    include "hip/hip_runtime.h"
 #elif GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gmxopencl.h"
 #elif GMX_GPU_SYCL
 #    include "gromacs/gpu_utils/gmxsycl.h"
+#else
+#    error "device_stream.h included on non-GPU build!"
 #endif
+
 #include "gromacs/utility/classhelpers.h"
+
 
 struct DeviceInformation;
 class DeviceContext;
@@ -116,6 +121,12 @@ public:
 
 private:
     cudaStream_t stream_ = nullptr;
+#elif GMX_GPU_HIP
+    //! Getter
+    hipStream_t stream() const;
+
+private:
+    hipStream_t stream_ = nullptr;
 #elif GMX_GPU_SYCL
 
     /*! \brief

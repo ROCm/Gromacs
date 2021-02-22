@@ -49,7 +49,11 @@
 #define GMX_LISTED_FORCES_GPUBONDED_IMPL_H
 
 #include "gromacs/gpu_utils/device_context.h"
+#if GMX_GPU_CUDA
 #include "gromacs/gpu_utils/gputraits.cuh"
+#elif GMX_GPU_HIP
+#include "gromacs/gpu_utils/gputraits_hip.h"
+#endif
 #include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/listed_forces/gpubonded.h"
 #include "gromacs/pbcutil/pbc_aiuc.h"

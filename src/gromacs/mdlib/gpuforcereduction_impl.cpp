@@ -47,7 +47,7 @@
 
 #include "gpuforcereduction.h"
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP
 
 namespace gmx
 {

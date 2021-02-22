@@ -54,7 +54,7 @@
 
 #include "leapfrogtestdata.h"
 
-#define HAVE_GPU_LEAPFROG (GMX_GPU_CUDA || GMX_GPU_SYCL)
+#define HAVE_GPU_LEAPFROG (GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_SYCL)
 
 namespace gmx
 {

@@ -313,7 +313,7 @@ TEST_P(SettleTest, SatisfiesConstraints)
     // Add runners for CPU version
     runners.emplace_back(std::make_unique<SettleHostTestRunner>());
     // If using CUDA, add runners for the GPU version for each available GPU
-    if (GMX_GPU_CUDA)
+    if (GMX_GPU_CUDA || GMX_GPU_HIP)
     {
         for (const auto& testDevice : getTestHardwareEnvironment()->getTestDeviceList())
         {

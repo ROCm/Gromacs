@@ -50,7 +50,7 @@
 
 #include "gromacs/math/vectypes.h"
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 
 //! \brief A device-side buffer of ValueTypes
 template<typename ValueType>

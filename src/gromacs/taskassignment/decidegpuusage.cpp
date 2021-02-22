@@ -91,6 +91,8 @@ const char* g_specifyEverythingFormatString =
         "better to use mdrun -gpu_id. Otherwise, setting the "
 #    if GMX_GPU_CUDA
         "CUDA_VISIBLE_DEVICES"
+#    elif GMX_GPU_HIP
+        "HIP_VISIBLE_DEVICES"
 #    elif GMX_GPU_OPENCL
         // Technically there is no portable way to do this offered by the
         // OpenCL standard, but the only current relevant case for GROMACS
@@ -609,9 +611,9 @@ bool decideWhetherToUseGpuForUpdate(const bool                     isDomainDecom
     {
         errorMessage += "Compatible GPUs must have been found.\n";
     }
-    if (!GMX_GPU_CUDA)
+    if (!GMX_GPU_CUDA && !GMX_GPU_HIP)
     {
-        errorMessage += "Only a CUDA build is supported.\n";
+        errorMessage += "Only a CUDA/HIP build is supported.\n";
     }
     if (inputrec.eI != eiMD)
     {

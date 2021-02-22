@@ -292,7 +292,7 @@ TYPED_TEST(HostAllocatorTestNoMem, Comparison)
     EXPECT_NE(AllocatorType{}, AllocatorType{ PinningPolicy::PinnedIfSupported });
 }
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 
 // Policy suitable for pinning is only supported for a CUDA build
 

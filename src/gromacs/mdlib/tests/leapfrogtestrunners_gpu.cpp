@@ -50,6 +50,8 @@
 
 #if GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/devicebuffer.cuh"
+#elif GMX_GPU_HIP
+#    include "gromacs/gpu_utils/devicebuffer_hip.h"
 #endif
 #if GMX_GPU_SYCL
 #    include "gromacs/gpu_utils/devicebuffer_sycl.h"

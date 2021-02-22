@@ -353,6 +353,13 @@ void gmx_print_version_info(gmx::TextWriter* writer)
     writer->writeLine("CUDA driver:        " + gmx::getCudaDriverVersionString());
     writer->writeLine("CUDA runtime:       " + gmx::getCudaRuntimeVersionString());
 #endif
+#if GMX_GPU_HIP
+    writer->writeLine(formatString("HIP compiler:      %s", HIP_COMPILER_INFO));
+    writer->writeLine(formatString("HIP compiler flags:%s", HIP_COMPILER_FLAGS));
+    writer->writeLine("HIP driver:        " + gmx::getCudaDriverVersionString());
+    writer->writeLine("HIP runtime:       " + gmx::getCudaRuntimeVersionString());
+#endif
+
 }
 
 //! \endcond

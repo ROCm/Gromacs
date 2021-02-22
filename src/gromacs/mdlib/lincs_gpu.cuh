@@ -46,7 +46,11 @@
 
 #include "gromacs/gpu_utils/device_context.h"
 #include "gromacs/gpu_utils/device_stream.h"
+#if GMX_GPU_CUDA
 #include "gromacs/gpu_utils/gputraits.cuh"
+#elif GMX_GPU_HIP
+#include "gromacs/gpu_utils/gputraits_hip.h"
+#endif
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/pbcutil/pbc_aiuc.h"
 #include "gromacs/utility/classhelpers.h"

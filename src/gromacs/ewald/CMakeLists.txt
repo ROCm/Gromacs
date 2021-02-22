@@ -75,6 +75,27 @@ if (GMX_GPU_CUDA)
         pme_gpu_internal.cpp
         pme_gpu_timings.cpp
 	)
+elseif (GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+        # HIP-specific sources
+        pme_gather_hip.cpp
+        pme_gpu_3dfft_hip.cpp
+        pme_solve_hip.cpp
+        pme_spread_hip.cpp
+        pme_gpu_program_impl_hip.cpp
+        pme_pp_comm_gpu_impl_hip.cpp
+        pme_force_sender_gpu_impl_hip.cpp
+        pme_coordinate_receiver_gpu_impl_hip.cpp
+        # GPU-specific sources
+        pme_gpu.cpp
+        pme_gpu_internal.cpp
+        pme_gpu_timings.cpp
+        )
+    _gmx_add_files_to_property(HIP_SOURCES
+        # Must add these files so they can include device_information.h
+        pme_gpu_internal.cpp
+        pme_gpu_timings.cpp
+        )
 elseif (GMX_GPU_OPENCL)
     gmx_add_libgromacs_sources(
         # OpenCL-specific sources
@@ -104,7 +125,6 @@ endif()
 if (BUILD_TESTING)
     add_subdirectory(tests)
 endif()
-
 
 set(PME_OCL_KERNEL_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pme_gpu_calculate_splines.clh"

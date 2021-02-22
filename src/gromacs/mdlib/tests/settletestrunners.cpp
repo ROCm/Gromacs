@@ -78,7 +78,7 @@ void SettleHostTestRunner::applySettle(SettleTestData*    testData,
     EXPECT_FALSE(errorOccured) << testDescription;
 }
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP
 
 void SettleDeviceTestRunner::applySettle(SettleTestData* /* testData */,
                                          const t_pbc /* pbc */,

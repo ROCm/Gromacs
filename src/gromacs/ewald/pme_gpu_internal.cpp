@@ -73,6 +73,10 @@
 #    include "gromacs/gpu_utils/pmalloc_cuda.h"
 
 #    include "pme.cuh"
+#elif GMX_GPU_HIP
+#    include "gromacs/gpu_utils/pmalloc_cuda.h"
+
+#    include "pme_hip.h"
 #elif GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gmxopencl.h"
 #endif
@@ -422,7 +426,7 @@ void pme_gpu_realloc_and_copy_fract_shifts(PmeGpu* pmeGpu)
 void pme_gpu_free_fract_shifts(const PmeGpu* pmeGpu)
 {
     auto* kernelParamsPtr = pmeGpu->kernelParams.get();
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     destroyParamLookupTable(&kernelParamsPtr->grid.d_fractShiftsTable,
                             kernelParamsPtr->fractShiftsTableTexture);
     destroyParamLookupTable(&kernelParamsPtr->grid.d_gridlineIndicesTable,
@@ -513,7 +517,7 @@ static void pme_gpu_init_internal(PmeGpu* pmeGpu, const DeviceContext& deviceCon
      * TODO: PME could also try to pick up nice grid sizes (with factors of 2, 3, 5, 7).
      */
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     pmeGpu->maxGridWidthX = deviceContext.deviceInfo().prop.maxGridSize[0];
 #else
     // Use this path for any non-CUDA GPU acceleration
@@ -759,7 +763,7 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
  */
 static void pme_gpu_select_best_performing_pme_spreadgather_kernels(PmeGpu* pmeGpu)
 {
-    if (GMX_GPU_CUDA && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
+    if ((GMX_GPU_CUDA || GMX_GPU_HIP) && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
     {
         pmeGpu->settings.threadsPerAtom     = ThreadsPerAtom::Order;
         pmeGpu->settings.recalculateSplines = true;
@@ -1203,7 +1207,7 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
     // Ensure that coordinates are ready on the device before launching spread;
     // only needed with CUDA on PP+PME ranks, not on separate PME ranks, in unit tests
     // nor in OpenCL as these cases use a single stream (hence xReadyOnDevice == nullptr).
-    GMX_ASSERT(!GMX_GPU_CUDA || xReadyOnDevice != nullptr || pmeGpu->common->isRankPmeOnly
+    GMX_ASSERT((!GMX_GPU_CUDA && !GMX_GPU_HIP) || xReadyOnDevice != nullptr || pmeGpu->common->isRankPmeOnly
                        || pme_gpu_settings(pmeGpu).copyAllOutputs,
                "Need a valid coordinate synchronizer on PP+PME ranks with CUDA.");
 
@@ -1354,7 +1358,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     const int warpSize  = pmeGpu->programHandle_->warpSize();
     const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
-    static_assert(!GMX_GPU_CUDA || c_solveMaxWarpsPerBlock / 2 >= 4,
+    static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
                   "The CUDA solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");
 

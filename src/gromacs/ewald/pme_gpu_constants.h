@@ -55,6 +55,8 @@
 
 #if GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/cuda_arch_utils.cuh" // for warp_size
+#elif GMX_GPU_HIP
+#    include "gromacs/gpu_utils/hip_arch_utils_hip.h" // for warp_size
 #endif
 
 /* General settings for PME GPU behaviour */
@@ -143,7 +145,7 @@ constexpr int c_solveMaxWarpsPerBlock = 8;
 //! Gathering max block width in warps - picked empirically among 2, 4, 8, 16 for max. occupancy and min. runtime
 constexpr int c_gatherMaxWarpsPerBlock = 4;
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 /* All the fields below are dependent on warp_size and should
  * ideally be removed from the device-side code, as we have to
  * do that for OpenCL already.

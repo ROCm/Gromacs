@@ -69,6 +69,14 @@ if(GMX_GPU_CUDA)
 	)
 endif()
 
+if(GMX_GPU_HIP)
+    add_subdirectory(hip)
+    gmx_add_libgromacs_sources(nbnxm_gpu_data_mgmt.cpp)
+    _gmx_add_files_to_property(HIP_SOURCES
+        nbnxm_gpu_data_mgmt.cpp
+        )
+endif()
+
 if(GMX_GPU_OPENCL)
     add_subdirectory(opencl)
     set(NBNXM_OPENCL_KERNELS ${NBNXM_OPENCL_KERNELS} PARENT_SCOPE)

@@ -44,7 +44,11 @@
 #define GMX_PMEFORCESENDERGPU_IMPL_H
 
 #include "gromacs/ewald/pme_force_sender_gpu.h"
+#if GMX_GPU_CUDA
 #include "gromacs/gpu_utils/gpueventsynchronizer.cuh"
+#elif GMX_GPU_HIP
+#include "gromacs/gpu_utils/gpueventsynchronizer_hip.h"
+#endif
 #include "gromacs/utility/arrayref.h"
 
 namespace gmx

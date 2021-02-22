@@ -42,7 +42,7 @@
 
 #include "config.h"
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 
 #    include "gromacs/gpu_utils/gputraits.h"
 #    include "gromacs/hardware/device_management.h"

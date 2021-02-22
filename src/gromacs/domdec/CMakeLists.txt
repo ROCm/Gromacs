@@ -33,9 +33,12 @@
 # the research papers on the package. Check out http://www.gromacs.org.
 
 file(GLOB DOMDEC_SOURCES *.cpp)
+list(REMOVE_ITEM DOMDEC_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/gpuhaloexchange_impl_hip.cpp)
 
 if(GMX_GPU_CUDA)
   file(GLOB DOMDEC_CUDA_SOURCES gpuhaloexchange_impl.cu)
+elseif(GMX_GPU_HIP)
+  file(GLOB DOMDEC_CUDA_SOURCES gpuhaloexchange_impl_hip.cpp)
 endif()
 
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${DOMDEC_SOURCES} ${DOMDEC_CUDA_SOURCES} PARENT_SCOPE)

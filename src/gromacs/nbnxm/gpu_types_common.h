@@ -57,6 +57,10 @@
 #    include "gromacs/gpu_utils/gpuregiontimer.cuh"
 #endif
 
+#if GMX_GPU_HIP
+#    include "gromacs/gpu_utils/gpuregiontimer_hip.h"
+#endif
+
 /** \internal
  * \brief Parameters required for the GPU nonbonded calculations.
  */

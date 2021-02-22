@@ -51,6 +51,10 @@
 
 #    include "gromacs/gpu_utils/gputraits.cuh"
 
+#elif GMX_GPU_HIP
+
+#    include "gromacs/gpu_utils/gputraits_hip.h"
+
 #elif GMX_GPU_OPENCL
 
 #    include "gromacs/gpu_utils/gputraits_ocl.h"
