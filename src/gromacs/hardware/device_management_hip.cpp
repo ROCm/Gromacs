@@ -154,7 +154,8 @@ static DeviceStatus isDeviceFunctional(const DeviceInformation& deviceInfo)
         const auto          dummyArguments = prepareGpuKernelArguments(dummy_kernel, config);
         const DeviceContext deviceContext(deviceInfo);
         const DeviceStream  deviceStream(deviceContext, DeviceStreamPriority::Normal, false);
-        launchGpuKernel(dummy_kernel, config, deviceStream, nullptr, "Dummy kernel", dummyArguments);
+        //launchGpuKernel(dummy_kernel, config, deviceStream, nullptr, "Dummy kernel", dummyArguments);
+        launchGpuKernel(dummy_kernel, config, deviceStream, nullptr, "Dummy kernel");
     }
     catch (gmx::GromacsException& ex)
     {

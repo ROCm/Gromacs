@@ -565,9 +565,12 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
             select_nbnxn_kernel(nbp->eeltype, nbp->vdwtype, stepWork.computeEnergy,
                                 (plist->haveFreshList && !nb->timers->interaction[iloc].didPrune),
                                 &nb->deviceContext_->deviceInfo());
+    /*
     const auto kernelArgs =
             prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
+    */
+    launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
 
     if (bDoTime)
     {
@@ -688,8 +691,11 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     constexpr char kernelName[] = "k_pruneonly";
     const auto     kernel =
             plist->haveFreshList ? nbnxn_kernel_prune_cuda<true> : nbnxn_kernel_prune_cuda<false>;
+    /*
     const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, kernelArgs);
+    */
+    launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, *adat, *nbp, *plist, numParts, part);
 
     /* TODO: consider a more elegant way to track which kernel has been called
        (combined or separate 1st pass prune, rolling prune). */
@@ -882,10 +888,22 @@ void nbnxn_gpu_x_to_nbat_x(const Nbnxm::Grid&        grid,
         const int* d_atomIndices = nb->atomIndices;
         const int* d_cxy_na      = &nb->cxy_na[numColumnsMax * gridId];
         const int* d_cxy_ind     = &nb->cxy_ind[numColumnsMax * gridId];
-        const auto kernelArgs    = prepareGpuKernelArguments(kernelFn, config, &numColumns, &d_xq,
-                                                          &d_xFloat3, &d_atomIndices, &d_cxy_na,
-                                                          &d_cxy_ind, &cellOffset, &numAtomsPerCell);
+	/*
+        const auto kernelArgs    = prepareGpuKernelArguments(kernelFn,
+                                                          config,
+                                                          &numColumns,
+                                                          &d_xq,
+                                                          &d_xFloat3,
+                                                          &d_atomIndices,
+                                                          &d_cxy_na,
+                                                          &d_cxy_ind,
+                                                          &cellOffset,
+                                                          &numAtomsPerCell);
         launchGpuKernel(kernelFn, config, deviceStream, nullptr, "XbufferOps", kernelArgs);
+        */
+        launchGpuKernel(kernelFn, config, deviceStream, nullptr, "XbufferOps",
+                        numColumns, d_xq, const_cast<const float3*>(reinterpret_cast<float3*>(d_xFloat3)),
+                        d_atomIndices, d_cxy_na, d_cxy_ind, cellOffset, numAtomsPerCell);
     }
 
     // TODO: note that this is not necessary when there astreamre no local atoms, that is:

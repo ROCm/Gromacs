@@ -1264,6 +1264,7 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
 
     pme_gpu_start_timing(pmeGpu, timingId);
     auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
+#if GMX_GPU_CUDA
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
 #else
@@ -1278,6 +1279,21 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
 
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent,
                     "PME spline/spread", kernelArgs);
+#elif GMX_GPU_HIP
+#if c_canEmbedBuffers
+    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent,
+                    "PME spline/spread", *kernelParamsPtr);
+
+#else
+    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent,
+                    "PME spline/spread", kernelParamsPtr->atoms.d_theta,
+            	    kernelParamsPtr->atoms.d_dtheta, kernelParamsPtr->atoms.d_gridlineIndices,
+            	    kernelParamsPtr->grid.d_realGrid[FEP_STATE_A], kernelParamsPtr->grid.d_realGrid[FEP_STATE_B],
+            	    kernelParamsPtr->grid.d_fractShiftsTable, kernelParamsPtr->grid.d_gridlineIndicesTable,
+            	    kernelParamsPtr->atoms.d_coefficients[FEP_STATE_A],
+            	    kernelParamsPtr->atoms.d_coefficients[FEP_STATE_B], kernelParamsPtr->atoms.d_coordinates);
+#endif
+#endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     const auto& settings    = pmeGpu->settings;
@@ -1401,6 +1417,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
 
     pme_gpu_start_timing(pmeGpu, timingId);
     auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
+#if GMX_GPU_CUDA
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
 #else
@@ -1411,6 +1428,17 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
 #endif
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME solve",
                     kernelArgs);
+#elif GMX_GPU_HIP
+#if c_canEmbedBuffers
+    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME solve",
+                    *kernelParamsPtr);
+#else
+    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME solve",
+                    *kernelParamsPtr, kernelParamsPtr->grid.d_splineModuli[gridIndex],
+                    kernelParamsPtr->constants.d_virialAndEnergy[gridIndex],
+                    kernelParamsPtr->grid.d_fourierGrid[gridIndex]);
+#endif
+#endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     if (computeEnergyAndVirial)
@@ -1571,6 +1599,7 @@ void pme_gpu_gather(PmeGpu* pmeGpu, real** h_grids, const float lambda)
         kernelParamsPtr->current.scale = 1.0 - lambda;
     }
 
+#if GMX_GPU_CUDA
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
 #else
@@ -1583,6 +1612,20 @@ void pme_gpu_gather(PmeGpu* pmeGpu, real** h_grids, const float lambda)
 #endif
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather",
                     kernelArgs);
+#elif GMX_GPU_HIP
+#if c_canEmbedBuffers
+    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather",
+                    *kernelParamsPtr);
+#else
+    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather",
+                *kernelParamsPtr, kernelParamsPtr->atoms.d_coefficients[FEP_STATE_A],
+            	kernelParamsPtr->atoms.d_coefficients[FEP_STATE_B],
+            	kernelParamsPtr->grid.d_realGrid[FEP_STATE_A], kernelParamsPtr->grid.d_realGrid[FEP_STATE_B],
+                kernelParamsPtr->atoms.d_theta, kernelParamsPtr->atoms.d_dtheta,
+                kernelParamsPtr->atoms.d_gridlineIndices, kernelParamsPtr->atoms.d_forces);
+
+#endif
+#endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
     if (pmeGpu->settings.useGpuForceReduction)

@@ -880,10 +880,14 @@ void GpuBonded::Impl::launchKernel()
 
     auto kernelPtr = exec_kernel_gpu<calcVir, calcEner>;
 
+    /*
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, kernelLaunchConfig_, &kernelParams_);
 
     launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr,
                     "exec_kernel_gpu<calcVir, calcEner>", kernelArgs);
+    */
+    launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr,
+                    "exec_kernel_gpu<calcVir, calcEner>", kernelParams_);
 
     wallcycle_sub_stop(wcycle_, ewcsLAUNCH_GPU_BONDED);
     wallcycle_stop(wcycle_, ewcLAUNCH_GPU);

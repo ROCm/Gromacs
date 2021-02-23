@@ -277,12 +277,11 @@ void launchGpuKernel(void (*kernel)(Args...),
                      const DeviceStream&       deviceStream,
                      CommandEvent* /*timingEvent */,
                      const char*                               kernelName,
-                     const std::array<void*, sizeof...(Args)>& kernelArgs)
+                     Args ... kernelArgs)
 {
     dim3 blockSize(config.blockSize[0], config.blockSize[1], config.blockSize[2]);
     dim3 gridSize(config.gridSize[0], config.gridSize[1], config.gridSize[2]);
-    hipLaunchKernel((void*)kernel, gridSize, blockSize, const_cast<void**>(kernelArgs.data()),
-                     config.sharedMemorySize, deviceStream.stream());
+    hipLaunchKernelGGL(kernel, gridSize, blockSize, config.sharedMemorySize, deviceStream.stream(), std::move(kernelArgs)...);  
 
     gmx::ensureNoPendingDeviceError("GPU kernel (" + std::string(kernelName)
                                     + ") failed to launch.");

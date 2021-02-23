@@ -261,11 +261,16 @@ void GpuHaloExchange::Impl::communicateHaloCoordinates(const matrix          box
     {
         auto kernelFn = usePBC_ ? packSendBufKernel<true> : packSendBufKernel<false>;
 
+	/*
         const auto kernelArgs = prepareGpuKernelArguments(kernelFn, config, &sendBuf, &d_x,
                                                           &indexMap, &size, &coordinateShift);
 
         launchGpuKernel(kernelFn, config, nonLocalStream_, nullptr,
                         "Domdec GPU Apply X Halo Exchange", kernelArgs);
+	*/
+	launchGpuKernel(kernelFn, config, nonLocalStream_, nullptr,
+                        "Domdec GPU Apply X Halo Exchange", const_cast<float3*>(sendBuf), d_x,
+                                                          indexMap, size, coordinateShift);
     }
 
     wallcycle_sub_stop(wcycle_, ewcsLAUNCH_GPU_MOVEX);
@@ -346,12 +351,15 @@ void GpuHaloExchange::Impl::communicateHaloForces(bool accumulateForces)
     if (size > 0)
     {
         auto kernelFn = accumulateForces ? unpackRecvBufKernel<true> : unpackRecvBufKernel<false>;
-
+        /*
         const auto kernelArgs =
                 prepareGpuKernelArguments(kernelFn, config, &d_f, &recvBuf, &indexMap, &size);
 
         launchGpuKernel(kernelFn, config, nonLocalStream_, nullptr,
                         "Domdec GPU Apply F Halo Exchange", kernelArgs);
+	*/
+	launchGpuKernel(kernelFn, config, nonLocalStream_, nullptr,
+                        "Domdec GPU Apply F Halo Exchange", d_f, recvBuf, indexMap, size);
     }
 
     if (pulse_ == 0)

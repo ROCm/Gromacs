@@ -61,6 +61,7 @@
 #include "gromacs/gpu_utils/device_context.h"
 #include "gromacs/gpu_utils/device_stream.h"
 #include "gromacs/gpu_utils/devicebuffer.h"
+#include "gromacs/gpu_utils/gpueventsynchronizer_hip.h"
 #include "gromacs/gpu_utils/gputraits_hip.h"
 #include "gromacs/gpu_utils/vectype_ops.cuh"
 #include "gromacs/mdlib/leapfrog_gpu.h"
@@ -169,10 +170,8 @@ void UpdateConstrainGpu::Impl::scaleCoordinates(const matrix scalingMatrix)
     mu.zx = scalingMatrix[ZZ][XX];
     mu.zy = scalingMatrix[ZZ][YY];
 
-    const auto kernelArgs = prepareGpuKernelArguments(
-            scaleCoordinates_kernel, coordinateScalingKernelLaunchConfig_, &numAtoms_, &d_x_, &mu);
     launchGpuKernel(scaleCoordinates_kernel, coordinateScalingKernelLaunchConfig_, deviceStream_,
-                    nullptr, "scaleCoordinates_kernel", kernelArgs);
+                    nullptr, "scaleCoordinates_kernel", numAtoms_, d_x_, mu);
     // TODO: Although this only happens on the pressure coupling steps, this synchronization
     //       can affect the performance if nstpcouple is small.
     deviceStream_.synchronize();
@@ -194,10 +193,8 @@ void UpdateConstrainGpu::Impl::scaleVelocities(const matrix scalingMatrix)
     mu.zx = scalingMatrix[ZZ][XX];
     mu.zy = scalingMatrix[ZZ][YY];
 
-    const auto kernelArgs = prepareGpuKernelArguments(
-            scaleCoordinates_kernel, coordinateScalingKernelLaunchConfig_, &numAtoms_, &d_v_, &mu);
     launchGpuKernel(scaleCoordinates_kernel, coordinateScalingKernelLaunchConfig_, deviceStream_,
-                    nullptr, "scaleCoordinates_kernel", kernelArgs);
+                    nullptr, "scaleCoordinates_kernel", numAtoms_, d_v_, mu);
     // TODO: Although this only happens on the pressure coupling steps, this synchronization
     //       can affect the performance if nstpcouple is small.
     deviceStream_.synchronize();

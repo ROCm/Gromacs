@@ -440,12 +440,18 @@ void SettleGpu::apply(const float3* d_x,
         config.sharedMemorySize = 0;
     }
 
+    /*
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, &numSettles_, &d_atomIds_,
                                                       &settleParameters_, &d_x, &d_xp, &invdt, &d_v,
                                                       &d_virialScaled_, &pbcAiuc);
 
     launchGpuKernel(kernelPtr, config, deviceStream_, nullptr,
                     "settle_kernel<updateVelocities, computeVirial>", kernelArgs);
+    */
+    launchGpuKernel(kernelPtr, config, deviceStream_, nullptr, "settle_kernel<updateVelocities, computeVirial>",
+                    numSettles_, const_cast<const int3*>(d_atomIds_), settleParameters_, 
+		    d_x, d_xp, invdt, d_v, d_virialScaled_, pbcAiuc);
+
 
     if (computeVirial)
     {

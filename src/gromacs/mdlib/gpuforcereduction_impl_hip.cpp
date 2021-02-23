@@ -190,10 +190,15 @@ void GpuForceReduction::Impl::execute()
                             ? (accumulate_ ? reduceKernel<true, true> : reduceKernel<true, false>)
                             : (accumulate_ ? reduceKernel<false, true> : reduceKernel<false, false>);
 
-    const auto kernelArgs = prepareGpuKernelArguments(kernelFn, config, &d_nbnxmForce, &d_rvecForceToAdd,
+    /*const auto kernelArgs = prepareGpuKernelArguments(kernelFn, config, &d_nbnxmForce, &d_rvecForceToAdd,
                                                       &baseForce_, &cellInfo_.d_cell, &numAtoms_);
 
     launchGpuKernel(kernelFn, config, deviceStream_, nullptr, "Force Reduction", kernelArgs);
+    */
+    launchGpuKernel(kernelFn, config, deviceStream_, nullptr, "Force Reduction", 
+		    const_cast<const float3*>(reinterpret_cast<float3*>(d_nbnxmForce)), 
+		    const_cast<const float3*>(reinterpret_cast<float3*>(d_rvecForceToAdd)),
+                    baseForce_, const_cast<const int*>(cellInfo_.d_cell), numAtoms_);
 
     // Mark that kernel has been launched
     if (completionMarker_ != nullptr)

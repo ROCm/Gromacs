@@ -286,10 +286,16 @@ void LeapFrogGpu::integrate(const DeviceBuffer<float3>        d_x,
         kernelPtr = selectLeapFrogKernelPtr(doTemperatureScaling, numTempScaleValues_, prVelocityScalingType);
     }
 
+    /*
     const auto kernelArgs = prepareGpuKernelArguments(
             kernelPtr, kernelLaunchConfig_, &numAtoms_, &d_x, &d_xp, &d_v, &d_f, &d_inverseMasses_,
             &dt, &d_lambdas_, &d_tempScaleGroups_, &prVelocityScalingMatrixDiagonal_);
     launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr, "leapfrog_kernel", kernelArgs);
+    */
+    launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr, "leapfrog_kernel",
+		    numAtoms_, const_cast<float3*>(d_x), d_xp, d_v, const_cast<const float3*>(reinterpret_cast<float3*>(d_f)),
+              	    const_cast<const float *>(d_inverseMasses_), dt, const_cast<const float *>(d_lambdas_),
+                    const_cast<const unsigned short*>(d_tempScaleGroups_), prVelocityScalingMatrixDiagonal_);
 
     return;
 }
