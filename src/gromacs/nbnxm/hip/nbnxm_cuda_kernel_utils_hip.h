@@ -626,9 +626,9 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     }
 
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-    if ((tidxj & 3) < 3)
+    if (tidxj < 3)
     {
-        atomicAdd(&fout[aidx].x + (tidxj & 3), fin.x);
+        atomicAdd(&fout[aidx].x + tidxj, fin.x);
 
         if (bCalcFshift)
         {

@@ -82,7 +82,11 @@ static constexpr int c_gpuNumClusterPerCell =
  * In CUDA the number of threads in a warp is 32 and we have cluster pairs
  * of 8*8=64 atoms, so it's convenient to store data for cluster pair halves.
  */
+#if GMX_GPU_CUDA
 static constexpr int c_nbnxnGpuClusterpairSplit = 2;
+#elif GMX_GPU_HIP
+static constexpr int c_nbnxnGpuClusterpairSplit = 2;
+#endif
 
 //! The fixed size of the exclusion mask array for a half GPU cluster pair
 static constexpr int c_nbnxnGpuExclSize =
