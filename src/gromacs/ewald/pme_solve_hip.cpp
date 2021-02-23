@@ -255,7 +255,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
 
         /* We can only reduce warp-wise */
         const int          width      = warp_size;
-        const unsigned int activeMask = c_fullWarpMask;
+        const unsigned long activeMask = c_fullWarpMask;
 
         /* Making pair sums */
         virxx += __shfl_down(virxx, 1, width);

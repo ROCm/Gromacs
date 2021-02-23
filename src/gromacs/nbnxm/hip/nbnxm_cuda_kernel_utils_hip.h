@@ -474,7 +474,7 @@ static __forceinline__ __device__ void
  *  array sizes.
  */
 static __forceinline__ __device__ void
-                       reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned int activemask)
+                       reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
 {
     f.x += __shfl_down(f.x, 1);
     f.y += __shfl_up(f.y, 1);
@@ -606,7 +606,7 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
                                                                 bool               bCalcFshift,
                                                                 int                tidxj,
                                                                 int                aidx,
-                                                                const unsigned int activemask)
+                                                                const unsigned long activemask)
 {
     fin.x += __shfl_down(fin.x, c_clSize);
     fin.y += __shfl_up(fin.y, c_clSize);
@@ -676,7 +676,7 @@ static __forceinline__ __device__ void
  *  array sizes.
  */
 static __forceinline__ __device__ void
-                       reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned int activemask)
+                       reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
 {
     int i, sh;
 

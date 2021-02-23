@@ -53,7 +53,7 @@ static const int warp_size_log2 = 5;
 /*! \brief Bitmask corresponding to all threads active in a warp.
  *  NOTE that here too we assume 32-wide warps.
  */
-static const unsigned int c_fullWarpMask = 0xffffffff;
+static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
 
 /*! \brief Allow disabling CUDA textures using the GMX_DISABLE_CUDA_TEXTURES macro.
  *
