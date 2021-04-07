@@ -386,8 +386,11 @@ __launch_bounds__(THREADS_PER_BLOCK)
         {
             /* Pre-load cj into shared memory on both warps separately */
             if (((tidxj * hipBlockDim_x) % warp_size == 0) & (tidxi < c_nbnxnGpuJgroupSize))
+	    if (tidxi == 0)
             {
-                cjs[tidxi] = pl_cj4[j4].cj[tidxi];
+		for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
+                    cjs[i] = pl_cj4[j4].cj[i];
+               }
             }
             //__syncwarp(c_fullWarpMask);
 	    __all(1);
@@ -476,9 +479,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif     /* LJ_COMB */
 
                                 // Ensure distance do not become so small that r^-12 overflows
-                                r2 = max(r2, c_nbnxnMinDistanceSquared);
+                                r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                inv_r  = rsqrt(r2);
+                                inv_r  = rsqrtf(r2);
                                 inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                                 inv_r6 = inv_r2 * inv_r2 * inv_r2;
@@ -638,9 +641,20 @@ __launch_bounds__(THREADS_PER_BLOCK)
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && tidxj < 3)
+    if (bCalcFshift)
     {
         atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+#pragma unroll
+        for (unsigned int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
+        {
+            fshift_buf += __shfl_down(fshift_buf, offset);
+        }
+
+        if( tidxi == 0 && tidxj < 3 )
+        {
+            atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+        }
+
     }
 
 #    ifdef CALC_ENERGIES

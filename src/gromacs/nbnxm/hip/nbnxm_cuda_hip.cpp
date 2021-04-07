@@ -119,7 +119,7 @@ namespace Nbnxm
 
 //! Number of CUDA threads in a block
 // TODO Optimize this through experimentation
-constexpr static int c_bufOpsThreadsPerBlock = 128;
+constexpr static int c_bufOpsThreadsPerBlock = 512;
 
 /*! Nonbonded kernel function pointer type */
 typedef void (*nbnxn_cu_kfunc_ptr_t)(const cu_atomdata_t, const NBParamGpu, const gpu_plist, bool);
