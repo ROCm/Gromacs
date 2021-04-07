@@ -58,4 +58,7 @@ gmx_add_unit_test(MdlibUnitTest mdlib-test HARDWARE_DETECTION
     CUDA_CU_SOURCE_FILES
         constrtestrunners.cu
         settletestrunners.cu
+    HIP_CPP_SOURCE_FILES
+        constrtestrunners_hip.cpp
+        settletestrunners_hip.cpp
         )

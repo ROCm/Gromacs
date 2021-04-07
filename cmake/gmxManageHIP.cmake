@@ -49,6 +49,8 @@ endif()
 find_package(hcc QUIET CONFIG PATHS /opt/rocm)
 find_package(hip QUIET CONFIG PATHS /opt/rocm)
 
+
+
 #VTSANG to-do
 #can we install ROCM and build without AMD GPU?
 set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward). This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime.  ${_msg}")

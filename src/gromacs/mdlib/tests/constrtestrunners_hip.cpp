@@ -33,16 +33,16 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /*! \internal \file
- * \brief Defines the runner for CUDA version of SETTLE.
+ * \brief Subroutines to run LINCS on GPU
+ *
+ * Copies data to GPU, runs LINCS and copies the results back.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  * \ingroup module_mdlib
  */
 #include "gmxpre.h"
 
-#include "settletestrunners.h"
-
-#include "config.h"
+#include "constrtestrunners.h"
 
 #include <assert.h>
 
@@ -53,61 +53,53 @@
 
 #include "gromacs/gpu_utils/devicebuffer_hip.h"
 #include "gromacs/hardware/device_information.h"
-#include "gromacs/mdlib/settle_gpu.cuh"
+#include "gromacs/mdlib/lincs_gpu.cuh"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/utility/unique_cptr.h"
-
-#include "testutils/test_device.h"
 
 namespace gmx
 {
 namespace test
 {
 
-void SettleDeviceTestRunner::applySettle(SettleTestData* testData,
-                                         const t_pbc     pbc,
-                                         const bool      updateVelocities,
-                                         const bool      calcVirial,
-                                         const std::string& /* testDescription */)
+void LincsDeviceConstraintsRunner::applyConstraints(ConstraintsTestData* testData, t_pbc pbc)
 {
-    // These should never fail since this function should only be called if CUDA is enabled and
-    // there is a CUDA-capable device available.
-    GMX_RELEASE_ASSERT(GMX_GPU_HIP, "HIP version of SETTLE was called from non-CUDA build.");
-
     const DeviceContext& deviceContext = testDevice_.deviceContext();
     const DeviceStream&  deviceStream  = testDevice_.deviceStream();
     setActiveDevice(testDevice_.deviceInfo());
 
-    auto settleGpu = std::make_unique<SettleGpu>(testData->mtop_, deviceContext, deviceStream);
+    auto lincsGpu = std::make_unique<LincsGpu>(testData->ir_.nLincsIter, testData->ir_.nProjOrder,
+                                               deviceContext, deviceStream);
 
-    settleGpu->set(*testData->idef_);
-    PbcAiuc pbcAiuc;
-    setPbcAiuc(pbc.ndim_ePBC, pbc.box, &pbcAiuc);
-
-    int numAtoms = testData->numAtoms_;
-
+    bool    updateVelocities = true;
+    int     numAtoms         = testData->numAtoms_;
     float3 *d_x, *d_xp, *d_v;
 
-    float3* h_x  = (float3*)(as_rvec_array(testData->x_.data()));
-    float3* h_xp = (float3*)(as_rvec_array(testData->xPrime_.data()));
-    float3* h_v  = (float3*)(as_rvec_array(testData->v_.data()));
+    lincsGpu->set(*testData->idef_, testData->numAtoms_, testData->invmass_.data());
+    PbcAiuc pbcAiuc;
+    setPbcAiuc(pbc.ndim_ePBC, pbc.box, &pbcAiuc);
 
     allocateDeviceBuffer(&d_x, numAtoms, deviceContext);
     allocateDeviceBuffer(&d_xp, numAtoms, deviceContext);
     allocateDeviceBuffer(&d_v, numAtoms, deviceContext);
 
-    copyToDeviceBuffer(&d_x, (float3*)h_x, 0, numAtoms, deviceStream, GpuApiCallBehavior::Sync, nullptr);
-    copyToDeviceBuffer(&d_xp, (float3*)h_xp, 0, numAtoms, deviceStream, GpuApiCallBehavior::Sync, nullptr);
+    copyToDeviceBuffer(&d_x, (float3*)(testData->x_.data()), 0, numAtoms, deviceStream,
+                       GpuApiCallBehavior::Sync, nullptr);
+    copyToDeviceBuffer(&d_xp, (float3*)(testData->xPrime_.data()), 0, numAtoms, deviceStream,
+                       GpuApiCallBehavior::Sync, nullptr);
     if (updateVelocities)
     {
-        copyToDeviceBuffer(&d_v, (float3*)h_v, 0, numAtoms, deviceStream, GpuApiCallBehavior::Sync, nullptr);
+        copyToDeviceBuffer(&d_v, (float3*)(testData->v_.data()), 0, numAtoms, deviceStream,
+                           GpuApiCallBehavior::Sync, nullptr);
     }
-    settleGpu->apply(d_x, d_xp, updateVelocities, d_v, testData->reciprocalTimeStep_, calcVirial,
-                     testData->virial_, pbcAiuc);
+    lincsGpu->apply(d_x, d_xp, updateVelocities, d_v, testData->invdt_, testData->computeVirial_,
+                    testData->virialScaled_, pbcAiuc);
 
-    copyFromDeviceBuffer((float3*)h_xp, &d_xp, 0, numAtoms, deviceStream, GpuApiCallBehavior::Sync, nullptr);
+    copyFromDeviceBuffer((float3*)(testData->xPrime_.data()), &d_xp, 0, numAtoms, deviceStream,
+                         GpuApiCallBehavior::Sync, nullptr);
     if (updateVelocities)
     {
-        copyFromDeviceBuffer((float3*)h_v, &d_v, 0, numAtoms, deviceStream,
+        copyFromDeviceBuffer((float3*)(testData->v_.data()), &d_v, 0, numAtoms, deviceStream,
                              GpuApiCallBehavior::Sync, nullptr);
     }
 
@@ -118,3 +110,4 @@ void SettleDeviceTestRunner::applySettle(SettleTestData* testData,
 
 } // namespace test
 } // namespace gmx
+
