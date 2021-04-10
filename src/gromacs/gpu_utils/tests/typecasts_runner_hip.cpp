@@ -154,4 +154,3 @@ void convertRVecToFloat3OnDevice(std::vector<gmx::RVec>&       h_rVecOutput,
 
 } // namespace test
 } // namespace gmx
-~

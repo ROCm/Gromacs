@@ -77,7 +77,7 @@ endfunction ()
 #     All the C++ .cpp source files needed only with SYCL
 #   NON_GPU_CPP_SOURCE_FILES  file1.cpp file2.cpp ...
 #     All the other C++ .cpp source files needed only with neither OpenCL nor CUDA nor SYCL
-macro (gmx_add_gtest_executable EXENAME)
+function (gmx_add_gtest_executable EXENAME)
     if (GMX_BUILD_UNITTESTS AND BUILD_TESTING)
         set(_options MPI HARDWARE_DETECTION)
         set(_multi_value_keywords
@@ -123,43 +123,39 @@ macro (gmx_add_gtest_executable EXENAME)
                 ${ARG_GPU_CPP_SOURCE_FILES}
                 ${TESTUTILS_DIR}/unittest_main.cpp)
 	elseif (GMX_GPU_HIP)
-		#get_hip_compiler_info(HIP_COMPILER_INFO HIP_DEVICE_COMPILER_FLAGS HIP_HOST_COMPILER_FLAGS)
-		#if(NOT DEFINED HIP_PATH)
-			#if(NOT DEFINED ENV{HIP_PATH})
-			    #set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
-			#else()
-			    #set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
-			#endif()
-		    #endif()
-		    get_property(HIP_ADD_EXECUTABLE_FOUND GLOBAL PROPERTY GMX_HIP_ADD_EXECUTABLE_FOUND)
-		    if (NOT HIP_ADD_EXECUTABLE_FOUND)
-		list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
-		set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
-	        find_package(HIP QUIET)
-		set_property(GLOBAL PROPERTY GMX_HIP_ADD_EXECUTABLE_FOUND true)
-	    if(HIP_FOUND)
-	    message(STATUS "***Found HIP: " ${HIP_VERSION})
-	    else()
-	    message(FATAL_ERROR "xxxCould not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
+	    set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+	    if(NOT DEFINED HIP_PATH)
+		if(NOT DEFINED ENV{HIP_PATH})
+		    set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
+		    set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
+		else()
+		    set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
+		    set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
+		endif()
 	    endif()
-	endif()
-	    message("###calling hip_add_executable for ${EXENAME}")
-	    	set_source_files_properties(${ARG_CPP_SOURCE_FILES} PROPERTIES COMPILE_FLAGS "${HIP_CXX_FLAGS}")
-	    	set_source_files_properties(${ARG_HIP_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
-		set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES COMPILE_FLAGS "${HIP_CXX_FLAGS}")
-	    	hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS} 
-	            ${ARG_CPP_SOURCE_FILES} ${ARG_HIP_CPP_SOURCE_FILES} 
-	    		${ARG_GPU_CPP_SOURCE_FILES} ${TESTUTILS_DIR}/unittest_main.cpp)
-	    #		HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" HCC_OPTIONS "" CLANG_OPTIONS "" NVCC_OPTIONS)
-		
-		
-		
-		
-	    #add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
-	    #	${ARG_CPP_SOURCE_FILES}
-	    #	${ARG_HIP_CPP_SOURCE_FILES}
-	    #	${ARG_GPU_CPP_SOURCE_FILES}
-	    #	${TESTUTILS_DIR}/unittest_main.cpp)
+	    get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+
+	    if (NOT HIP_ADD_LIBRARY_FOUND)
+		list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
+	        set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
+	 	list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+		set(CMAKE_PREFIX_PATH "/opt/rocm/hip" ${CMAKE_PREFIX_PATH})
+	        find_package(HIP QUIET)
+		set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
+	        if(HIP_FOUND)
+		    message(STATUS "Found HIP: " ${HIP_VERSION} ${HIP_COMPILER})
+	    	else()
+	      	    message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
+	        endif()
+ 	    endif()
+	    set_source_files_properties(${ARG_HIP_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+	    set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+	    hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS} 
+	        ${ARG_CPP_SOURCE_FILES} 
+	        ${ARG_HIP_CPP_SOURCE_FILES} 
+	    	${ARG_GPU_CPP_SOURCE_FILES} 
+	    	${TESTUTILS_DIR}/unittest_main.cpp 
+	    	HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" HCC_OPTIONS "" CLANG_OPTIONS "" NVCC_OPTIONS)
         else()
             add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
                 ${ARG_CPP_SOURCE_FILES}
@@ -179,13 +175,9 @@ macro (gmx_add_gtest_executable EXENAME)
                 endif()
             endif()
 	elseif (GMX_GPU_HIP)
-	   target_sources(${EXENAME} PRIVATE ${ARG_HIP_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})
-   	   set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES COMPILE_FLAGS "${HIP_CXX_FLAGS}")
-	   set_source_files_properties(${ARG_HIP_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
-     	   if(ARG_HIP_CPP_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
-	       target_link_libraries(${EXENAME} PRIVATE hip::host)
-    	   endif()
-
+	    if(ARG_HIP_CPP_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
+		target_link_libraries(${EXENAME} PRIVATE hip::host)
+	    endif()
         elseif (GMX_GPU_OPENCL)
             target_sources(${EXENAME} PRIVATE ${ARG_OPENCL_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})
             if(ARG_OPENCL_CPP_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
@@ -233,7 +225,7 @@ macro (gmx_add_gtest_executable EXENAME)
             target_compile_options(${EXENAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-w>)
         endif()
     endif()
-endmacro()
+endfunction()
 
 # This function can be called with extra options and arguments:
 #   OPENMP_THREADS <N>    declares the requirement to run the test binary with N OpenMP

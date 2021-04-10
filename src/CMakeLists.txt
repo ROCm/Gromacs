@@ -122,7 +122,7 @@ add_subdirectory(external)
 
 if (BUILD_TESTING)
     if(NOT GMX_DEVELOPER_BUILD)
-        set(UNITTEST_TARGET_OPTIONS EXCLUDE_FROM_ALL)
+	set(UNITTEST_TARGET_OPTIONS EXCLUDE_FROM_ALL)
     endif()
     include(testutils/TestMacros.cmake)
     add_subdirectory(testutils)
