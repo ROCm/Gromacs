@@ -1,0 +1,19 @@
+A. Enviroment Intro.
+This is the unit-test for the PME kernels which included spline_and_spread, gather, solve.
+
+
+B. How to build the code and execute it.
+   1. make clean; make
+   2. Copy the testing input data from the intputData folder
+      => ex: cp inputData/adh/*.txt .
+   3. According to the dataset to decide the input parameter of the testing program
+      => adh: 95561, water: 768000
+         ./spline.out atomNum useOrderThread => ./spline.out 95561 0 or 1
+         ./gather.out atomNum useOrderThread => ./gather.out 95561 0 or 1
+         ./solve.out computeEnergyAndVirial  => ./solve.out 0 or 1
+   4. Using rocprof to measure the time duration
+      => rocprof --stats ./spline.out 95561 0 or 1
+      You can see the result is results.stats.csv
+
+      "Name","Calls","TotalDurationNs","AverageNs","Percentage"
+      "_Z28pme_spline_and_spread_kernelILi4ELb0ELb1EEvbbbbiPKfS1_S1_S1_S1_PKiS3_S3_S3_PfS4_PiS4_.kd",1000,390329219,390329,100.0

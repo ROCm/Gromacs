@@ -1,0 +1,15 @@
+A. Enviroment Intro.
+This is the unit-test for the NB kernels which included nbnxn_kernel and nbnxn_kernel_prune
+
+B. How to build/clean the code and execute it.
+   1. make -f Makefile.gfx908; make -f Makefile.gfx908 clean
+   2. Copy the testing input data from the intputData folder
+      => ex: cp inputData/adh/*.txt .
+   3. set a one argument to decide the calcFshift is enabled or not for the nbnxn_kernel
+      => ./nbnxm.out calcFshift => ./nbnxm.out 0 or 1
+   4. use rocprof to measure the time duration
+      => rocprof --stats ./nbnxm.out 0 or 1
+      You can see the result is results.stats.csv
+
+      "Name","Calls","TotalDurationNs","AverageNs","Percentage"
+      "_Z12nbnxn_kernel11cu_atomdata10cu_nbparam9gpu_plistb.kd",1000,424057802,424057,100.0

@@ -1,0 +1,30 @@
+HIP_PATH?= $(wildcard /opt/rocm/hip)
+ifeq (,$(HIP_PATH))
+        HIP_PATH=../../..
+endif
+
+HIPCC=$(HIP_PATH)/bin/hipcc
+
+TARGET=hcc
+
+#SOURCES = nbnxm_cuda_kernel_adh-atomicAddNoRet.hip.cpp nbnxm_cuda_kernel_adh.hip.cpp nbnxm_cuda_kernel-atomicAddNoRet.hip.cpp nbnxm_cuda_kernel_atomicInt.hip.cpp 
+SOURCES = nbnxm_cuda_kernel_hip.cpp
+
+OBJECTS = $(SOURCES:.cpp=.o)
+
+#EXECUTABLE=nbnxm_cuda_kernel_adh-atomicAddNoRet.hip.out nbnxm_cuda_kernel_adh.hip.out nbnxm_cuda_kernel-atomicAddNoRet.hip.out nbnxm_cuda_kernel_atomicInt.hip.out 
+EXECUTABLE=nbnxm_cuda_kernel_hip.out
+
+all: $(EXECUTABLE)
+
+CXXFLAGS =-g
+
+CXX=$(HIPCC)
+
+%.out: %.o
+	$(HIPCC) -DHCC_ENABLE_ACCELERATOR_PRINTF -o $@ $^
+
+clean:
+	rm -f $(EXECUTABLE)
+	rm -f $(OBJECTS)
+	rm -f $(HIP_PATH)/src/*.o
