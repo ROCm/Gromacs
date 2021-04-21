@@ -383,14 +383,11 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    ifndef PRUNE_NBL
         if (imask)
 #    endif
-        {
+	{
             /* Pre-load cj into shared memory on both warps separately */
             if (((tidxj * hipBlockDim_x) % warp_size == 0) & (tidxi < c_nbnxnGpuJgroupSize))
-	    if (tidxi == 0)
-            {
-		for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
-                    cjs[i] = pl_cj4[j4].cj[i];
-               }
+	    {
+                cjs[tidxi] = pl_cj4[j4].cj[tidxi];
             }
             //__syncwarp(c_fullWarpMask);
 	    __all(1);
@@ -641,20 +638,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift)
+    if (bCalcFshift && tidxj < 3)
     {
         atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
-#pragma unroll
-        for (unsigned int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
-        {
-            fshift_buf += __shfl_down(fshift_buf, offset);
-        }
-
-        if( tidxi == 0 && tidxj < 3 )
-        {
-            atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
-        }
-
     }
 
 #    ifdef CALC_ENERGIES
