@@ -330,7 +330,7 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
 		const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
                 const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
 #pragma unroll
-	       	for (int ithy = ithyMin; ithy < ithyMax; ithy++)
+                for (o = 0; o < order; o++)
                 {
                     const int thetaIndex =
                             getSplineParamIndex<order, atomsPerWarp>(thetaIndexBase, dimIndex, o);
@@ -365,7 +365,7 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
 	    const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
             const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
 #pragma unroll
-	    for (int ithy = ithyMin; ithy < ithyMax; ithy++)
+            for (o = 0; o < order; o++)
             {
                 const int thetaIndex =
                         getSplineParamIndex<order, atomsPerWarp>(thetaIndexBase, dimIndex, o);
