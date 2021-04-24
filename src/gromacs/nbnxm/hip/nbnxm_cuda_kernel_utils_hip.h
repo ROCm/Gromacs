@@ -75,6 +75,19 @@ static const unsigned __device__ superClInteractionMask =
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
+static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
+  const int* address_as_ull = (int*)address;
+  int old = *address_as_ull;
+  int assumed;
+
+  do {
+    assumed = old;
+    old = atomicCAS((int*)address_as_ull, assumed,
+                    __float_as_int(val +
+                    __int_as_float(assumed)));
+  } while (assumed != old);
+
+}
 
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
 static __forceinline__ __device__ void
@@ -466,7 +479,11 @@ static __forceinline__ __device__ void
             f += f_buf[c_fbufStride * tidxi + j];
         }
 
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet((&fout[aidx].x) + tidxi, f);
+#else
         atomicAdd((&fout[aidx].x) + tidxi, f);
+#endif
     }
 }
 
@@ -497,7 +514,11 @@ static __forceinline__ __device__ void
 
     if (tidxi < 3)
     {
-        atomicAdd((&fout[aidx].x) + tidxi, f.x);
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet((&fout[aidx].x) + tidxi, f.x);
+#else
+        atomicAddOverWriteForFloat((&fout[aidx].x) + tidxi, f.x);
+#endif
     }
 }
 
@@ -521,7 +542,11 @@ static __forceinline__ __device__ void reduce_force_i_generic(float*  f_buf,
             f += f_buf[tidxj * c_fbufStride + j];
         }
 
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet(&fout[aidx].x + tidxj, f);
+#else
         atomicAdd(&fout[aidx].x + tidxj, f);
+#endif
 
         if (bCalcFshift)
         {
@@ -572,7 +597,11 @@ static __forceinline__ __device__ void reduce_force_i_pow2(volatile float* f_buf
         /* tidxj*c_fbufStride selects x, y or z */
         f = f_buf[tidxj * c_fbufStride + tidxi] + f_buf[tidxj * c_fbufStride + i * c_clSize + tidxi];
 
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet(&(fout[aidx].x) + tidxj, f);
+#else
         atomicAdd(&(fout[aidx].x) + tidxj, f);
+#endif
 
         if (bCalcFshift)
         {
@@ -630,7 +659,11 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if (tidxj < 3)
     {
-        atomicAdd(&fout[aidx].x + tidxj, fin.x);
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet(&fout[aidx].x + tidxj, fin.x);
+#else
+        atomicAddOverWriteForFloat(&fout[aidx].x + tidxj, fin.x);
+#endif
 
         if (bCalcFshift)
         {
@@ -669,8 +702,13 @@ static __forceinline__ __device__ void
         e1 = buf[tidx] + buf[tidx + i];
         e2 = buf[c_fbufStride + tidx] + buf[c_fbufStride + tidx + i];
 
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet(e_lj, e1);
+        atomicAddNoRet(e_el, e2);
+#else
         atomicAdd(e_lj, e1);
         atomicAdd(e_el, e2);
+#endif
     }
 }
 
@@ -694,8 +732,13 @@ static __forceinline__ __device__ void
     /* The first thread in the warp writes the reduced energies */
     if (tidx == 0)
     {
-        atomicAdd(e_lj, E_lj);
-        atomicAdd(e_el, E_el);
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet(e_lj, E_lj);
+        atomicAddNoRet(e_el, E_el);
+#else
+        atomicAddOverWriteForFloat(e_lj, E_lj);
+        atomicAddOverWriteForFloat(e_el, E_el);
+#endif
     }
 }
 

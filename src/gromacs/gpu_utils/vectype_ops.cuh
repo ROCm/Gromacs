@@ -113,9 +113,15 @@ __forceinline__ __host__ __device__ void operator*=(float3& a, float b)
 }
 __forceinline__ __device__ void atomicAdd(float3* addr, float3 val)
 {
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+    atomicAddNoRet(&addr->x, val.x);
+    atomicAddNoRet(&addr->y, val.y);
+    atomicAddNoRet(&addr->z, val.z);
+#else
     atomicAdd(&addr->x, val.x);
     atomicAdd(&addr->y, val.y);
     atomicAdd(&addr->z, val.z);
+#endif
 }
 /****************************************************************/
 

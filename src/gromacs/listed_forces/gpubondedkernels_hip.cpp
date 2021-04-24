@@ -72,6 +72,49 @@
 #    include <limits>
 #endif
 
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+    #define hipGlobalAtomicAdd(a, b) atomicAddNoRet(a, b);
+    #define hipLocalAtomicAdd(a, b) atomicAddLocalNoRet(a, b);
+#else
+    #define hipGlobalAtomicAdd(a, b) atomicAdd(a, b);
+    #define hipLocalAtomicAdd(a, b) atomicAdd(a, b);
+#endif
+
+__device__ __forceinline__ float hipHeadSegmentedSum(float &input, const bool &flag)
+{
+
+    uint64_t warp_flags = __ballot(flag);
+
+    warp_flags >>= 1;
+    uint32_t lane_id = __lane_id();
+
+    warp_flags &= uint64_t(-1) ^ ((uint64_t(1) << lane_id) - 1U);
+    warp_flags >>= (lane_id / warp_size) * warp_size;
+    warp_flags |= uint64_t(1) << (warp_size - 1U);
+    uint32_t valid_items = __lastbit_u32_u64(warp_flags) + 1U;
+
+    float output = input;
+    float value = 0.0f;
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warp_size; offset *= 2)
+    {
+        value = __shfl_down(output, offset, warp_size);
+        lane_id = __lane_id() & (warp_size - 1);
+        if (lane_id + offset < valid_items)
+        {
+            output += value;
+        }
+    }
+    return output;
+}
+
+__device__
+void atomicAddLocalNoRet(float* dst, float x)
+{
+    // atomicAddNoRet(dst, x);
+    __asm__ volatile("ds_add_f32 %0, %1" : : "v"((__local float *)dst), "v"(x));
+}
+
 /*-------------------------------- CUDA kernels-------------------------------- */
 /*------------------------------------------------------------------------------*/
 
@@ -132,12 +175,21 @@ __device__ void bonds_gpu(const int       i,
             fbond *= rsqrtf(dr2);
 
             float3 fij = fbond * dx;
-            atomicAdd(&gm_f[ai], fij);
-            atomicAdd(&gm_f[aj], -fij);
+	    hipGlobalAtomicAdd(&gm_f[ai].x, fij.x);
+	    hipGlobalAtomicAdd(&gm_f[ai].y, fij.y);
+	    hipGlobalAtomicAdd(&gm_f[ai].z, fij.z);
+	    hipGlobalAtomicAdd(&gm_f[aj].x, -fij.x);
+            hipGlobalAtomicAdd(&gm_f[aj].y, -fij.y);
+            hipGlobalAtomicAdd(&gm_f[aj].z, -fij.z);
+
             if (calcVir && ki != CENTRAL)
             {
-                atomicAdd(&sm_fShiftLoc[ki], fij);
-                atomicAdd(&sm_fShiftLoc[CENTRAL], -fij);
+		hipLocalAtomicAdd(&sm_fShiftLoc[ki].x, fij.x);
+		hipLocalAtomicAdd(&sm_fShiftLoc[ki].y, fij.y);
+		hipLocalAtomicAdd(&sm_fShiftLoc[ki].z, fij.z);
+		hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, -fij.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, -fij.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, -fij.z);
             }
         }
     }
@@ -220,15 +272,27 @@ __device__ void angles_gpu(const int       i,
             float3 f_k = ckk * r_kj - cik * r_ij;
             float3 f_j = -f_i - f_k;
 
-            atomicAdd(&gm_f[ai], f_i);
-            atomicAdd(&gm_f[aj], f_j);
-            atomicAdd(&gm_f[ak], f_k);
+            hipGlobalAtomicAdd(&gm_f[ai].x, f_i.x);
+            hipGlobalAtomicAdd(&gm_f[ai].y, f_i.y);
+            hipGlobalAtomicAdd(&gm_f[ai].z, f_i.z);
+            hipGlobalAtomicAdd(&gm_f[aj].x, f_j.x);
+            hipGlobalAtomicAdd(&gm_f[aj].y, f_j.y);
+            hipGlobalAtomicAdd(&gm_f[aj].z, f_j.z);
+            hipGlobalAtomicAdd(&gm_f[ak].x, f_k.x);
+            hipGlobalAtomicAdd(&gm_f[ak].y, f_k.y);
+            hipGlobalAtomicAdd(&gm_f[ak].z, f_k.z);
 
             if (calcVir)
             {
-                atomicAdd(&sm_fShiftLoc[t1], f_i);
-                atomicAdd(&sm_fShiftLoc[CENTRAL], f_j);
-                atomicAdd(&sm_fShiftLoc[t2], f_k);
+		hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
+		hipLocalAtomicAdd(&sm_fShiftLoc[t1].y, f_i.y);
+		hipLocalAtomicAdd(&sm_fShiftLoc[t1].z, f_i.z);
+		hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, f_j.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, f_j.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, f_j.z);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t2].x, f_k.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t2].y, f_k.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t2].z, f_k.z);
             }
         }
     }
@@ -302,15 +366,26 @@ __device__ void urey_bradley_gpu(const int       i,
             float3 f_k = ckk * r_kj - cik * r_ij;
             float3 f_j = -f_i - f_k;
 
-            atomicAdd(&gm_f[ai], f_i);
-            atomicAdd(&gm_f[aj], f_j);
-            atomicAdd(&gm_f[ak], f_k);
-
+	    hipGlobalAtomicAdd(&gm_f[ai].x, f_i.x);
+	    hipGlobalAtomicAdd(&gm_f[ai].y, f_i.y);
+	    hipGlobalAtomicAdd(&gm_f[ai].z, f_i.z);
+            hipGlobalAtomicAdd(&gm_f[aj].x, f_j.x);
+            hipGlobalAtomicAdd(&gm_f[aj].y, f_j.y);
+            hipGlobalAtomicAdd(&gm_f[aj].z, f_j.z);
+            hipGlobalAtomicAdd(&gm_f[ak].x, f_k.x);
+            hipGlobalAtomicAdd(&gm_f[ak].y, f_k.y);
+            hipGlobalAtomicAdd(&gm_f[ak].z, f_k.z);
             if (calcVir)
             {
-                atomicAdd(&sm_fShiftLoc[t1], f_i);
-                atomicAdd(&sm_fShiftLoc[CENTRAL], f_j);
-                atomicAdd(&sm_fShiftLoc[t2], f_k);
+		hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
+		hipLocalAtomicAdd(&sm_fShiftLoc[t1].y, f_i.y);
+		hipLocalAtomicAdd(&sm_fShiftLoc[t1].z, f_i.z);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, f_j.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, f_j.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, f_j.z);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t2].x, f_k.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t2].y, f_k.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t2].z, f_k.z);
             }
         }
 
@@ -325,13 +400,21 @@ __device__ void urey_bradley_gpu(const int       i,
             fbond *= rsqrtf(dr2);
 
             float3 fik = fbond * r_ik;
-            atomicAdd(&gm_f[ai], fik);
-            atomicAdd(&gm_f[ak], -fik);
+	    hipGlobalAtomicAdd(&gm_f[ai].x, fik.x);
+	    hipGlobalAtomicAdd(&gm_f[ai].y, fik.y);
+	    hipGlobalAtomicAdd(&gm_f[ai].z, fik.z);
+	    hipGlobalAtomicAdd(&gm_f[ak].x, -fik.x);
+	    hipGlobalAtomicAdd(&gm_f[ak].y, -fik.y);
+	    hipGlobalAtomicAdd(&gm_f[ak].z, -fik.z);
 
             if (calcVir && ki != CENTRAL)
             {
-                atomicAdd(&sm_fShiftLoc[ki], fik);
-                atomicAdd(&sm_fShiftLoc[CENTRAL], -fik);
+		hipLocalAtomicAdd(&sm_fShiftLoc[ki].x, fik.x);
+		hipLocalAtomicAdd(&sm_fShiftLoc[ki].y, fik.y);
+		hipLocalAtomicAdd(&sm_fShiftLoc[ki].z, fik.z);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, -fik.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, -fik.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, -fik.z);
             }
         }
     }
@@ -420,20 +503,36 @@ __device__ static void do_dih_fup_gpu(const int      i,
         float3 f_j  = f_i - svec;
         float3 f_k  = f_l + svec;
 
-        atomicAdd(&gm_f[i], f_i);
-        atomicAdd(&gm_f[j], -f_j);
-        atomicAdd(&gm_f[k], -f_k);
-        atomicAdd(&gm_f[l], f_l);
+	hipGlobalAtomicAdd(&gm_f[i].x, f_i.x);
+	hipGlobalAtomicAdd(&gm_f[i].y, f_i.y);
+	hipGlobalAtomicAdd(&gm_f[i].z, f_i.z);
+        hipGlobalAtomicAdd(&gm_f[j].x, -f_j.x);
+        hipGlobalAtomicAdd(&gm_f[j].y, -f_j.y);
+        hipGlobalAtomicAdd(&gm_f[j].z, -f_j.z);
+        hipGlobalAtomicAdd(&gm_f[k].x, -f_k.x);
+        hipGlobalAtomicAdd(&gm_f[k].y, -f_k.y);
+        hipGlobalAtomicAdd(&gm_f[k].z, -f_k.z);
+        hipGlobalAtomicAdd(&gm_f[l].x, f_l.x);
+        hipGlobalAtomicAdd(&gm_f[l].y, f_l.y);
+        hipGlobalAtomicAdd(&gm_f[l].z, f_l.z);
 
         if (calcVir)
         {
             float3 dx_jl;
             int    t3 = pbcDxAiuc<calcVir>(pbcAiuc, gm_xq[l], gm_xq[j], dx_jl);
 
-            atomicAdd(&sm_fShiftLoc[t1], f_i);
-            atomicAdd(&sm_fShiftLoc[CENTRAL], -f_j);
-            atomicAdd(&sm_fShiftLoc[t2], -f_k);
-            atomicAdd(&sm_fShiftLoc[t3], f_l);
+	    hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
+	    hipLocalAtomicAdd(&sm_fShiftLoc[t1].y, f_i.y);
+	    hipLocalAtomicAdd(&sm_fShiftLoc[t1].z, f_i.z);
+            hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, -f_j.x);
+            hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, -f_j.y);
+            hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, -f_j.z);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t2].x, -f_k.x);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t2].y, -f_k.y);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t2].z, -f_k.z);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t3].x, f_l.x);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t3].y, f_l.y);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t3].z, f_l.z);
         }
     }
 }
@@ -702,12 +801,20 @@ __device__ void pairs_gpu(const int       i,
         float3 f     = finvr * dr;
 
         /* Add the forces */
-        atomicAdd(&gm_f[ai], f);
-        atomicAdd(&gm_f[aj], -f);
+	hipGlobalAtomicAdd(&gm_f[ai].x, f.x);
+	hipGlobalAtomicAdd(&gm_f[ai].y, f.y);
+	hipGlobalAtomicAdd(&gm_f[ai].z, f.z);
+        hipGlobalAtomicAdd(&gm_f[aj].x, -f.x);
+        hipGlobalAtomicAdd(&gm_f[aj].y, -f.y);
+        hipGlobalAtomicAdd(&gm_f[aj].z, -f.z);
         if (calcVir && fshift_index != CENTRAL)
         {
-            atomicAdd(&sm_fShiftLoc[fshift_index], f);
-            atomicAdd(&sm_fShiftLoc[CENTRAL], -f);
+	    hipLocalAtomicAdd(&sm_fShiftLoc[fshift_index].x, f.x);
+	    hipLocalAtomicAdd(&sm_fShiftLoc[fshift_index].y, f.y);
+	    hipLocalAtomicAdd(&sm_fShiftLoc[fshift_index].z, f.z);
+            hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, -f.x);
+            hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, -f.y);
+            hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, -f.x);
         }
 
         if (calcEner)
@@ -834,17 +941,17 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
 	__all(1);
 
         // Perform warp-local accumulation in shared memory
-        atomicAdd(sm_vTot + warpId, vtot_loc);
-        atomicAdd(sm_vTotVdw + warpId, vtotVdw_loc);
-        atomicAdd(sm_vTotElec + warpId, vtotElec_loc);
+	hipLocalAtomicAdd(sm_vTot + warpId, vtot_loc);
+        hipLocalAtomicAdd(sm_vTotVdw + warpId, vtotVdw_loc);
+        hipLocalAtomicAdd(sm_vTotElec + warpId, vtotElec_loc);
 
         //__syncwarp(); // Ensure all threads in warp have completed
 	__all(1);
         if (threadIdx.x % warpSize == 0)
         { // One thread per warp accumulates partial sum into global sum
-            atomicAdd(kernelParams.d_vTot + fType, sm_vTot[warpId]);
-            atomicAdd(vtotVdw, sm_vTotVdw[warpId]);
-            atomicAdd(vtotElec, sm_vTotElec[warpId]);
+	    hipGlobalAtomicAdd(kernelParams.d_vTot + fType, sm_vTot[warpId]);
+            hipLocalAtomicAdd(vtotVdw, sm_vTotVdw[warpId]);
+            hipLocalAtomicAdd(vtotElec, sm_vTotElec[warpId]);
         }
     }
     /* Accumulate shift vectors from shared memory to global memory on the first SHIFTS threads of the block. */
@@ -853,7 +960,9 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
         __syncthreads();
         if (threadIdx.x < SHIFTS)
         {
-            atomicAdd(kernelParams.d_fShift[threadIdx.x], sm_fShiftLoc[threadIdx.x]);
+            hipGlobalAtomicAdd(&kernelParams.d_fShift[threadIdx.x].x, sm_fShiftLoc[threadIdx.x].x);
+            hipGlobalAtomicAdd(&kernelParams.d_fShift[threadIdx.x].y, sm_fShiftLoc[threadIdx.x].y);
+            hipGlobalAtomicAdd(&kernelParams.d_fShift[threadIdx.x].z, sm_fShiftLoc[threadIdx.x].z);
         }
     }
 }
