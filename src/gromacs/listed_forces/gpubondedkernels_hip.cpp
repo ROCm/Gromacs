@@ -72,6 +72,34 @@
 #    include <limits>
 #endif
 
+template<typename T>
+struct fixed_array
+{
+    T values[gmx::numFTypesOnGpu];
+
+    fixed_array(T vs[gmx::numFTypesOnGpu]) {
+        for (int i = 0; i < gmx::numFTypesOnGpu; i++) {
+            values[i] = vs[i];
+        }
+    }
+
+    __device__ __forceinline__
+    T operator[](int index) const {
+        // return values[index];
+
+        switch (index) {
+            case 0: return values[0];
+            case 1: return values[1];
+            case 2: return values[2];
+            case 3: return values[3];
+            case 4: return values[4];
+            case 5: return values[5];
+            case 6: return values[6];
+            default: return values[7];
+        }
+    }
+};
+
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
     #define hipGlobalAtomicAdd(a, b) atomicAddNoRet(a, b);
     #define hipLocalAtomicAdd(a, b) atomicAddLocalNoRet(a, b);
@@ -503,18 +531,66 @@ __device__ static void do_dih_fup_gpu(const int      i,
         float3 f_j  = f_i - svec;
         float3 f_k  = f_l + svec;
 
-	hipGlobalAtomicAdd(&gm_f[i].x, f_i.x);
-	hipGlobalAtomicAdd(&gm_f[i].y, f_i.y);
-	hipGlobalAtomicAdd(&gm_f[i].z, f_i.z);
-        hipGlobalAtomicAdd(&gm_f[j].x, -f_j.x);
-        hipGlobalAtomicAdd(&gm_f[j].y, -f_j.y);
-        hipGlobalAtomicAdd(&gm_f[j].z, -f_j.z);
-        hipGlobalAtomicAdd(&gm_f[k].x, -f_k.x);
-        hipGlobalAtomicAdd(&gm_f[k].y, -f_k.y);
-        hipGlobalAtomicAdd(&gm_f[k].z, -f_k.z);
-        hipGlobalAtomicAdd(&gm_f[l].x, f_l.x);
-        hipGlobalAtomicAdd(&gm_f[l].y, f_l.y);
-        hipGlobalAtomicAdd(&gm_f[l].z, f_l.z);
+	unsigned long long int b_ = __ballot(1);
+        const int prev_lane_i = __shfl_up(i, 1);
+        const int prev_lane_j = __shfl_up(j, 1);
+        const int prev_lane_k = __shfl_up(k, 1);
+        const int prev_lane_l = __shfl_up(l, 1);
+        const bool headi = threadIdx.x % warp_size == 0 || i != prev_lane_i;
+        const bool headj = threadIdx.x % warp_size == 0 || j != prev_lane_j;
+        const bool headk = threadIdx.x % warp_size == 0 || k != prev_lane_k;
+        const bool headl = threadIdx.x % warp_size == 0 || l != prev_lane_l;
+
+	if (b_ == ~(unsigned long long int)0)
+        {
+	    const float3 sumfi = {hipHeadSegmentedSum(f_i.x, headi), hipHeadSegmentedSum(f_i.y, headi), hipHeadSegmentedSum(f_i.z, headi)};
+	    const float3 sumfj = {hipHeadSegmentedSum(f_j.x, headj), hipHeadSegmentedSum(f_j.y, headj), hipHeadSegmentedSum(f_j.z, headj)};
+	    const float3 sumfk = {hipHeadSegmentedSum(f_k.x, headk), hipHeadSegmentedSum(f_k.y, headk), hipHeadSegmentedSum(f_k.z, headk)};
+	    const float3 sumfl = {hipHeadSegmentedSum(f_l.x, headl), hipHeadSegmentedSum(f_l.y, headl), hipHeadSegmentedSum(f_l.z, headl)};
+            
+            if (headi)
+            {
+                hipGlobalAtomicAdd(&gm_f[i].x, sumfi.x);
+                hipGlobalAtomicAdd(&gm_f[i].y, sumfi.y);
+                hipGlobalAtomicAdd(&gm_f[i].z, sumfi.z);
+            }
+
+            if (headj)
+            {
+                hipGlobalAtomicAdd(&gm_f[j].x, -sumfj.x);
+                hipGlobalAtomicAdd(&gm_f[j].y, -sumfj.y);
+                hipGlobalAtomicAdd(&gm_f[j].z, -sumfj.z);
+            }
+
+            if (headk)
+            {
+                hipGlobalAtomicAdd(&gm_f[k].x, -sumfk.x);
+                hipGlobalAtomicAdd(&gm_f[k].y, -sumfk.y);
+                hipGlobalAtomicAdd(&gm_f[k].z, -sumfk.z);
+            }
+
+            if (headl)
+            {
+                hipGlobalAtomicAdd(&gm_f[l].x, sumfl.x);
+                hipGlobalAtomicAdd(&gm_f[l].y, sumfl.y);
+                hipGlobalAtomicAdd(&gm_f[l].z, sumfl.z);
+            }
+        }
+        else
+        {
+	    hipGlobalAtomicAdd(&gm_f[i].x, f_i.x);
+            hipGlobalAtomicAdd(&gm_f[i].y, f_i.y);
+            hipGlobalAtomicAdd(&gm_f[i].z, f_i.z);
+            hipGlobalAtomicAdd(&gm_f[j].x, -f_j.x);
+            hipGlobalAtomicAdd(&gm_f[j].y, -f_j.y);
+            hipGlobalAtomicAdd(&gm_f[j].z, -f_j.z);
+            hipGlobalAtomicAdd(&gm_f[k].x, -f_k.x);
+            hipGlobalAtomicAdd(&gm_f[k].y, -f_k.y);
+            hipGlobalAtomicAdd(&gm_f[k].z, -f_k.z);
+            hipGlobalAtomicAdd(&gm_f[l].x, f_l.x);
+            hipGlobalAtomicAdd(&gm_f[l].y, f_l.y);
+            hipGlobalAtomicAdd(&gm_f[l].z, f_l.z);
+        }
 
         if (calcVir)
         {
@@ -829,7 +905,33 @@ namespace gmx
 {
 
 template<bool calcVir, bool calcEner>
-__global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
+__global__ void exec_kernel_gpu(
+		 //! Periodic boundary data
+        	 PbcAiuc pbcAiuc,
+        	 //! Scale factor
+        	 float electrostaticsScaleFactor,
+        	 //! The bonded types on GPU
+        	 const fixed_array<int> fTypesOnGpu,
+        	 //! The number of interaction atom (iatom) elements for every function type
+        	 const fixed_array<int> numFTypeIAtoms,
+        	 //! The number of bonds for every function type
+         	 const fixed_array<int> numFTypeBonds,
+        	 //! The start index in the range of each interaction type
+        	 const fixed_array<int> fTypeRangeStart,
+        	 //! The end index in the range of each interaction type
+        	 const fixed_array<int> fTypeRangeEnd,
+        	 //! Force parameters (on GPU)
+        	 t_iparams* d_forceParams,
+        	 //! Coordinates before the timestep (on GPU)
+        	 const float4* d_xq,
+        	 //! Forces on atoms (on GPU)
+        	 float3* d_f,
+        	 //! Force shifts on atoms (on GPU)
+        	 float3* d_fShift,
+        	 //! Total Energy (on GPU)
+        	 float* d_vTot,
+        	 //! Interaction list atoms (on GPU)
+        	 const fixed_array<t_iatom*> d_iatoms)
 {
     assert(blockDim.y == 1 && blockDim.z == 1);
     const int tid          = blockIdx.x * blockDim.x + threadIdx.x;
@@ -852,106 +954,96 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
     }
 
     int  fType;
+    int  fType_shared_index = -1;
     bool threadComputedPotential = false;
 #pragma unroll
     for (int j = 0; j < numFTypesOnGpu; j++)
     {
-        if (tid >= kernelParams.fTypeRangeStart[j] && tid <= kernelParams.fTypeRangeEnd[j])
+        if (tid >= fTypeRangeStart[j] && tid <= fTypeRangeEnd[j])
         {
-            const int      numBonds = kernelParams.numFTypeBonds[j];
-            int            fTypeTid = tid - kernelParams.fTypeRangeStart[j];
-            const t_iatom* iatoms   = kernelParams.d_iatoms[j];
-            fType                   = kernelParams.fTypesOnGpu[j];
-            if (calcEner)
-            {
-                threadComputedPotential = true;
-            }
+            const int      numBonds = numFTypeBonds[j];
+            int            fTypeTid = tid - fTypeRangeStart[j];
+            const t_iatom* iatoms   = d_iatoms[j];
+            fType                   = fTypesOnGpu[j];
+	    fType_shared_index 	    = j;
 
             switch (fType)
             {
                 case F_BONDS:
                     bonds_gpu<calcVir, calcEner>(fTypeTid, &vtot_loc, numBonds, iatoms,
-                                                 kernelParams.d_forceParams, kernelParams.d_xq,
-                                                 kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc);
+                                                 d_forceParams, d_xq,
+                                                 d_f, sm_fShiftLoc, pbcAiuc);
                     break;
                 case F_ANGLES:
                     angles_gpu<calcVir, calcEner>(
-                            fTypeTid, &vtot_loc, numBonds, iatoms, kernelParams.d_forceParams,
-                            kernelParams.d_xq, kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc);
+                            fTypeTid, &vtot_loc, numBonds, iatoms, d_forceParams,
+                            d_xq, d_f, sm_fShiftLoc, pbcAiuc);
                     break;
                 case F_UREY_BRADLEY:
                     urey_bradley_gpu<calcVir, calcEner>(
-                            fTypeTid, &vtot_loc, numBonds, iatoms, kernelParams.d_forceParams,
-                            kernelParams.d_xq, kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc);
+                            fTypeTid, &vtot_loc, numBonds, iatoms, d_forceParams,
+                            d_xq, d_f, sm_fShiftLoc, pbcAiuc);
                     break;
                 case F_PDIHS:
                 case F_PIDIHS:
                     pdihs_gpu<calcVir, calcEner>(fTypeTid, &vtot_loc, numBonds, iatoms,
-                                                 kernelParams.d_forceParams, kernelParams.d_xq,
-                                                 kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc);
+                                                 d_forceParams, d_xq,
+                                                 d_f, sm_fShiftLoc, pbcAiuc);
                     break;
                 case F_RBDIHS:
                     rbdihs_gpu<calcVir, calcEner>(
-                            fTypeTid, &vtot_loc, numBonds, iatoms, kernelParams.d_forceParams,
-                            kernelParams.d_xq, kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc);
+                            fTypeTid, &vtot_loc, numBonds, iatoms, d_forceParams,
+                            d_xq, d_f, sm_fShiftLoc, pbcAiuc);
                     break;
                 case F_IDIHS:
                     idihs_gpu<calcVir, calcEner>(fTypeTid, &vtot_loc, numBonds, iatoms,
-                                                 kernelParams.d_forceParams, kernelParams.d_xq,
-                                                 kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc);
+                                                 d_forceParams, d_xq,
+                                                 d_f, sm_fShiftLoc, pbcAiuc);
                     break;
                 case F_LJ14:
                     pairs_gpu<calcVir, calcEner>(
-                            fTypeTid, numBonds, iatoms, kernelParams.d_forceParams,
-                            kernelParams.d_xq, kernelParams.d_f, sm_fShiftLoc, kernelParams.pbcAiuc,
-                            kernelParams.electrostaticsScaleFactor, &vtotVdw_loc, &vtotElec_loc);
+                            fTypeTid, numBonds, iatoms, d_forceParams,
+                            d_xq, d_f, sm_fShiftLoc, pbcAiuc,
+                            electrostaticsScaleFactor, &vtotVdw_loc, &vtotElec_loc);
                     break;
             }
             break;
         }
     }
-
-    if (threadComputedPotential)
+    
+    if (calcEner)
     {
-        float* vtotVdw  = kernelParams.d_vTot + F_LJ14;
-        float* vtotElec = kernelParams.d_vTot + F_COUL14;
-
-        // Stage atomic accumulation through shared memory:
-        // each warp will accumulate its own partial sum
-        // and then a single thread per warp will accumulate this to the global sum
-
-        int numWarps = blockDim.x / warpSize;
-        int warpId   = threadIdx.x / warpSize;
-
-        // Shared memory variables to hold block-local partial sum
-        float* sm_vTot = (float*)sm_nextSlotPtr;
-        sm_nextSlotPtr += numWarps * sizeof(float);
-        float* sm_vTotVdw = (float*)sm_nextSlotPtr;
-        sm_nextSlotPtr += numWarps * sizeof(float);
-        float* sm_vTotElec = (float*)sm_nextSlotPtr;
-
-        if (threadIdx.x % warpSize == 0)
+        #pragma unroll
+        for (int j = 0; j < numFTypesOnGpu; j++)
         {
-            // One thread per warp initializes to zero
-            sm_vTot[warpId]     = 0.;
-            sm_vTotVdw[warpId]  = 0.;
-            sm_vTotElec[warpId] = 0.;
+            if (__any(j == fType_shared_index))
+            {
+                float vtot_shuffle = j == fType_shared_index ? vtot_loc : 0.0f;
+                #pragma unroll
+                for (unsigned int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+                {
+                    vtot_shuffle += __shfl_down(vtot_shuffle, offset);
+                }
+                if(threadIdx.x % warp_size == 0)
+                {
+                    fType = fTypesOnGpu[j];
+                    hipGlobalAtomicAdd((d_vTot + fType), vtot_shuffle);
+                }
+            }
         }
-        //__syncwarp(); // All threads in warp must wait for initialization
-	__all(1);
 
-        // Perform warp-local accumulation in shared memory
-	hipLocalAtomicAdd(sm_vTot + warpId, vtot_loc);
-        hipLocalAtomicAdd(sm_vTotVdw + warpId, vtotVdw_loc);
-        hipLocalAtomicAdd(sm_vTotElec + warpId, vtotElec_loc);
-
-        //__syncwarp(); // Ensure all threads in warp have completed
-	__all(1);
-        if (threadIdx.x % warpSize == 0)
-        { // One thread per warp accumulates partial sum into global sum
-	    hipGlobalAtomicAdd(kernelParams.d_vTot + fType, sm_vTot[warpId]);
-            hipLocalAtomicAdd(vtotVdw, sm_vTotVdw[warpId]);
-            hipLocalAtomicAdd(vtotElec, sm_vTotElec[warpId]);
+        float vtotVdw_shuffle = vtotVdw_loc;
+        float vtotElec_shuffle = vtotElec_loc;
+        #pragma unroll
+        for (unsigned int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+        {
+            vtotVdw_shuffle += __shfl_down(vtotVdw_shuffle, offset);
+            vtotElec_shuffle += __shfl_down(vtotElec_shuffle, offset);
+        }
+        if(threadIdx.x % warp_size == 0)
+        {
+            hipGlobalAtomicAdd(d_vTot + F_LJ14, vtotVdw_shuffle);
+            hipGlobalAtomicAdd(d_vTot + F_COUL14, vtotElec_shuffle);
         }
     }
     /* Accumulate shift vectors from shared memory to global memory on the first SHIFTS threads of the block. */
@@ -960,9 +1052,9 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams)
         __syncthreads();
         if (threadIdx.x < SHIFTS)
         {
-            hipGlobalAtomicAdd(&kernelParams.d_fShift[threadIdx.x].x, sm_fShiftLoc[threadIdx.x].x);
-            hipGlobalAtomicAdd(&kernelParams.d_fShift[threadIdx.x].y, sm_fShiftLoc[threadIdx.x].y);
-            hipGlobalAtomicAdd(&kernelParams.d_fShift[threadIdx.x].z, sm_fShiftLoc[threadIdx.x].z);
+            hipGlobalAtomicAdd(&d_fShift[threadIdx.x].x, sm_fShiftLoc[threadIdx.x].x);
+            hipGlobalAtomicAdd(&d_fShift[threadIdx.x].y, sm_fShiftLoc[threadIdx.x].y);
+            hipGlobalAtomicAdd(&d_fShift[threadIdx.x].z, sm_fShiftLoc[threadIdx.x].z);
         }
     }
 }
@@ -995,8 +1087,30 @@ void GpuBonded::Impl::launchKernel()
     launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr,
                     "exec_kernel_gpu<calcVir, calcEner>", kernelArgs);
     */
-    launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr,
-                    "exec_kernel_gpu<calcVir, calcEner>", kernelParams_);
+    //launchGpuKernel(kernelPtr, kernelLaunchConfig_, deviceStream_, nullptr,
+    //                "exec_kernel_gpu<calcVir, calcEner>", kernelParams_);
+    dim3 blockSize(kernelLaunchConfig_.blockSize[0], kernelLaunchConfig_.blockSize[1], kernelLaunchConfig_.blockSize[2]);
+    dim3 gridSize(kernelLaunchConfig_.gridSize[0], kernelLaunchConfig_.gridSize[1], kernelLaunchConfig_.gridSize[2]);
+    
+    hipLaunchKernelGGL(kernelPtr,
+        gridSize,
+        blockSize,
+        kernelLaunchConfig_.sharedMemorySize,
+        deviceStream_.stream(),
+        kernelParams_.pbcAiuc,
+        kernelParams_.electrostaticsScaleFactor,
+        fixed_array<int>(kernelParams_.fTypesOnGpu),
+        fixed_array<int>(kernelParams_.numFTypeIAtoms),
+        fixed_array<int>(kernelParams_.numFTypeBonds),
+        fixed_array<int>(kernelParams_.fTypeRangeStart),
+        fixed_array<int>(kernelParams_.fTypeRangeEnd),
+        kernelParams_.d_forceParams,
+        kernelParams_.d_xq,
+        kernelParams_.d_f,
+        kernelParams_.d_fShift,
+        kernelParams_.d_vTot,
+        fixed_array<t_iatom*>(kernelParams_.d_iatoms)
+    );
 
     wallcycle_sub_stop(wcycle_, ewcsLAUNCH_GPU_BONDED);
     wallcycle_stop(wcycle_, ewcLAUNCH_GPU);

@@ -63,7 +63,11 @@ struct t_forcerec;
 namespace gmx
 {
 // Number of CUDA threads in a block
+#ifdef GMX_GPU_CUDA
 constexpr static int c_threadsPerBlock = 256;
+#elif GMX_GPU_HIP
+constexpr static int c_threadsPerBlock = 64;
+#endif
 
 // ---- GpuBonded::Impl
 
