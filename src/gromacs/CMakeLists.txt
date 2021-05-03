@@ -192,6 +192,21 @@ if (GMX_GPU_CUDA)
 elseif(GMX_GPU_HIP)
     set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
+    if(NOT GMX_THREAD_MPI)
+        find_package(MPI)
+	message (STATUS "MPI_C_FOUND:" ${MPI_C_FOUND})
+        if(MPI_C_FOUND)
+            execute_process(
+                COMMAND ${MPI_C_COMPILER} -showme:incdirs
+                OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE)
+	#string(REPLACE " " ";" MPI_INCDIRS_STR ${MPI_INCDIRS})
+	    separate_arguments(MPI_INCDIRS)
+	    message(STATUS "MPI_INCDIRS: ${MPI_INCDIRS}")
+            include_directories(SYSTEM ${MPI_INCDIRS})
+        endif()
+    endif()
+
     if(NOT DEFINED HIP_PATH)
     	if(NOT DEFINED ENV{HIP_PATH})
             set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")

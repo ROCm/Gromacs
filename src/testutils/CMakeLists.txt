@@ -106,6 +106,20 @@ elseif(GMX_GPU_HIP)
 	endif()
 	set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
     endif()
+
+    if(NOT GMX_THREAD_MPI)
+        find_package(MPI)
+        if(MPI_C_FOUND)
+            execute_process(
+                COMMAND ${MPI_C_COMPILER} -showme:incdirs
+                OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE)
+            separate_arguments(MPI_INCDIRS)
+            message(STATUS "MPI_INCDIRS: ${MPI_INCDIRS}")
+            include_directories(SYSTEM ${MPI_INCDIRS})
+        endif()
+    endif()
+
     hip_add_library(testutils ${TESTUTILS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" HCC_OPTIONS "" NVCC_OPTIONS)
     target_link_libraries(testutils PRIVATE roc::rocfft)
 
