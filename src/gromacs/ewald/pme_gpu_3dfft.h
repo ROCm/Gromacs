@@ -53,7 +53,9 @@
 #    include "gromacs/gpu_utils/gputraits.cuh"
 #elif GMX_GPU_HIP
 #    include <hipfft.h>
-
+#ifdef GMX_GPU_USE_VKFFT
+#    include "gromacs/vkFFT/vkFFT.h"
+#endif
 #    include "gromacs/gpu_utils/gputraits_hip.h"
 #elif GMX_GPU_OPENCL
 #    include <clFFT.h>
@@ -100,6 +102,15 @@ private:
     hipfftHandle   planC2R_;
     hipfftReal*    realGrid_;
     hipfftComplex* complexGrid_;
+
+#ifdef GMX_GPU_USE_VKFFT
+    VkFFTConfiguration configuration;
+    VkFFTApplication appR2C;
+    VkFFTConfiguration configurationC2R;
+    VkFFTApplication appC2R;
+
+#endif
+
 #elif GMX_GPU_OPENCL
     clfftPlanHandle               planR2C_;
     clfftPlanHandle               planC2R_;
