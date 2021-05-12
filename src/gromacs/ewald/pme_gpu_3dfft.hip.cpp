@@ -51,6 +51,7 @@
 #include "pme_gpu_types.h"
 #include "pme_gpu_types_host.h"
 #include "pme_gpu_types_host_impl.h"
+//#include <chrono>
 
 #include <iostream>
 static void handleCufftError(hipfftResult_t status, const char* msg)
@@ -83,6 +84,50 @@ GpuParallel3dFft::GpuParallel3dFft(const PmeGpu* pmeGpu)
     GMX_RELEASE_ASSERT(realGrid_, "Bad (null) input real-space grid");
     complexGrid_ = (hipfftComplex*)kernelParamsPtr->grid.d_fourierGrid;
     GMX_RELEASE_ASSERT(complexGrid_, "Bad (null) input complex grid");
+#ifdef GMX_GPU_USE_VKFFT
+    configuration = {};
+    appR2C = {};
+    configuration.FFTdim = 3;
+    configuration.size[0] = realGridSize[ZZ];
+    configuration.size[1] = realGridSize[YY];
+    configuration.size[2] = realGridSize[XX];
+
+    configuration.performR2C = 1;
+    //configuration.useLUT = 1;
+    configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
+    hipError_t rsult = hipGetDevice(configuration.device);
+    configuration.stream=pmeGpu->archSpecific->pmeStream;
+    configuration.num_streams=1;
+
+    uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
+    configuration.bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+    configuration.bufferSize[0]=bufferSize;
+    configuration.bufferStride[0] = complexGridSizePadded[ZZ];
+    configuration.bufferStride[1] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY];
+    configuration.bufferStride[2] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY]* complexGridSizePadded[XX];
+    configuration.buffer = (void**)&complexGrid_;
+    configurationC2R=configuration;
+    configuration.isInputFormatted = 1;
+    uint64_t inputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
+    configuration.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+    configuration.inputBufferSize[0] = inputBufferSize;
+    configuration.inputBufferStride[0] = realGridSizePadded[ZZ];
+    configuration.inputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
+    configuration.inputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
+    configuration.inputBuffer = (void**)&realGrid_;
+
+    configurationC2R.isOutputFormatted = 1;
+    uint64_t outputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
+    configurationC2R.outputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
+    configurationC2R.outputBufferSize[0] = inputBufferSize;
+    configurationC2R.outputBufferStride[0] = realGridSizePadded[ZZ];
+    configurationC2R.outputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
+    configurationC2R.outputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
+    configurationC2R.outputBuffer = (void**)&realGrid_;
+
+    uint32_t res = initializeVkFFT(&appR2C, configuration);
+    res = initializeVkFFT(&appC2R, configurationC2R);
+#else
 
 #if GMX_ROCM_USE_XFFT
     xfftSupported_= false;
@@ -134,10 +179,20 @@ GpuParallel3dFft::GpuParallel3dFft(const PmeGpu* pmeGpu)
         result = hipfftSetStream(planC2R_, stream);
         handleCufftError(result, "hipfftSetStream C2R failure");
     }
+#endif
 }
 
 GpuParallel3dFft::~GpuParallel3dFft()
 {
+#ifdef GMX_GPU_USE_VKFFT
+    deleteVkFFT(&appR2C);
+    deleteVkFFT(&appC2R);
+
+    free(configuration.device);
+    free(configuration.bufferSize);
+    free(configuration.inputBufferSize);
+    free(configuration.outputBufferSize);
+#else
 #if GMX_ROCM_USE_XFFT
     if (xfftSupported_)
     {
@@ -153,15 +208,20 @@ GpuParallel3dFft::~GpuParallel3dFft()
         result = hipfftDestroy(planC2R_);
         handleCufftError(result, "hipfftDestroy C2R failure");
     }
-
+#endif
 }
 
 void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
 {
+    //std::chrono::duration<double, std::micro> time_chrono = std::chrono::high_resolution_clock::duration::zero();
+    //auto start_chrono = std::chrono::high_resolution_clock::now();
 
     hipfftResult_t result;
     if (dir == GMX_FFT_REAL_TO_COMPLEX)
     {
+#ifdef GMX_GPU_USE_VKFFT
+	 VkFFTAppend(&appR2C, -1, NULL);
+#else
 #if GMX_ROCM_USE_XFFT
         if (xfftSupported_)
         {
@@ -175,9 +235,13 @@ void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timin
             result = hipfftExecR2C(planR2C_, realGrid_, complexGrid_);
             handleCufftError(result, "cuFFT R2C execution failure");
         }
+#endif
     }
     else
     {
+#ifdef GMX_GPU_USE_VKFFT
+        VkFFTAppend(&appC2R, 1, NULL);
+#else
 #if GMX_ROCM_USE_XFFT
         if (xfftSupported_)
         {
@@ -191,5 +255,8 @@ void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timin
             result = hipfftExecC2R(planC2R_, complexGrid_, realGrid_);
             handleCufftError(result, "cuFFT C2R execution failure");
         }
+#endif
     }
+    //auto end_chrono = std::chrono::high_resolution_clock::now();
+    //printf("perform3dFft time:  %4.6lf us direction:%d \n", time_chrono.count(), dir);
 }

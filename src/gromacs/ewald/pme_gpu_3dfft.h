@@ -58,6 +58,9 @@
 #if GMX_ROCM_USE_XFFT
 #    include <xfft.h>
 #endif
+#ifdef GMX_GPU_USE_VKFFT
+#    include "gromacs/vkFFT/vkFFT.h"
+#endif
 #elif GMX_GPU == GMX_GPU_OPENCL
 #    include <clFFT.h>
 
@@ -98,15 +101,24 @@ private:
     cufftReal*    realGrid_;
     cufftComplex* complexGrid_;
 #elif GMX_GPU == GMX_GPU_ROCM
-    hipfftHandle   planR2C_;
-    hipfftHandle   planC2R_;
     hipfftReal*    realGrid_;
     hipfftComplex* complexGrid_;
+#ifdef GMX_GPU_USE_VKFFT
+    VkFFTConfiguration configuration;
+    VkFFTApplication appR2C;
+    VkFFTConfiguration configurationC2R;
+    VkFFTApplication appC2R;
+#else
+    hipfftHandle   planR2C_;
+    hipfftHandle   planC2R_;
 #if GMX_ROCM_USE_XFFT
     xfftR2CPlan_t  xfftPlanR2C_;
     xfftC2RPlan_t  xfftPlanC2R_;
     bool           xfftSupported_;
 #endif
+
+#endif
+    
 #elif GMX_GPU == GMX_GPU_OPENCL
     clfftPlanHandle               planR2C_;
     clfftPlanHandle               planC2R_;
