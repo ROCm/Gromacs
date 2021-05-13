@@ -138,9 +138,11 @@ int nbnxn_gpu_pick_ewald_kernel_type(const interaction_const_t& ic,
     /* By default, use analytical Ewald except with CUDA on NVIDIA CC 7.0 and 8.0.
      */
     const bool c_useTabulatedEwaldDefault =
-#if GMX_GPU_CUDA || GMX_GPU_HIP
+#if GMX_GPU_CUDA
             (deviceInfo.prop.major == 7 && deviceInfo.prop.minor == 0)
             || (deviceInfo.prop.major == 8 && deviceInfo.prop.minor == 0);
+#elif GMX_GPU_HIP
+	    true;
 #else
             false;
 #endif
