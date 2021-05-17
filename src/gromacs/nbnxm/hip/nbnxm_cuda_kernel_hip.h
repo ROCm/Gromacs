@@ -383,19 +383,24 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    ifndef PRUNE_NBL
         if (imask)
 #    endif
-	{
+        {
             /* Pre-load cj into shared memory on both warps separately */
-            if (((tidxj * hipBlockDim_x) % warp_size == 0) & (tidxi < c_nbnxnGpuJgroupSize))
-	    {
-                cjs[tidxi] = pl_cj4[j4].cj[tidxi];
+            if (tidxi == 0)
+            {
+                for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
+                    cjs[i] = pl_cj4[j4].cj[i];
+		}
             }
-            //__syncwarp(c_fullWarpMask);
-	    __all(1);
+//            __syncwarp(c_fullWarpMask); //cm todo
+              __all(1);
 
             /* Unrolling this loop
                - with pruning leads to register spilling;
                - on Kepler and later it is much slower;
                Tested with up to nvcc 7.5 */
+#    if !defined PRUNE_NBL
+#        pragma unroll 4
+#    endif
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
@@ -631,6 +636,9 @@ __launch_bounds__(THREADS_PER_BLOCK)
     float fshift_buf = 0.0f;
 
     /* reduce i forces */
+#    if !defined PRUNE_NBL
+#        pragma unroll 8
+#    endif
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
