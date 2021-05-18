@@ -96,7 +96,7 @@ GpuParallel3dFft::GpuParallel3dFft(const PmeGpu* pmeGpu)
     //configuration.useLUT = 1;
     configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
     hipError_t rsult = hipGetDevice(configuration.device);
-    configuration.stream=pmeGpu->archSpecific->pmeStream;
+    configuration.stream=&pmeGpu->archSpecific->pmeStream;
     configuration.num_streams=1;
 
     uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
