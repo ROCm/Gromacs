@@ -106,8 +106,6 @@ private:
 #ifdef GMX_GPU_USE_VKFFT
     VkFFTConfiguration configuration;
     VkFFTApplication appR2C;
-    VkFFTConfiguration configurationC2R;
-    VkFFTApplication appC2R;
 
 #endif
 

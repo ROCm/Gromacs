@@ -93,40 +93,29 @@ GpuParallel3dFft::GpuParallel3dFft(const PmeGpu* pmeGpu, const int gridIndex)
     configuration.size[2] = realGridSize[XX];
 
     configuration.performR2C = 1;
-    //configuration.useLUT = 1;
+    //configuration.disableMergeSequencesR2C = 1;
     configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
-    hipError_t rsult = hipGetDevice(configuration.device);
+    hipError_t result = hipGetDevice(configuration.device);
     configuration.stream=pmeGpu->archSpecific->pmeStream_.stream();
     configuration.num_streams=1;
 
     uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
-    configuration.bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-    configuration.bufferSize[0]=bufferSize;
+    configuration.bufferSize=&bufferSize;
     configuration.bufferStride[0] = complexGridSizePadded[ZZ];
     configuration.bufferStride[1] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY];
     configuration.bufferStride[2] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY]* complexGridSizePadded[XX];
     configuration.buffer = (void**)&complexGrid_;
-    configurationC2R=configuration;
+
     configuration.isInputFormatted = 1;
+    configuration.inverseReturnToInputBuffer = 1;
     uint64_t inputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
-    configuration.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-    configuration.inputBufferSize[0] = inputBufferSize;
+    configuration.inputBufferSize = &inputBufferSize;
     configuration.inputBufferStride[0] = realGridSizePadded[ZZ];
     configuration.inputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
     configuration.inputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
     configuration.inputBuffer = (void**)&realGrid_;
-    
-    configurationC2R.isOutputFormatted = 1;
-    uint64_t outputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
-    configurationC2R.outputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-    configurationC2R.outputBufferSize[0] = inputBufferSize;
-    configurationC2R.outputBufferStride[0] = realGridSizePadded[ZZ];
-    configurationC2R.outputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
-    configurationC2R.outputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
-    configurationC2R.outputBuffer = (void**)&realGrid_;
-
-    uint32_t res = initializeVkFFT(&appR2C, configuration);
-    res = initializeVkFFT(&appC2R, configurationC2R);
+    VkFFTResult resFFT = initializeVkFFT(&appR2C, configuration);
+    if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
     hipfftResult_t result;
     /* Commented code for a simple 3D grid with no padding */
@@ -164,12 +153,7 @@ GpuParallel3dFft::~GpuParallel3dFft()
 {
 #ifdef GMX_GPU_USE_VKFFT  
     deleteVkFFT(&appR2C);
-    deleteVkFFT(&appC2R);
-
     free(configuration.device);
-    free(configuration.bufferSize);
-    free(configuration.inputBufferSize);
-    free(configuration.outputBufferSize);
 #else
     hipfftResult_t result;
     result = hipfftDestroy(planR2C_);
@@ -181,11 +165,19 @@ GpuParallel3dFft::~GpuParallel3dFft()
 
 void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
 {
+    //std::chrono::duration<double, std::micro> time_chrono = std::chrono::high_resolution_clock::duration::zero();
+    //auto start_chrono = std::chrono::high_resolution_clock::now();
+
     hipfftResult_t result;
+#ifdef GMX_GPU_USE_VKFFT
+    VkFFTResult resFFT = VKFFT_SUCCESS;
+#endif
+
     if (dir == GMX_FFT_REAL_TO_COMPLEX)
     {
 #ifdef GMX_GPU_USE_VKFFT
-        VkFFTAppend(&appR2C, -1, NULL);
+	resFFT = VkFFTAppend(&appR2C, -1, NULL);
+        if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
         result = hipfftExecR2C(planR2C_, realGrid_, complexGrid_);
         handleCufftError(result, "cuFFT R2C execution failure");
@@ -194,7 +186,8 @@ void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timin
     else
     {
 #ifdef GMX_GPU_USE_VKFFT
-        VkFFTAppend(&appC2R, 1, NULL);
+        resFFT = VkFFTAppend(&appR2C, 1, NULL);
+        if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
         result = hipfftExecC2R(planC2R_, complexGrid_, realGrid_);
         handleCufftError(result, "cuFFT C2R execution failure");
