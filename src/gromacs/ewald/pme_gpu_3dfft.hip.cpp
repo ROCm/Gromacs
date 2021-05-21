@@ -87,46 +87,35 @@ GpuParallel3dFft::GpuParallel3dFft(const PmeGpu* pmeGpu)
 #ifdef GMX_GPU_USE_VKFFT
     configuration = {};
     appR2C = {};
-    configuration.FFTdim = 3;
+    configuration.FFTdim = 3; 
     configuration.size[0] = realGridSize[ZZ];
     configuration.size[1] = realGridSize[YY];
     configuration.size[2] = realGridSize[XX];
 
     configuration.performR2C = 1;
-    //configuration.useLUT = 1;
+    //configuration.disableMergeSequencesR2C = 1;
     configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
-    hipError_t rsult = hipGetDevice(configuration.device);
+    hipError_t result = hipGetDevice(configuration.device);
     configuration.stream=&pmeGpu->archSpecific->pmeStream;
     configuration.num_streams=1;
 
     uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
-    configuration.bufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-    configuration.bufferSize[0]=bufferSize;
+    configuration.bufferSize=&bufferSize;
     configuration.bufferStride[0] = complexGridSizePadded[ZZ];
     configuration.bufferStride[1] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY];
     configuration.bufferStride[2] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY]* complexGridSizePadded[XX];
     configuration.buffer = (void**)&complexGrid_;
-    configurationC2R=configuration;
+
     configuration.isInputFormatted = 1;
+    configuration.inverseReturnToInputBuffer = 1;
     uint64_t inputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
-    configuration.inputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-    configuration.inputBufferSize[0] = inputBufferSize;
+    configuration.inputBufferSize = &inputBufferSize;
     configuration.inputBufferStride[0] = realGridSizePadded[ZZ];
     configuration.inputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
     configuration.inputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
     configuration.inputBuffer = (void**)&realGrid_;
-
-    configurationC2R.isOutputFormatted = 1;
-    uint64_t outputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
-    configurationC2R.outputBufferSize = (uint64_t*)malloc(sizeof(uint64_t));
-    configurationC2R.outputBufferSize[0] = inputBufferSize;
-    configurationC2R.outputBufferStride[0] = realGridSizePadded[ZZ];
-    configurationC2R.outputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
-    configurationC2R.outputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
-    configurationC2R.outputBuffer = (void**)&realGrid_;
-
-    uint32_t res = initializeVkFFT(&appR2C, configuration);
-    res = initializeVkFFT(&appC2R, configurationC2R);
+    VkFFTResult resFFT = initializeVkFFT(&appR2C, configuration);
+    if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
 
 #if GMX_ROCM_USE_XFFT
@@ -186,12 +175,7 @@ GpuParallel3dFft::~GpuParallel3dFft()
 {
 #ifdef GMX_GPU_USE_VKFFT
     deleteVkFFT(&appR2C);
-    deleteVkFFT(&appC2R);
-
     free(configuration.device);
-    free(configuration.bufferSize);
-    free(configuration.inputBufferSize);
-    free(configuration.outputBufferSize);
 #else
 #if GMX_ROCM_USE_XFFT
     if (xfftSupported_)
@@ -217,10 +201,15 @@ void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timin
     //auto start_chrono = std::chrono::high_resolution_clock::now();
 
     hipfftResult_t result;
+#ifdef GMX_GPU_USE_VKFFT
+    VkFFTResult resFFT = VKFFT_SUCCESS;
+#endif
+
     if (dir == GMX_FFT_REAL_TO_COMPLEX)
     {
 #ifdef GMX_GPU_USE_VKFFT
-	 VkFFTAppend(&appR2C, -1, NULL);
+	resFFT = VkFFTAppend(&appR2C, -1, NULL);
+        if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
 #if GMX_ROCM_USE_XFFT
         if (xfftSupported_)
@@ -240,7 +229,8 @@ void GpuParallel3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timin
     else
     {
 #ifdef GMX_GPU_USE_VKFFT
-        VkFFTAppend(&appC2R, 1, NULL);
+        resFFT = VkFFTAppend(&appR2C, 1, NULL);
+        if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
 #if GMX_ROCM_USE_XFFT
         if (xfftSupported_)
