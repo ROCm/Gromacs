@@ -120,7 +120,7 @@ elseif(GMX_GPU_HIP)
         endif()
     endif()
 
-    hip_add_library(testutils ${TESTUTILS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" HCC_OPTIONS "" NVCC_OPTIONS)
+    hip_add_library(testutils ${TESTUTILS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" NVCC_OPTIONS)
     target_link_libraries(testutils PRIVATE roc::rocfft)
 
 else()
