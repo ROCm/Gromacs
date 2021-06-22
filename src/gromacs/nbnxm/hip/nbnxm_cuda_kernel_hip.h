@@ -657,7 +657,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
         if( tidxi == 0 && tidxj < 3 )
         {
             #if (HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)
-                    atomicAddNoRet(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+                    atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
             #else
                     atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
             #endif

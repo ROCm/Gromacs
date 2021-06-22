@@ -425,7 +425,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (threadIdx.x < 6)
         {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-            atomicAddNoRet(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
+            atomicAdd(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
 #else
             atomicAddOverWriteForFloat(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
 #endif

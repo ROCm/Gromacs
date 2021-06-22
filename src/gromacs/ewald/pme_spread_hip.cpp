@@ -158,7 +158,7 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
                 assert(isfinite(thetaX));
                 assert(isfinite(gm_grid[gridIndexGlobal]));
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
+                atomicAdd(gm_grid + gridIndexGlobal, thetaX * Val);
 #else
                 atomicAdd(gm_grid + gridIndexGlobal, thetaX * Val);
 #endif

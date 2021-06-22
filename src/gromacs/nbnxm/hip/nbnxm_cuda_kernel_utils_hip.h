@@ -480,7 +480,7 @@ static __forceinline__ __device__ void
         }
 
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet((&fout[aidx].x) + tidxi, f);
+        atomicAdd((&fout[aidx].x) + tidxi, f);
 #else
         atomicAdd((&fout[aidx].x) + tidxi, f);
 #endif
@@ -515,7 +515,7 @@ static __forceinline__ __device__ void
     if (tidxi < 3)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet((&fout[aidx].x) + tidxi, f.x);
+        atomicAdd((&fout[aidx].x) + tidxi, f.x);
 #else
         atomicAddOverWriteForFloat((&fout[aidx].x) + tidxi, f.x);
 #endif
@@ -543,7 +543,7 @@ static __forceinline__ __device__ void reduce_force_i_generic(float*  f_buf,
         }
 
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&fout[aidx].x + tidxj, f);
+        atomicAdd(&fout[aidx].x + tidxj, f);
 #else
         atomicAdd(&fout[aidx].x + tidxj, f);
 #endif
@@ -598,7 +598,7 @@ static __forceinline__ __device__ void reduce_force_i_pow2(volatile float* f_buf
         f = f_buf[tidxj * c_fbufStride + tidxi] + f_buf[tidxj * c_fbufStride + i * c_clSize + tidxi];
 
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&(fout[aidx].x) + tidxj, f);
+        atomicAdd(&(fout[aidx].x) + tidxj, f);
 #else
         atomicAdd(&(fout[aidx].x) + tidxj, f);
 #endif
@@ -660,7 +660,7 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     if (tidxj < 3)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&fout[aidx].x + tidxj, fin.x);
+        atomicAdd(&fout[aidx].x + tidxj, fin.x);
 #else
         atomicAddOverWriteForFloat(&fout[aidx].x + tidxj, fin.x);
 #endif
@@ -703,8 +703,8 @@ static __forceinline__ __device__ void
         e2 = buf[c_fbufStride + tidx] + buf[c_fbufStride + tidx + i];
 
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(e_lj, e1);
-        atomicAddNoRet(e_el, e2);
+        atomicAdd(e_lj, e1);
+        atomicAdd(e_el, e2);
 #else
         atomicAdd(e_lj, e1);
         atomicAdd(e_el, e2);
@@ -733,8 +733,8 @@ static __forceinline__ __device__ void
     if (tidx == 0)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(e_lj, E_lj);
-        atomicAddNoRet(e_el, E_el);
+        atomicAdd(e_lj, E_lj);
+        atomicAdd(e_el, E_el);
 #else
         atomicAddOverWriteForFloat(e_lj, E_lj);
         atomicAddOverWriteForFloat(e_el, E_el);

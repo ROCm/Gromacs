@@ -349,7 +349,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
             {
                 assert(isfinite(output));
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-                atomicAddNoRet(gm_virialAndEnergy + componentIndex, output);
+                atomicAdd(gm_virialAndEnergy + componentIndex, output);
 #else
                 atomicAdd(gm_virialAndEnergy + componentIndex, output);
 #endif

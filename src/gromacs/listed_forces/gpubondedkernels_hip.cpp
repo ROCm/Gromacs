@@ -101,7 +101,7 @@ struct fixed_array
 };
 
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-    #define hipGlobalAtomicAdd(a, b) atomicAddNoRet(a, b);
+    #define hipGlobalAtomicAdd(a, b) atomicAdd(a, b);
     #define hipLocalAtomicAdd(a, b) atomicAddLocalNoRet(a, b);
 #else
     #define hipGlobalAtomicAdd(a, b) atomicAdd(a, b);
@@ -139,7 +139,7 @@ __device__ __forceinline__ float hipHeadSegmentedSum(float &input, const bool &f
 __device__
 void atomicAddLocalNoRet(float* dst, float x)
 {
-    // atomicAddNoRet(dst, x);
+    // atomicAdd(dst, x);
     __asm__ volatile("ds_add_f32 %0, %1" : : "v"((__local float *)dst), "v"(x));
 }
 
