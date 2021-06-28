@@ -43,6 +43,14 @@ file(GLOB SOURCES_FROM_CXX
     clfftinitializer.cpp
     hostallocator.cpp
     )
+if (NOT DEFINED ROCM_PATH)
+    if (NOT DEFINED ENV{ROCM_PATH})
+       set(ROCM_PATH "/opt/rocm/hip" CACHE PATH "ROCm path")
+      else()
+        set(ROCM_PATH $ENV{ROCM_PATH}/hip CACHE PATH "ROCm path")
+      endif()
+    endif()
+    set(CMAKE_MODULE_PATH "${ROCM_PATH}/hip/cmake" ${CMAKE_MODULE_PATH})
 
 if(GMX_USE_HIP)
     file(GLOB MYLIB_SOURCES devicetransfers.hip.cpp)
