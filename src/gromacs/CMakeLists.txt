@@ -249,7 +249,7 @@ endif()
 
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
-	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" NVCC_OPTIONS)
+	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG -ggdb -save-temps -fdenormal-fp-math=ieee -fcuda-flush-denormals-to-zero -munsafe-fp-atomics --amdgpu-target=gfx90a" NVCC_OPTIONS)
     else()
 	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math" NVCC_OPTIONS)
     endif()

@@ -235,8 +235,8 @@ __device__ __forceinline__ static float bond_angle_gpu(const float4   xi,
                                                        int*           t2)
 /* Return value is the angle between the bonds i-j and j-k */
 {
-    *t1 = pbcDxAiuc<returnShift>(pbcAiuc, xi, xj, *r_ij);
-    *t2 = pbcDxAiuc<returnShift>(pbcAiuc, xk, xj, *r_kj);
+    //*t1 = pbcDxAiuc<returnShift>(pbcAiuc, xi, xj, *r_ij);
+    //*t2 = pbcDxAiuc<returnShift>(pbcAiuc, xk, xj, *r_kj);
 
     *costh   = cos_angle(*r_ij, *r_kj);
     float th = acosf(*costh);
@@ -463,9 +463,9 @@ __device__ __forceinline__ static float dih_angle_gpu(const T        xi,
                                                       int*           t2,
                                                       int*           t3)
 {
-    *t1 = pbcDxAiuc<returnShift>(pbcAiuc, xi, xj, *r_ij);
-    *t2 = pbcDxAiuc<returnShift>(pbcAiuc, xk, xj, *r_kj);
-    *t3 = pbcDxAiuc<returnShift>(pbcAiuc, xk, xl, *r_kl);
+    //*t1 = pbcDxAiuc<returnShift>(pbcAiuc, xi, xj, *r_ij);
+    //*t2 = pbcDxAiuc<returnShift>(pbcAiuc, xk, xj, *r_kj);
+    //*t3 = pbcDxAiuc<returnShift>(pbcAiuc, xk, xl, *r_kl);
 
     *m         = cprod(*r_ij, *r_kj);
     *n         = cprod(*r_kj, *r_kl);
