@@ -129,6 +129,10 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
         /* loop not used if order*order threads per atom */
         const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
         const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
+        float sm_theta_local[order][order];
+        float* gm_grid_gridIndexGlobal[order][order];
+
+
         for (int ithy = ithyMin; ithy < ithyMax; ithy++)
         {
             int iy = iyBase + ithy;
@@ -144,23 +148,31 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
             const int offset = iy * pnz + iz;
 
 #pragma unroll
-            for (int ithx = 0; (ithx < order); ithx++)
-            {
+        for (int ithx = 0; (ithx < order); ithx++) {
                 int ix = ixBase + ithx;
                 if (wrapX & (ix >= nx))
                 {
                     ix -= nx;
                 }
                 const int gridIndexGlobal = ix * pny * pnz + offset;
+                gm_grid_gridIndexGlobal[ithy][ithx] = gm_grid + gridIndexGlobal;
                 const int splineIndexX =
-                        getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
-                const float thetaX = sm_theta[splineIndexX];
-                assert(isfinite(thetaX));
-                assert(isfinite(gm_grid[gridIndexGlobal]));
+                          getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
+                sm_theta_local[ithy][ithx] = sm_theta[splineIndexX] * Val;
+						}
+        }
+        
+        for (int ithy = ithyMin; ithy < ithyMax; ithy++)	
+        {
+#pragma unroll
+            for (int ithx = 0; (ithx < order); ithx++)
+            {
+                //assert(isfinite(thetaX));
+                //assert(isfinite(gm_grid[gridIndexGlobal]));
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
+                atomicAddNoRet(gm_grid_gridIndexGlobal[ithy][ithx], sm_theta_local[ithy][ithx]);
 #else
-                atomicAdd(gm_grid + gridIndexGlobal, thetaX * Val);
+                atomicAdd(gm_grid_gridIndexGlobal[ithy][ithx], sm_theta_local[ithy][ithx]);
 #endif
             }
         }
