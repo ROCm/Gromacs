@@ -751,6 +751,6 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
     while (TRUE);
 
     walltime_accounting_end_time(walltime_accounting);
-
+    pme_pp.release();
     return 0;
 }
