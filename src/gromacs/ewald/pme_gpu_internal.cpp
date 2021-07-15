@@ -1284,6 +1284,38 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent,
                     "PME spline/spread", kernelArgs);
 #elif GMX_GPU_HIP
+#if GMX_SPREAD_LOAD
+    if (computeSplines == true && spreadCharges == true && pmeGpu->common->ngrids == 1
+		    && pmeGpu->settings.threadsPerAtom == ThreadsPerAtom::Order && (writeGlobal || (!recalculateSplines)) == false) {
+        static hipModule_t Module;
+        static hipFunction_t Function;
+        static bool load = false;
+
+        int error;
+
+        if (load == false) {
+            error = hipModuleLoad(&Module, "pme_spread.co");
+            printf("hipModuleLoad:%d\n", error);
+
+            error = hipModuleGetFunction(&Function, Module, "_Z28pme_spline_and_spread_kernelILi4ELb1ELb1ELb1ELb1ELi1ELb0EL14ThreadsPerAtom0EEv21PmeGpuHipKernelParams");
+            printf("hipModuleGetFunction:%d\n", error);
+            load = true;
+        }
+
+        struct {
+           PmeGpuHipKernelParams args;
+        }params;
+
+        params.args = *kernelParamsPtr;
+
+        size_t sizeTemp = sizeof(params);
+
+        void* config_[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, &params, HIP_LAUNCH_PARAM_BUFFER_SIZE,
+                      &sizeTemp, HIP_LAUNCH_PARAM_END};
+        hipModuleLaunchKernel(Function, config.gridSize[0] , config.gridSize[1], config.gridSize[2], config.blockSize[0], config.blockSize[1], config.blockSize[2], 0, pmeGpu->archSpecific->pmeStream_.stream(), NULL, (void**)&config_);
+    } else 
+#endif
+    {
 #if c_canEmbedBuffers
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent,
                     "PME spline/spread", *kernelParamsPtr);
@@ -1297,6 +1329,7 @@ void pme_gpu_spread(const PmeGpu*         pmeGpu,
             	    kernelParamsPtr->atoms.d_coefficients[FEP_STATE_A],
             	    kernelParamsPtr->atoms.d_coefficients[FEP_STATE_B], kernelParamsPtr->atoms.d_coordinates);
 #endif
+    }
 #endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 
@@ -1432,6 +1465,37 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME solve",
                     kernelArgs);
 #elif GMX_GPU_HIP
+#if GMX_SOLVE_LOAD
+    if (gridOrdering == GridOrdering::XYZ && gridIndex == 0 && computeEnergyAndVirial) {
+	static hipModule_t Module;
+    	static hipFunction_t Function;
+	static bool load = false;
+
+    	int error;
+
+	if (load == false) {
+    	    error = hipModuleLoad(&Module, "pme_solve.co");
+    	    printf("hipModuleLoad:%d\n", error);
+
+    	    error = hipModuleGetFunction(&Function, Module, "_Z16pme_solve_kernelIL12GridOrdering1ELb1ELi0EEv21PmeGpuHipKernelParams");
+    	    printf("hipModuleGetFunction:%d\n", error);
+	    load = true;
+        }
+
+    	struct {
+    	   PmeGpuHipKernelParams args;
+    	}params;
+
+    	params.args = *kernelParamsPtr;
+
+    	size_t sizeTemp = sizeof(params);
+
+    	void* config_[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, &params, HIP_LAUNCH_PARAM_BUFFER_SIZE,
+    	              &sizeTemp, HIP_LAUNCH_PARAM_END};
+	hipModuleLaunchKernel(Function, config.gridSize[0] , config.gridSize[1], config.gridSize[2], config.blockSize[0], config.blockSize[1], config.blockSize[2], 0, pmeGpu->archSpecific->pmeStream_.stream(), NULL, (void**)&config_);
+    } else
+#endif
+    {
 #if c_canEmbedBuffers
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME solve",
                     *kernelParamsPtr);
@@ -1441,6 +1505,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
                     kernelParamsPtr->constants.d_virialAndEnergy[gridIndex],
                     kernelParamsPtr->grid.d_fourierGrid[gridIndex]);
 #endif
+    }
 #endif
     pme_gpu_stop_timing(pmeGpu, timingId);
 

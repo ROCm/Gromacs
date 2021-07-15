@@ -247,6 +247,11 @@ if (GMX_GPU_USE_VKFFT)
     target_compile_definitions(VkFFT INTERFACE -DVKFFT_BACKEND=2)
 endif()
 
+if (GMX_GPU_USE_LOAD_MODULE)
+    add_definitions(-DGMX_SPREAD_LOAD)
+    add_definitions(-DGMX_SOLVE_LOAD)
+endif()
+
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
 	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG -ggdb -save-temps -fdenormal-fp-math=ieee -fcuda-flush-denormals-to-zero -munsafe-fp-atomics --amdgpu-target=gfx90a" NVCC_OPTIONS)
