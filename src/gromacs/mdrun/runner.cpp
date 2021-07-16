@@ -1283,7 +1283,8 @@ int Mdrunner::mdrunner()
             dd_setup_dlb_resource_sharing(cr, deviceId);
         }
         deviceStreamManager = std::make_unique<DeviceStreamManager>(
-                *deviceInfo, havePPDomainDecomposition(cr), runScheduleWork.simulationWork, useTiming);
+                *deviceInfo, havePPDomainDecomposition(cr), runScheduleWork.simulationWork, 
+		useTiming, thisRankHasDuty(cr, DUTY_PME), thisRankHasDuty(cr, DUTY_PP));
     }
 
     // If the user chose a task assignment, give them some hints
