@@ -74,7 +74,7 @@ public:
     Impl(const DeviceInformation& deviceInfo,
          bool                     havePpDomainDecomposition,
          SimulationWorkload       simulationWork,
-         bool                     useTiming);
+         bool                     useTiming, bool hasPme, bool hasPP);
     ~Impl();
 
     //! Device context.
@@ -87,15 +87,16 @@ public:
 DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
                                 const bool               havePpDomainDecomposition,
                                 const SimulationWorkload simulationWork,
-                                const bool               useTiming) :
+                                const bool               useTiming, bool hasPme, bool hasPP) :
     context_(deviceInfo)
 {
     try
     {
+	if (hasPP)
         streams_[DeviceStreamType::NonBondedLocal] =
                 std::make_unique<DeviceStream>(context_, DeviceStreamPriority::Normal, useTiming);
 
-        if (simulationWork.useGpuPme)
+        if (simulationWork.useGpuPme && hasPme)
         {
             /* Creating a PME GPU stream:
              * - default high priority with CUDA
@@ -105,7 +106,7 @@ DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
                     std::make_unique<DeviceStream>(context_, DeviceStreamPriority::High, useTiming);
         }
 
-        if (havePpDomainDecomposition)
+        if (havePpDomainDecomposition && hasPP)
         {
             streams_[DeviceStreamType::NonBondedNonLocal] =
                     std::make_unique<DeviceStream>(context_, DeviceStreamPriority::High, useTiming);
@@ -131,8 +132,9 @@ DeviceStreamManager::Impl::~Impl() = default;
 DeviceStreamManager::DeviceStreamManager(const DeviceInformation& deviceInfo,
                                          const bool               havePpDomainDecomposition,
                                          const SimulationWorkload simulationWork,
-                                         const bool               useTiming) :
-    impl_(new Impl(deviceInfo, havePpDomainDecomposition, simulationWork, useTiming))
+                                         const bool               useTiming, 
+					 bool hasPme, bool hasPP) :
+    impl_(new Impl(deviceInfo, havePpDomainDecomposition, simulationWork, useTiming,hasPme, hasPP))
 {
 }
 
