@@ -178,6 +178,10 @@ void gpuHalo(gmx_domdec_t* dd, matrix box, HostVector<RVec>* h_x, int numAtomsTo
                          GpuApiCallBehavior::Sync, nullptr);
 
     freeDeviceBuffer(d_x);
+#if GMX_MPI
+    MPI_Barrier(MPI_COMM_WORLD);
+#endif
+
 #else
     GMX_UNUSED_VALUE(dd);
     GMX_UNUSED_VALUE(box);
