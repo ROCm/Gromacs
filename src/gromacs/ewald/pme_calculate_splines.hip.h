@@ -107,7 +107,7 @@ __device__ __forceinline__ void pme_gpu_stage_atom_data(const PmeGpuHipKernelPar
  * \param[out] sm_gridlineIndices   Atom gridline indices in the shared memory.
  */
 
-template<const int order, const int atomsPerBlock, const int atomsPerWarp, const bool writeSmDtheta, const bool writeGlobal>
+template<const int order, const int atomsPerBlock, const int atomsPerWarp, const bool writeSmDtheta, const bool writeGlobal, const bool useOrderThreads>
 __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams kernelParams,
                                                   const int                    atomIndexOffset,
                                                   const float3                 atomX,
@@ -137,17 +137,17 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
     /* Atom index w.r.t. global memory */
     const int atomIndexGlobal = atomIndexOffset + atomIndexLocal;
     /* Spline contribution index in one dimension */
-    const int threadLocalIdXY = (threadIdx.y * blockDim.x) + threadIdx.x;
-    const int orderIndex      = threadLocalIdXY / DIM;
+    //const int threadLocalIdXY = (threadIdx.y * blockDim.x) + threadIdx.x;
+    const int orderIndex      = threadIdx.y;//threadLocalIdXY / DIM;
     /* Dimension index */
-    const int dimIndex = threadLocalIdXY % DIM;
+    const int dimIndex = threadIdx.x;//threadLocalIdXY % DIM;
 
     /* Multi-purpose index of rvec/ivec atom data */
     const int sharedMemoryIndex = atomIndexLocal * DIM + dimIndex;
 
     float splineData[order];
 
-    const int localCheck = (dimIndex < DIM) && (orderIndex < 1);
+    const int localCheck = dimIndex < DIM;//(dimIndex < DIM) && (orderIndex < 1);
     const int globalCheck = pme_gpu_check_atom_data_index(atomIndexGlobal, kernelParams.atoms.nAtoms);
 
     /* we have 4 threads per atom, but can only use 3 here for the dimensions */
@@ -253,8 +253,11 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             if (writeSmDtheta || writeGlobal)
             {
                 /* Differentiation and storing the spline derivatives (dtheta) */
+                const int ithyMin = useOrderThreads ? 0 : orderIndex;
+                const int ithyMax = useOrderThreads ? order : orderIndex + 1;
 #pragma unroll
-                for (o = 0; o < order; o++)
+                for (int o = ithyMin; o < ithyMax; o++)
+                //for (o = 0; o < order; o++)
                 {
                     const int thetaIndex =
                             getSplineParamIndex<order, atomsPerWarp>(thetaIndexBase, dimIndex, o);
@@ -286,8 +289,11 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             splineData[0] = div * (1.0f - dr) * splineData[0];
 
             /* Storing the spline values (theta) */
+            const int ithyMin = useOrderThreads ? 0 : orderIndex;
+            const int ithyMax = useOrderThreads ? order : orderIndex + 1;
 #pragma unroll
-            for (o = 0; o < order; o++)
+            for (int o = ithyMin; o < ithyMax; o++)
+            //for (o = 0; o < order; o++)
             {
                 const int thetaIndex =
                         getSplineParamIndex<order, atomsPerWarp>(thetaIndexBase, dimIndex, o);

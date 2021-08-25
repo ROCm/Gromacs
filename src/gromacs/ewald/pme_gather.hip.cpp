@@ -361,7 +361,7 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
             atomX.y    = kernelParams.atoms.d_coordinates[atomIndexGlobal * DIM + YY];
             atomX.z    = kernelParams.atoms.d_coordinates[atomIndexGlobal * DIM + ZZ];
         }
-        calculate_splines<order, atomsPerBlock, atomsPerWarp, true, false>(
+        calculate_splines<order, atomsPerBlock, atomsPerWarp, true, false, useOrderThreads>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, sm_dtheta, sm_gridlineIndices);
 //        __syncwarp();
         __all(1);
