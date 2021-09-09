@@ -104,6 +104,7 @@ static void init_atomdata_first(cu_atomdata_t* ad, int ntypes, const DeviceConte
     ad->bShiftVecUploaded = false;
 
     allocateDeviceBuffer(&ad->fshift, SHIFTS, deviceContext);
+    allocateDeviceBuffer(&ad->fshift_fake, SHIFTS, deviceContext);
     allocateDeviceBuffer(&ad->e_lj, 1, deviceContext);
     allocateDeviceBuffer(&ad->e_el, 1, deviceContext);
 
@@ -111,6 +112,7 @@ static void init_atomdata_first(cu_atomdata_t* ad, int ntypes, const DeviceConte
        need reallocation in nbnxn_cuda_init_atomdata */
     ad->xq = nullptr;
     ad->f  = nullptr;
+    ad->f_fake  = nullptr;
 
     /* size -1 indicates that the respective array hasn't been initialized yet */
     ad->natoms = -1;
@@ -352,6 +354,7 @@ static void nbnxn_cuda_clear_f(NbnxmGpu* nb, int natoms_clear)
     cu_atomdata_t*      adat        = nb->atdat;
     const DeviceStream& localStream = *nb->deviceStreams[InteractionLocality::Local];
     clearDeviceBufferAsync(&adat->f, 0, natoms_clear, localStream);
+    clearDeviceBufferAsync(&adat->f_fake, 0, natoms_clear, localStream);
 }
 
 /*! Clears nonbonded shift force output array and energy outputs on the GPU. */
@@ -361,6 +364,7 @@ static void nbnxn_cuda_clear_e_fshift(NbnxmGpu* nb)
     const DeviceStream& localStream = *nb->deviceStreams[InteractionLocality::Local];
 
     clearDeviceBufferAsync(&adat->fshift, 0, SHIFTS, localStream);
+    clearDeviceBufferAsync(&adat->fshift_fake, 0, SHIFTS, localStream);
     clearDeviceBufferAsync(&adat->e_lj, 0, 1, localStream);
     clearDeviceBufferAsync(&adat->e_el, 0, 1, localStream);
 }
@@ -405,12 +409,14 @@ void gpu_init_atomdata(NbnxmGpu* nb, const nbnxn_atomdata_t* nbat)
         if (d_atdat->nalloc != -1)
         {
             freeDeviceBuffer(&d_atdat->f);
+            freeDeviceBuffer(&d_atdat->f_fake);
             freeDeviceBuffer(&d_atdat->xq);
             freeDeviceBuffer(&d_atdat->atom_types);
             freeDeviceBuffer(&d_atdat->lj_comb);
         }
 
         allocateDeviceBuffer(&d_atdat->f, nalloc, deviceContext);
+        allocateDeviceBuffer(&d_atdat->f_fake, nalloc, deviceContext);
         allocateDeviceBuffer(&d_atdat->xq, nalloc, deviceContext);
         if (useLjCombRule(nb->nbparam->vdwtype))
         {
@@ -495,11 +501,13 @@ void gpu_free(NbnxmGpu* nb)
 
     freeDeviceBuffer(&atdat->shift_vec);
     freeDeviceBuffer(&atdat->fshift);
+    freeDeviceBuffer(&atdat->fshift_fake);
 
     freeDeviceBuffer(&atdat->e_lj);
     freeDeviceBuffer(&atdat->e_el);
 
     freeDeviceBuffer(&atdat->f);
+    freeDeviceBuffer(&atdat->f_fake);
     freeDeviceBuffer(&atdat->xq);
     freeDeviceBuffer(&atdat->atom_types);
     freeDeviceBuffer(&atdat->lj_comb);

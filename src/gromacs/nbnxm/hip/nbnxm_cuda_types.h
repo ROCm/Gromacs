@@ -115,6 +115,7 @@ struct cu_atomdata
     DeviceBuffer<float4> xq;
     //! force output array, size natoms
     DeviceBuffer<float3> f;
+    DeviceBuffer<float3> f_fake;
 
     //! LJ energy output, size 1
     DeviceBuffer<float> e_lj;
@@ -123,6 +124,7 @@ struct cu_atomdata
 
     //! shift forces
     DeviceBuffer<float3> fshift;
+    DeviceBuffer<float3> fshift_fake;
 
     //! number of atom types
     int ntypes;

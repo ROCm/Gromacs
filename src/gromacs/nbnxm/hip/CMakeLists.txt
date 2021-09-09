@@ -40,7 +40,8 @@ if(GMX_GPU_HIP)
                 nbnxm_cuda_kernel_F_prune_hip.cpp
                 nbnxm_cuda_kernel_VF_noprune_hip.cpp
                 nbnxm_cuda_kernel_VF_prune_hip.cpp
-                nbnxm_cuda_kernel_pruneonly_hip.cpp)
+                nbnxm_cuda_kernel_pruneonly_hip.cpp
+		nbnxm_measure_hip.cpp)
     endif()
 
     file(GLOB NBNXM_HIP_SOURCES
