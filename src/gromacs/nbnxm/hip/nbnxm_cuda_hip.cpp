@@ -53,6 +53,7 @@
 
 
 #include "nbnxm_cuda.h"
+#include "nbnxm_measure.h"
 
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/gpu_utils/gpueventsynchronizer_hip.h"
@@ -570,6 +571,10 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
             prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
     */
+    if (nbp->eeltype == 2 && nbp->vdwtype == 3 && !stepWork.computeEnergy && !(plist->haveFreshList && !nb->timers->interaction[iloc].didPrune)) {
+        launchGpuKernel(nbnxm_measure, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
+        hipDeviceSynchronize();
+    } //else {
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
 
     if (bDoTime)
