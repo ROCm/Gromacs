@@ -694,7 +694,9 @@ static void pme_gpu_reinit_grids(PmeGpu* pmeGpu)
         kernelParamsPtr->grid.complexGridSizePadded[i] = kernelParamsPtr->grid.realGridSize[i];
     }
     /* FFT: n real elements correspond to (n / 2 + 1) complex elements in minor dimension */
+#if GMX_GPU_CUDA || GMX_GPU_OPENCL
     if (!pme_gpu_settings(pmeGpu).performGPUFFT)
+#endif
     {
         // This allows for GPU spreading grid and CPU fftgrid to have the same layout, so that we can copy the data directly
         kernelParamsPtr->grid.realGridSizePadded[ZZ] =
