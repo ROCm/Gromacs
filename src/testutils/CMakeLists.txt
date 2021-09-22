@@ -110,13 +110,7 @@ elseif(GMX_GPU_HIP)
     if(NOT GMX_THREAD_MPI)
         find_package(MPI)
         if(MPI_C_FOUND)
-            execute_process(
-                COMMAND ${MPI_C_COMPILER} -showme:incdirs
-                OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE)
-            separate_arguments(MPI_INCDIRS)
-            message(STATUS "MPI_INCDIRS: ${MPI_INCDIRS}")
-            include_directories(SYSTEM ${MPI_INCDIRS})
+            include_directories(SYSTEM ${MPI_C_INCDIRS})
         endif()
     endif()
 
