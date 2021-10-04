@@ -39,24 +39,32 @@
 #set(REQUIRED_CUDA_COMPUTE_CAPABILITY 3.0)
 
 set(GMX_GPU_HIP ON)
-
+IF (NOT DEFINED ROCM_PATH)
+    IF(NOT DEFINED ENV{ROCM_PATH})
+        set(ROCM_PATH "/opt/rocm")
+    else()
+        set(ROCM_PATH $ENV{ROCM_PATH})
+    endif()
+endif()
+list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH})
+message(STATUS "ROCM Path: " ${ROCM_PATH})
 
 if(GMX_DOUBLE)
     message(FATAL_ERROR "HIP acceleration is not available in double precision")
 endif()
 
 # We need to call find_package even when we've already done the detection/setup
-find_package(hcc QUIET CONFIG PATHS /opt/rocm)
-find_package(hip QUIET CONFIG PATHS /opt/rocm)
+find_package(hcc QUIET CONFIG PATHS ${ROCM_PATH})
+find_package(hip QUIET CONFIG PATHS ${ROCM_PATH})
 
 set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 if(NOT DEFINED HIP_PATH)
     if(NOT DEFINED ENV{HIP_PATH})
-        set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
-	set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
+	    set(HIP_PATH ${ROCM_PATH}/hip CACHE PATH "Path to which HIP has been installed")
+	    set(HIP_CLANG_PATH ${ROCM_PATH}/llvm/bin CACHE PATH "Path to which HIP  clang has been installed")
     else()
         set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
-	set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
+	set(HIP_CLANG_PATH ${ROCM_PATH}/llvm/bin CACHE PATH "Path to which HIP  clang has been installed")
     endif()
 endif()
 
@@ -71,7 +79,7 @@ if ( NOT hip_FOUND )
 else()
     message(STATUS "HIP is found!")
 endif()
-find_package(rocfft QUIET CONFIG PATHS /opt/rocm )
+find_package(rocfft QUIET CONFIG PATHS ${ROCM_PATH} )
 if (NOT rocfft_FOUND )
    message(FATAL_ERROR "rocfft is required, but it is not found in this environment")
 else()
@@ -81,7 +89,7 @@ endif()
 macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FLAGS)
     find_program(HIP_CONFIG hipconfig
          PATH_SUFFIXES bin
-         PATHS /opt/rocm/hip
+	 PATHS ${ROCM_PATH}/hip
     )
     if(HIP_CONFIG) #cm todo
         execute_process(COMMAND ${HIP_CONFIG} --version
@@ -92,7 +100,7 @@ macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FL
         if (${_hipcc_version_res} EQUAL 0)
             find_program(HIP_CC_COMPILER hipcc
                  PATH_SUFFIXES bin
-                 PATHS /opt/rocm/hip
+		 PATHS ${ROCM_PATH}/hip
             )
             if (HIP_CC_COMPILER)
                 SET(${COMPILER_INFO} "${HIP_CC_COMPILER} ${_hipcc_version_out}")
