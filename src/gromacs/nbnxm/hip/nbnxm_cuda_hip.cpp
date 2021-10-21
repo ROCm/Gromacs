@@ -572,10 +572,24 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
     */
     if (nbp->eeltype == 2 && nbp->vdwtype == 3 && !stepWork.computeEnergy && !(plist->haveFreshList && !nb->timers->interaction[iloc].didPrune)) {
+	config.blockSize[0] = c_clSize;
+        config.blockSize[1] = c_clSize/2;
+        config.blockSize[2] = 2;
+        config.gridSize[0]  = nblock;
+        config.sharedMemorySize =
+            calc_shmem_required_nonbonded(2, &nb->deviceContext_->deviceInfo(), nbp);
         launchGpuKernel(nbnxm_measure, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
-        hipDeviceSynchronize();
-    } //else {
+        //hipDeviceSynchronize();
+    } else {
+	config.blockSize[0] = c_clSize;
+        config.blockSize[1] = c_clSize;
+        config.blockSize[2] = num_threads_z;
+        config.gridSize[0]  = nblock;
+        config.sharedMemorySize =
+            calc_shmem_required_nonbonded(num_threads_z, &nb->deviceContext_->deviceInfo(), nbp);
+
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
+    }
 
     if (bDoTime)
     {

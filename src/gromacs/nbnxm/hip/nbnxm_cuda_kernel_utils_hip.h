@@ -121,6 +121,26 @@ static __forceinline__ __device__ void
                + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
 }
 
+static __forceinline__ __device__ void
+                       calculate_force_switch_F(const NBParamGpu nbparam, float2 c6, float2 c12, float2 inv_r, float2 r2, float2* F_invr)
+{
+    float2 r, r_switch;
+
+    /* force switch constants */
+    float2 disp_shift_V2 = {nbparam.dispersion_shift.c2, nbparam.dispersion_shift.c2};
+    float2 disp_shift_V3 = {nbparam.dispersion_shift.c3, nbparam.dispersion_shift.c3};
+    float2 repu_shift_V2 = {nbparam.repulsion_shift.c2, nbparam.repulsion_shift.c2};
+    float2 repu_shift_V3 = {nbparam.repulsion_shift.c3, nbparam.repulsion_shift.c3};
+
+    r        = r2 * inv_r;
+    r_switch = {r.x - nbparam.rvdw_switch, r.y - nbparam.rvdw_switch};
+    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
+    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
+
+    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
+               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
+}
+
 /*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
                                                                   float            c6,
@@ -403,6 +423,18 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
     return lerp(d01.x, d01.y, fraction);
 }
 
+static __forceinline__ __device__ float2 interpolate_coulomb_force_r(const NBParamGpu nbparam, float2 r)
+{
+    float2 normalized = nbparam.coulomb_tab_scale * r;
+    int2   index      = {(int)normalized.x, (int)normalized.y};
+    float2 fraction   = {normalized.x - index.x, normalized.y - index.y};
+
+    float2 d01 = fetch_coulomb_force_r(nbparam, index.x);
+    float2 d02 = fetch_coulomb_force_r(nbparam, index.y);
+
+    return {lerp(d01.x, d01.y, fraction.x), lerp(d02.x, d02.y, fraction.y)};
+}
+
 /*! Fetch C6 and C12 from the parameter table.
  *
  *  Depending on what is supported, it fetches parameters either
@@ -417,6 +449,29 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, 
     c6c12 = LDG(&nbfp[baseIndex]);
     c6    = c6c12.x;
     c12   = c6c12.y;
+#    else
+    /* NOTE: as we always do 8-byte aligned loads, we could
+       fetch float2 here too just as above. */
+    c6  = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex);
+    c12 = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex + 1);
+#    endif // DISABLE_CUDA_TEXTURES
+}
+
+static __forceinline__ __device__ void fetch_nbfp_c6_c12(float2& c6, float2& c12, const NBParamGpu nbparam, int2 baseIndex)
+{
+#    if DISABLE_CUDA_TEXTURES
+    /* Force an 8-byte fetch to save a memory instruction. */
+    float2* nbfp = (float2*)nbparam.nbfp;
+    float2  c6c12;
+    c6c12 = LDG(&nbfp[baseIndex.x]);
+    c6.x    = c6c12.x;
+    c12.x   = c6c12.y;
+
+    c6c12 = LDG(&nbfp[baseIndex.y]);
+    c6.y    = c6c12.x;
+    c12.y   = c6c12.y;
+
+
 #    else
     /* NOTE: as we always do 8-byte aligned loads, we could
        fetch float2 here too just as above. */
@@ -659,11 +714,47 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if (tidxj < 3)
     {
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAdd(&fout[aidx].x + tidxj, fin.x);
-#else
-        atomicAddOverWriteForFloat(&fout[aidx].x + tidxj, fin.x);
-#endif
+
+        if (bCalcFshift)
+        {
+            *fshift_buf += fin.x;
+        }
+    }
+}
+
+static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
+                                                                float3*            fout,
+                                                                float*             fshift_buf,
+                                                                bool               bCalcFshift,
+                                                                int                tidxj,
+								int                tidxz,
+                                                                int                aidx,
+                                                                const unsigned long activemask)
+{
+    fin.x += __shfl_down(fin.x, c_clSize);
+    fin.y += __shfl_up(fin.y, c_clSize);
+    fin.z += __shfl_down(fin.z, c_clSize);
+
+    if (tidxj & 1)
+    {
+        fin.x = fin.y;
+    }
+
+    fin.x += __shfl_down(fin.x, 2 * c_clSize);
+    fin.z += __shfl_up(fin.z, 2 * c_clSize);
+
+    if (tidxj & 2)
+    {
+        fin.x = fin.z;
+    }
+
+    fin.x += __shfl_down(fin.x, 4*c_clSize);
+
+    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
+    if (tidxj < 3 && tidxz == 0)
+    {
+        atomicAdd(&fout[aidx].x + tidxj, fin.x);
 
         if (bCalcFshift)
         {
