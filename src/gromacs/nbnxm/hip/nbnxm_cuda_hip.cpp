@@ -533,7 +533,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
      *   and j-cluster concurrency, in x, y, and z, respectively.
      * - The 1D block-grid contains as many blocks as super-clusters.
      */
-    int num_threads_z = 1;
+    int num_threads_z = 4;
     if (nb->deviceContext_->deviceInfo().prop.major == 3 && nb->deviceContext_->deviceInfo().prop.minor == 7)
     {
         num_threads_z = 2;

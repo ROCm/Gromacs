@@ -134,7 +134,7 @@
 #    define NTHREAD_Z (2)
 #    define MIN_BLOCKS_PER_MP (16)
 #else
-#    define NTHREAD_Z (1)
+#    define NTHREAD_Z (4)
 #    define MIN_BLOCKS_PER_MP (16)
 #endif /* GMX_PTX_ARCH == 370 */
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
@@ -385,7 +385,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    endif
         {
             /* Pre-load cj into shared memory on both warps separately */
-            if (tidxi == 0)
+            if (tidx == 0)
             {
                 for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
                     cjs[i] = pl_cj4[j4].cj[i];
