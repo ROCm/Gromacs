@@ -282,6 +282,7 @@
 #define LJ_FORCE_SWITCH
 #define NB_KERNEL_FUNC_NAME(x, ...) x##_ElecEwQSTab_VdwLJFsw##__VA_ARGS__
 #include "nbnxm_cuda_kernel_hip.h"
+#include "nbnxm_pack_cuda_kernel_hip.h"
 #undef LJ_FORCE_SWITCH
 #undef NB_KERNEL_FUNC_NAME
 /* V switch LJ */

@@ -257,6 +257,10 @@ if (GMX_GPU_USE_VKFFT)
     target_compile_definitions(VkFFT INTERFACE -DVKFFT_BACKEND=2)
 endif()
 
+if (GMX_GPU_USE_PACK)
+    add_definitions(-DGMX_GPU_USE_PACK)
+endif()
+
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
 	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" NVCC_OPTIONS)
