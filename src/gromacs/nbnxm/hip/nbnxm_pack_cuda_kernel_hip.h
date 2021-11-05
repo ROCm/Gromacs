@@ -248,7 +248,24 @@ __launch_bounds__(THREADS_PER_BLOCK)
     nbnxn_sci_t  nb_sci;
 
     int2 aj_int2;
+#    ifndef LJ_COMB
     int2 typej_int2;
+#    else
+    float2        ljcp_j_x;
+    float2        ljcp_j_y;
+#    endif
+
+#    ifdef LJ_COMB_LB
+    float2        sigma_f2, epsilon_f2;
+#    endif
+
+#    if defined CALC_ENERGIES || defined LJ_POT_SWITCH
+    float2        E_lj_p_f2;
+#    endif
+
+#    ifdef VDW_CUTOFF_CHECK
+    float2                vdw_in_range_f2;
+#    endif
 
     float2 xj_x_f2;
     float2 xj_y_f2;
@@ -472,7 +489,14 @@ __launch_bounds__(THREADS_PER_BLOCK)
                     //typej = atom_types[aj];
 		    typej_int2 = {atom_types[aj_int2.x], atom_types[aj_int2.y]};
 #    else
-                    ljcp_j = lj_comb[aj];
+                    ljcp_j = lj_comb[aj_int2.x];
+		    ljcp_j_x.x = ljcp_j.x;
+		    ljcp_j_y.x = ljcp_j.y;
+
+                    ljcp_j = lj_comb[aj_int2.y];
+		    ljcp_j_x.y = ljcp_j.x;
+		    ljcp_j_y.y = ljcp_j.y;
+
 #    endif
 
                     fcj_buf = make_float3(0.0f);
@@ -548,14 +572,14 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    else
                                 ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM
-                                c6           = ljcp_i.x * ljcp_j.x;
-                                c12          = ljcp_i.y * ljcp_j.y;
+                                c6_f2           = ljcp_i.x * ljcp_j_x;
+                                c12_f2          = ljcp_i.y * ljcp_j_y;
 #        else
                                 /* LJ 2^(1/6)*sigma and 12*epsilon */
-                                sigma   = ljcp_i.x + ljcp_j.x;
-                                epsilon = ljcp_i.y * ljcp_j.y;
+                                sigma_f2   = ljcp_i.x + ljcp_j_x;
+                                epsilon_f2 = ljcp_i.y * ljcp_j_y;
 #            if defined CALC_ENERGIES || defined LJ_FORCE_SWITCH || defined LJ_POT_SWITCH
-                                convert_sigma_epsilon_to_c6_c12(sigma, epsilon, &c6, &c12);
+                                convert_sigma_epsilon_to_c6_c12(sigma_f2, epsilon_f2, &c6_f2, &c12_f2);
 #            endif
 #        endif /* LJ_COMB_GEOM */
 #    endif     /* LJ_COMB */
@@ -582,24 +606,24 @@ __launch_bounds__(THREADS_PER_BLOCK)
                                 //F_invr = inv_r6 * (c12 * inv_r6 - c6) * inv_r2;
 				F_invr_f2 = inv_r6_f2 * (c12_f2 * inv_r6_f2 - c6_f2) * inv_r2_f2;
 #        if defined CALC_ENERGIES || defined LJ_POT_SWITCH
-                                E_lj_p = int_bit
-                                         * (c12 * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
-                                            - c6 * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
+                                E_lj_p_f2 = int_bit_f2
+                                         * (c12_f2 * (inv_r6_f2 * inv_r6_f2 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
+                                            - c6_f2 * (inv_r6_f2 + nbparam.dispersion_shift.cpot) * c_oneSixth);
 #        endif
 #    else /* !LJ_COMB_LB || CALC_ENERGIES */
-                                float sig_r  = sigma * inv_r;
-                                float sig_r2 = sig_r * sig_r;
-                                float sig_r6 = sig_r2 * sig_r2 * sig_r2;
+                                float2 sig_r  = sigma_f2 * inv_r_f2;
+                                float2 sig_r2 = sig_r * sig_r;
+                                float2 sig_r6 = sig_r2 * sig_r2 * sig_r2;
 #        ifdef EXCLUSION_FORCES
-                                sig_r6 *= int_bit;
+                                sig_r6 *= int_bit_f2;
 #        endif /* EXCLUSION_FORCES */
 
-                                F_invr = epsilon * sig_r6 * (sig_r6 - 1.0f) * inv_r2;
+                                F_invr_f2 = epsilon_f2 * sig_r6 * (sig_r6 - 1.0f) * inv_r2_f2;
 #    endif     /* !LJ_COMB_LB || CALC_ENERGIES */
 
 #    ifdef LJ_FORCE_SWITCH
 #        ifdef CALC_ENERGIES
-                                calculate_force_switch_F_E(nbparam, c6, c12, inv_r, r2, &F_invr, &E_lj_p);
+                                calculate_force_switch_F_E(nbparam, c6_f2, c12_f2, inv_r_f2, r2_f2, &F_invr_f2, &E_lj_p_f2);
 #        else
                                 calculate_force_switch_F(nbparam, c6_f2, c12_f2, inv_r_f2, r2_f2, &F_invr_f2);
 #        endif /* CALC_ENERGIES */
@@ -609,20 +633,20 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    ifdef LJ_EWALD
 #        ifdef LJ_EWALD_COMB_GEOM
 #            ifdef CALC_ENERGIES
-                                calculate_lj_ewald_comb_geom_F_E(nbparam, typei, typej, r2, inv_r2,
-                                                                 lje_coeff2, lje_coeff6_6, int_bit,
-                                                                 &F_invr, &E_lj_p);
+                                calculate_lj_ewald_comb_geom_F_E(nbparam, typei, typej_int2, r2_f2, inv_r2_f2,
+                                                                 lje_coeff2, lje_coeff6_6, int_bit_f2,
+                                                                 &F_invr_f2, &E_lj_p_f2);
 #            else
-                                calculate_lj_ewald_comb_geom_F(nbparam, typei, typej, r2, inv_r2,
-                                                               lje_coeff2, lje_coeff6_6, &F_invr);
+                                calculate_lj_ewald_comb_geom_F(nbparam, typei, typej_int2, r2_f2, inv_r2_f2,
+                                                               lje_coeff2, lje_coeff6_6, &F_invr_f2);
 #            endif /* CALC_ENERGIES */
 #        elif defined LJ_EWALD_COMB_LB
-                                calculate_lj_ewald_comb_LB_F_E(nbparam, typei, typej, r2, inv_r2,
+                                calculate_lj_ewald_comb_LB_F_E(nbparam, typei, typej_int2, r2_f2, inv_r2_f2,
                                                                lje_coeff2, lje_coeff6_6,
 #            ifdef CALC_ENERGIES
-                                                               int_bit, &F_invr, &E_lj_p
+                                                               int_bit_f2, &F_invr_f2, &E_lj_p_f2
 #            else
-                                                               0, &F_invr, nullptr
+                                                               0, &F_invr_f2, nullptr
 #            endif /* CALC_ENERGIES */
                                 );
 #        endif     /* LJ_EWALD_COMB_GEOM */
@@ -640,27 +664,28 @@ __launch_bounds__(THREADS_PER_BLOCK)
                                 /* Separate VDW cut-off check to enable twin-range cut-offs
                                  * (rvdw < rcoulomb <= rlist)
                                  */
-                                vdw_in_range = (r2 < rvdw_sq) ? 1.0f : 0.0f;
-                                F_invr *= vdw_in_range;
+                                vdw_in_range_f2.x = (r2_f2.x < rvdw_sq) ? 1.0f : 0.0f;
+                                vdw_in_range_f2.y = (r2_f2.y < rvdw_sq) ? 1.0f : 0.0f;
+                                F_invr_f2 *= vdw_in_range_f2;
 #        ifdef CALC_ENERGIES
-                                E_lj_p *= vdw_in_range;
+                                E_lj_p_f2 *= vdw_in_range_f2;
 #        endif
 #    endif /* VDW_CUTOFF_CHECK */
 
 #    ifdef CALC_ENERGIES
-                                E_lj += E_lj_p;
+                                E_lj += (E_lj_p_f2.x + E_lj_p_f2.y);
 #    endif
 
 
 #    ifdef EL_CUTOFF
 #        ifdef EXCLUSION_FORCES
-                                F_invr += qi * qj_f * int_bit * inv_r2 * inv_r;
+                                F_invr_f2 += qi * qj_f_f2 * int_bit_f2 * inv_r2_f2 * inv_r2_f2;
 #        else
-                                F_invr += qi * qj_f * inv_r2 * inv_r;
+                                F_invr_f2 += qi * qj_f_f2 * inv_r2_f2 * inv_r2_f2;
 #        endif
 #    endif
 #    ifdef EL_RF
-                                F_invr += qi * qj_f * (int_bit * inv_r2 * inv_r - two_k_rf);
+                                F_invr_f2 += qi * qj_f_f2 * (int_bit_f2 * inv_r2_f2 * inv_r2_f2 - two_k_rf);
 #    endif
 #    if defined   EL_EWALD_ANA
                                 F_invr_f2 += qi * qj_f_f2
@@ -674,7 +699,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 
 #    ifdef CALC_ENERGIES
 #        ifdef EL_CUTOFF
-                                E_el += qi * qj_f * (int_bit * inv_r - c_rf);
+                                E_el += (qi * qj_f_f2.x * (int_bit_f2.x * inv_r_f2.x - c_rf) + qi * qj_f_f2.y * (int_bit_f2.y * inv_r_f2.y - c_rf));
 #        endif
 #        ifdef EL_RF
                                 E_el += qi * qj_f * (int_bit * inv_r + 0.5f * two_k_rf * r2 - c_rf);
