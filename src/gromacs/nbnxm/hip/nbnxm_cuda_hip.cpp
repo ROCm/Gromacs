@@ -201,7 +201,7 @@ static const nbnxn_cu_kfunc_ptr_t nb_pack_kfunc_noener_noprune_ptr[eelTypeNR][ev
       nbnxn_kernel_ElecRF_VdwLJPsw_F_cuda, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_F_cuda,
       nbnxn_kernel_ElecRF_VdwLJEwCombLB_F_cuda },
     { nbnxn_kernel_ElecEwQSTab_VdwLJ_F_cuda, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_F_cuda,
-      nbnxn_kernel_ElecEwQSTab_VdwLJCombLB_F_cuda, nbnxn_pack_kernel_ElecEwQSTab_VdwLJFsw_F_cuda,
+      nbnxn_pack_kernel_ElecEwQSTab_VdwLJCombLB_F_cuda, nbnxn_pack_kernel_ElecEwQSTab_VdwLJFsw_F_cuda,
       nbnxn_kernel_ElecEwQSTab_VdwLJPsw_F_cuda, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_F_cuda,
       nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_F_cuda },
     { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_F_cuda, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_F_cuda,
@@ -595,12 +595,13 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     bool usePack = false;
 
 #ifdef GMX_GPU_USE_PACK
-    if (nbp->eeltype == 2 && nbp->vdwtype == 3 && 
-		    !stepWork.computeEnergy && 
-		    !(plist->haveFreshList && 
-	            !nb->timers->interaction[iloc].didPrune)) {
-        usePack = true;
-    }
+    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 && 
+    //    	    !stepWork.computeEnergy && 
+    //    	    !(plist->haveFreshList && 
+    //                !nb->timers->interaction[iloc].didPrune)) {
+    //    usePack = true;
+    //}
+    usePack = true;
 #endif
 
     auto*      timingEvent = bDoTime ? t->interaction[iloc].nb_k.fetchNextEvent() : nullptr;

@@ -264,6 +264,7 @@
 #define LJ_COMB_LB
 #define NB_KERNEL_FUNC_NAME(x, ...) x##_ElecEwQSTab_VdwLJCombLB##__VA_ARGS__
 #include "nbnxm_cuda_kernel_hip.h"
+#include "nbnxm_pack_cuda_kernel_hip.h"
 #undef LJ_COMB_LB
 #undef NB_KERNEL_FUNC_NAME
 /* LJ-Ewald w geometric combination rules */
