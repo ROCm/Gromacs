@@ -134,7 +134,7 @@
 #    define NTHREAD_Z (2)
 #    define MIN_BLOCKS_PER_MP (16)
 #else
-#    define NTHREAD_Z (1)
+#    define NTHREAD_Z (4)
 #    define MIN_BLOCKS_PER_MP (16)
 #endif /* GMX_PTX_ARCH == 370 */
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
