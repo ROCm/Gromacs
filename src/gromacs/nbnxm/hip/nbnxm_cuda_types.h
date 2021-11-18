@@ -63,7 +63,7 @@
  *  The GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY macro allows compile-time override.
  */
 #ifndef GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
-#    define GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY 4
+#    define GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY 1
 #endif
 /*! \brief Default for the prune kernel's j4 processing concurrency.
  *
