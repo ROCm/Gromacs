@@ -640,7 +640,7 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
                                 // Ensure distance do not become so small that r^-12 overflows
                                 r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                inv_r  = rsqrtf(r2);
+                                inv_r  = __frsqrt_rn(r2);
                                 inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                                 inv_r6 = inv_r2 * inv_r2 * inv_r2;
@@ -864,13 +864,13 @@ void dumpBasicInfo(basicInfo *info) {
     std::cout << info->nimask << std::endl;
     std::cout << info->imask_nalloc << std::endl;
     std::cout << info->nexcl << std::endl;
-    std::cout << info->excl_nalloc << std::endl; 
+    std::cout << info->excl_nalloc << std::endl;
 }
 
 void copy_xq_to_gpu(cu_atomdata_t *adat) {
     int natoms = adat->natoms;
     float *xq = new float[natoms*4];
-    
+
     std::ifstream myfile;
     myfile.open("xq.txt");
 
@@ -900,12 +900,12 @@ void dump_xq(cu_atomdata_t *adat) {
     myfile.close();
 
     delete []xq;
-}	
+}
 
 void copy_energy_to_gpu(cu_atomdata_t *adat) {
     float *e_lj = new float[1];
     float *e_el = new float[1];
-    
+
     std::ifstream myfile;
     myfile.open("energy.txt");
     myfile >> e_lj[0];
@@ -1063,7 +1063,7 @@ void copy_excl_to_gpu(cu_plist_t *plist) {
     for (int i = 0; i < nexcl; i++) {
         for (int j = 0; j < c_nbnxnGpuExclSize; j++) {
             myfile >> excl[i].pair[j];
-	}	
+	}
     }
 
     hipMalloc((void**)&plist->excl, nexcl * sizeof(nbnxn_excl_t));
@@ -1146,7 +1146,7 @@ void dump_nbparam(cu_nbparam_t *nbp, int nbfpSize) {
     myfile << nbp->dispersion_shift.cpot << std::endl;
     myfile << nbp->repulsion_shift.c2 << std::endl;
     myfile << nbp->repulsion_shift.c3 << std::endl;
-    myfile << nbp->repulsion_shift.cpot << std::endl; 
+    myfile << nbp->repulsion_shift.cpot << std::endl;
 
     float *nbfp  = new float[nbfpSize];
     hipMemcpyDtoH(nbfp, nbp->nbfp, nbfpSize * sizeof(*nbp->nbfp));
@@ -1282,14 +1282,14 @@ int main (int argc, char* argv[]) {
     //
     int num_threads_z = 1;
     size_t sharedMemorySize = calc_shmem_required_nonbonded(num_threads_z, nbparam);
-    
+
     for (int iter=0; iter<1000; iter++) {
-        hipLaunchKernelGGL(nbnxn_kernel, dim3(plist->nsci, 1, 1), 
+        hipLaunchKernelGGL(nbnxn_kernel, dim3(plist->nsci, 1, 1),
         	    dim3(c_clSize, c_clSize, num_threads_z), sharedMemorySize, 0
                     , *adat, *nbparam, *plist, bCalcFshift);
     }
     hipStreamSynchronize(0);
 
-    
+
     return 0;
 }

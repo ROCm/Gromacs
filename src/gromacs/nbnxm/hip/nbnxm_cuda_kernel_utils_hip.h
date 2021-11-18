@@ -313,7 +313,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F(const NBPa
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = expf(-cr2);
+    expmcr2   = __expf(-cr2);
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -336,7 +336,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F(const NBPa
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = {expf(-cr2.x), expf(-cr2.y)};
+    expmcr2   = {__expf(-cr2.x), __expf(-cr2.y)};
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -365,7 +365,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NB
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = expf(-cr2);
+    expmcr2   = __expf(-cr2);
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -397,7 +397,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NB
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = {expf(-cr2.x), expf(-cr2.y)};
+    expmcr2   = {__expf(-cr2.x), __expf(-cr2.y)};
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -463,7 +463,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_LB_F_E(const NBPa
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = expf(-cr2);
+    expmcr2   = __expf(-cr2);
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -511,7 +511,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_LB_F_E(const NBPa
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = {expf(-cr2.x), expf(-cr2.y)};
+    expmcr2   = {__expf(-cr2.x), __expf(-cr2.y)};
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -931,7 +931,7 @@ static __forceinline__ __device__ void
 
     sh = 1;
 #    pragma unroll warp_size_log2
-    for (i = 0; i < warp_size_log2; i++)    
+    for (i = 0; i < warp_size_log2; i++)
     {
         E_lj += __shfl_down(E_lj, sh);
         E_el += __shfl_down(E_el, sh);
