@@ -135,16 +135,11 @@
 #    define MIN_BLOCKS_PER_MP (16)
 #else
 #    define NTHREAD_Z (1)
-#    define MIN_BLOCKS_PER_MP (16)
+#    define MIN_BLOCKS_PER_MP 4
 #endif /* GMX_PTX_ARCH == 370 */
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
-#if GMX_PTX_ARCH >= 350
-/**@}*/
 __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
-#else
-__launch_bounds__(THREADS_PER_BLOCK)
-#endif /* GMX_PTX_ARCH >= 350 */
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
         __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_cuda)
@@ -483,7 +478,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
                                 // Ensure distance do not become so small that r^-12 overflows
                                 r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                inv_r  = rsqrtf(r2);
+                                inv_r  = __frsqrt_rn(r2);
                                 inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                                 inv_r6 = inv_r2 * inv_r2 * inv_r2;
