@@ -84,7 +84,7 @@
 #define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 // we want 100% occupancy, so max threads/block
-#define MIN_BLOCKS_PER_MP (GMX_CUDA_MAX_THREADS_PER_MP / THREADS_PER_BLOCK)
+#define MIN_BLOCKS_PER_MP 4
 /**@}*/
 
 /*! \brief Nonbonded list pruning kernel.

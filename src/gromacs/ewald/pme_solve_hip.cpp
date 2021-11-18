@@ -215,7 +215,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
             assert(isfinite(denom));
             assert(denom != 0.0f);
 
-            const float tmp1   = expf(-kernelParams.grid.ewaldFactor * m2k);
+            const float tmp1   = __expf(-kernelParams.grid.ewaldFactor * m2k);
             const float etermk = kernelParams.constants.elFactor * tmp1 / denom;
 
             float2       gridValue    = *gm_gridCell;
