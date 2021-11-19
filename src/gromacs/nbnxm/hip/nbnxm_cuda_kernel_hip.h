@@ -384,7 +384,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             {
                 for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
                     cjs[i] = pl_cj4[j4].cj[i];
-		}
+        }
             }
 //            __syncwarp(c_fullWarpMask); //cm todo
               __all(1);
@@ -652,7 +652,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         if( tidxi == 0 && tidxj < 3 )
         {
             #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-                    atomicAddNoRet(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+                    atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
             #else
                     atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
             #endif
