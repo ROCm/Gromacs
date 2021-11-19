@@ -100,11 +100,10 @@ struct fixed_array
     }
 };
 
+#define hipGlobalAtomicAdd(a, b) atomicAdd(a, b);
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-    #define hipGlobalAtomicAdd(a, b) atomicAddNoRet(a, b);
     #define hipLocalAtomicAdd(a, b) atomicAddLocalNoRet(a, b);
 #else
-    #define hipGlobalAtomicAdd(a, b) atomicAdd(a, b);
     #define hipLocalAtomicAdd(a, b) atomicAdd(a, b);
 #endif
 

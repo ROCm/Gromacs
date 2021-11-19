@@ -357,11 +357,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // First 6 threads in the block add the 6 components of virial to the global memory address
         if (tib < 6)
         {
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-            atomicAddNoRet(&(gm_virialScaled[tib]), sm_threadVirial[tib * blockSize]);
-#else
             atomicAdd(&(gm_virialScaled[tib]), sm_threadVirial[tib * blockSize]);
-#endif
         }
     }
 
@@ -453,7 +449,7 @@ void SettleGpu::apply(const float3* d_x,
                     "settle_kernel<updateVelocities, computeVirial>", kernelArgs);
     */
     launchGpuKernel(kernelPtr, config, deviceStream_, nullptr, "settle_kernel<updateVelocities, computeVirial>",
-                    numSettles_, const_cast<const int3*>(d_atomIds_), settleParameters_, 
+                    numSettles_, const_cast<const int3*>(d_atomIds_), settleParameters_,
 		    d_x, d_xp, invdt, d_v, d_virialScaled_, pbcAiuc);
 
 
