@@ -1,0 +1,108 @@
+# MIT License
+#
+# Copyright (c) 2017-2020 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+stages:
+  - build
+
+variables:
+  SUDO_CMD: "" # Must be "sudo" on images which don't use root user
+  DEPS_DIR: "$CI_PROJECT_DIR/__dependencies"
+  CMAKE_URL: "https://cmake.org/files/v3.16/cmake-3.16.0-Linux-x86_64.tar.gz"
+  # General build flags
+  CXXFLAGS: ""
+  CMAKE_OPTIONS: ""
+  # Local build options
+  LOCAL_CXXFLAGS: ""
+  LOCAL_CMAKE_OPTIONS: ""
+
+# hipCUB with rocPRIM backend
+.rocm:
+  variables:
+    SUDO_CMD: "sudo -E"
+  tags:
+    - rocm
+    - vega20
+  image: rocm/rocm-terminal:latest
+
+.rocm:build:
+  extends: .rocm
+  before_script:
+    # We need to duplicate before script
+    - $SUDO_CMD sh -c 'echo -e "gfx803\ngfx900\ngfx906" >> /opt/rocm/bin/target.lst'
+    - $SUDO_CMD apt-get update -qq
+    - $SUDO_CMD sudo apt install -y -qq libidn11 wget tar xz-utils bzip2 libnuma-dev libunwind-dev git build-essential pkg-config ninja-build ca-certificates kmod hipfft rocfft libfftw3-dev
+    - hipconfig
+    - rocm-smi -i
+    - export PATH=/opt/rocm/bin:$PATH
+    # cmake
+    - mkdir -p $DEPS_DIR/cmake
+    - wget --no-check-certificate --quiet -O - $CMAKE_URL | tar --strip-components=1 -xz -C $DEPS_DIR/cmake
+    - export PATH=$DEPS_DIR/cmake/bin:$PATH
+    # Combine global build options with local options
+    - export CXXFLAGS=$CXXFLAGS" "$LOCAL_CXXFLAGS
+    - export CMAKE_OPTIONS=$CXXFLAGS" "$LOCAL_CMAKE_OPTIONS
+
+build:rocm:
+  extends: .rocm:build
+  stage: build
+  when: manual
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=off
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_SIMD=AVX2_256
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - make -j $(nproc)
+  artifacts:
+    paths:
+      - build/bin/*
+      - build/lib/*
+      - build/src/*
+      - build/tests/*
+      - build/share/*
+      - build/scripts/*
+      - build/Testing/*
+      - build/CMakeFiles/*
+      - build/CMakeCache.txt
+      - build/CTestTestfile.cmake
+    expire_in: 2 weeks
+
+#test:rocm_vega20:
+#  extends: .rocm
+#  stage: test
+#  needs:
+#    - build:rocm
+#  tags:
+#    - vega20
+#    - rocm
+#  script:
+#    - cd build
+#    - $SUDO_CMD ctest --output-on-failure --repeat-until-fail 2
