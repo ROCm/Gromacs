@@ -49,7 +49,7 @@ variables:
     # We need to duplicate before script
     - $SUDO_CMD sh -c 'echo -e "gfx803\ngfx900\ngfx906" >> /opt/rocm/bin/target.lst'
     - $SUDO_CMD apt-get update -qq
-    - $SUDO_CMD sudo apt install -y -qq libidn11 wget tar xz-utils bzip2 libnuma-dev libunwind-dev git build-essential pkg-config ninja-build ca-certificates kmod hipfft rocfft libfftw3-dev
+    - $SUDO_CMD sudo apt install -y -qq libidn11 wget tar xz-utils bzip2 libnuma-dev libunwind-dev git build-essential pkg-config ninja-build ca-certificates kmod hipfft rocfft libfftw3-dev mpich
     - hipconfig
     - rocm-smi -i
     - export PATH=/opt/rocm/bin:$PATH
@@ -61,7 +61,7 @@ variables:
     - export CXXFLAGS=$CXXFLAGS" "$LOCAL_CXXFLAGS
     - export CMAKE_OPTIONS=$CXXFLAGS" "$LOCAL_CMAKE_OPTIONS
 
-build:rocm:
+build:rocm-tmpi:
   extends: .rocm:build
   stage: build
   when: manual
@@ -77,32 +77,48 @@ build:rocm:
       -DGMX_GPU=HIP
       -DGMX_OPENMP=on
       -DGMX_GPU_USE_VKFFT=on
+      -DGMX_GPU_DETECTION_DONE=ON
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
       -DREGRESSIONTEST_DOWNLOAD=OFF
       -DCMAKE_PREFIX_PATH=/opt/rocm ..
     - make -j $(nproc)
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j $(nproc) check
   artifacts:
     paths:
-      - build/bin/*
-      - build/lib/*
-      - build/src/*
-      - build/tests/*
-      - build/share/*
-      - build/scripts/*
-      - build/Testing/*
-      - build/CMakeFiles/*
       - build/CMakeCache.txt
       - build/CTestTestfile.cmake
     expire_in: 2 weeks
 
-#test:rocm_vega20:
-#  extends: .rocm
-#  stage: test
-#  needs:
-#    - build:rocm
-#  tags:
-#    - vega20
-#    - rocm
-#  script:
-#    - cd build
-#    - $SUDO_CMD ctest --output-on-failure --repeat-until-fail 2
+build:rocm-mpi:
+  extends: .rocm:build
+  stage: build
+  when: manual
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=on
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_GPU_DETECTION_DONE=ON
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
+      -DGMX_SIMD=AVX2_256
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - make -j $(nproc)
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j $(nproc) check
+  artifacts:
+    paths:
+      - build/CMakeCache.txt
+      - build/CTestTestfile.cmake
+    expire_in: 2 weeks
