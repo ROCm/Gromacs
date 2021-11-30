@@ -616,6 +616,25 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     */
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
 
+    // sum up the fshifts
+    if (stepWork.computeVirial)
+    {
+        constexpr unsigned int block_size = 64U;
+        constexpr unsigned int items_per_thread = 1U;
+        constexpr unsigned int items_per_block = block_size * items_per_thread;
+        const unsigned int number_of_blocks = (SHIFTS + items_per_block - 1) / items_per_block;
+
+        nbnxn_kernel_sum_up<block_size,c_clShiftSize,items_per_thread><<<
+            dim3(number_of_blocks),dim3(block_size)
+        >>>(adat->fshift, SHIFTS);
+    }
+
+    // sum up the energies
+    if (stepWork.computeEnergy)
+    {
+        nbnxn_kernel_reduce_energy<64U,4U><<<dim3(1U),dim3(64U)>>>(adat->e_lj, adat->e_el);
+    }
+
     if (bDoTime)
     {
         t->interaction[iloc].nb_k.closeTimingRegion(deviceStream);
@@ -836,15 +855,6 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
         /* DtoH fshift when virial is needed */
         if (stepWork.computeVirial)
         {
-            constexpr unsigned int block_size = 256U;
-            constexpr unsigned int items_per_thread = 6U;
-            constexpr unsigned int items_per_block = block_size * items_per_thread;
-            const unsigned int number_of_blocks = (SHIFTS * c_clShiftSize + items_per_block - 1) / items_per_block;
-
-            nbnxn_kernel_sum_up<block_size,c_clShiftSize,items_per_thread><<<
-                dim3(number_of_blocks),dim3(block_size)
-            >>>(adat->fshift, SHIFTS);
-
             static_assert(sizeof(nb->nbst.fshift[0]) == sizeof(adat->fshift[0]),
                           "Sizes of host- and device-side shift vectors should be the same.");
             copyFromDeviceBuffer(nb->nbst.fshift, &adat->fshift, 0, SHIFTS, deviceStream,
@@ -854,8 +864,6 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
         /* DtoH energies */
         if (stepWork.computeEnergy)
         {
-            nbnxn_kernel_reduce_energy<64U,4U><<<dim3(1U),dim3(64U)>>>(adat->e_lj, adat->e_el);
-
             static_assert(sizeof(nb->nbst.e_lj[0]) == sizeof(adat->e_lj[0]),
                           "Sizes of host- and device-side LJ energy terms should be the same.");
             copyFromDeviceBuffer(nb->nbst.e_lj, &adat->e_lj, 0, 1, deviceStream,

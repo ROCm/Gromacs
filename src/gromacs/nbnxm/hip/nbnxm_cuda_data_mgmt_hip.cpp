@@ -100,7 +100,7 @@ static void nbnxn_cuda_clear_e_fshift(NbnxmGpu* nb);
 static void init_atomdata_first(cu_atomdata_t* ad, int ntypes, const DeviceContext& deviceContext)
 {
     ad->ntypes = ntypes;
-    allocateDeviceBuffer(&ad->shift_vec, c_clShiftSize * SHIFTS, deviceContext);
+    allocateDeviceBuffer(&ad->shift_vec, SHIFTS, deviceContext);
     ad->bShiftVecUploaded = false;
 
     allocateDeviceBuffer(&ad->fshift, c_clShiftSize * SHIFTS, deviceContext);

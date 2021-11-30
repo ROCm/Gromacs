@@ -165,7 +165,7 @@ template<
 __launch_bounds__(BlockSize)
 __global__ void nbnxn_kernel_sum_up(
   float3* input_ptr,
-  unsigned int memoryElementNumber)
+  unsigned int size)
 {
   constexpr unsigned int items_per_block = BlockSize * ItemsPerThread;
 
@@ -173,7 +173,7 @@ __global__ void nbnxn_kernel_sum_up(
   const unsigned int flat_block_id = blockIdx.x;
   const unsigned int block_offset = flat_block_id * items_per_block;
   const unsigned int number_of_blocks = gridDim.x;
-  const unsigned int valid_in_last_block = memoryElementNumber - block_offset;
+  const unsigned int valid_in_last_block = size - block_offset;
 
   float3 input_values[ItemsPerThread * MemoryMultiplier];
 
@@ -183,7 +183,7 @@ __global__ void nbnxn_kernel_sum_up(
       {
           block_load_direct_striped<float3, BlockSize, ItemsPerThread>(
               flat_id,
-              input_ptr + block_offset + memoryElementNumber * memoryIndex,
+              input_ptr + block_offset + size * memoryIndex,
               input_values + ItemsPerThread * memoryIndex,
               valid_in_last_block
           );
@@ -211,11 +211,13 @@ __global__ void nbnxn_kernel_sum_up(
       #pragma unroll
       for(unsigned int i = 0; i < ItemsPerThread; i++)
       {
-          if(BlockSize * i + flat_id < valid_in_last_block)
+          unsigned int item = flat_id + i * BlockSize;
+          if(item < valid_in_last_block)
           {
+              #pragma unroll
               for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
               {
-                  input_values[i + ItemsPerThread * memoryIndex] = float3(0.0f, 0.0f, 0.0f);
+                  input_ptr[size * memoryIndex + block_offset + item] = float3(0.0f, 0.0f, 0.0f);
               }
           }
       }
@@ -226,7 +228,7 @@ __global__ void nbnxn_kernel_sum_up(
       {
           block_load_direct_striped<float3, BlockSize, ItemsPerThread>(
               flat_id,
-              input_ptr + block_offset + memoryElementNumber * memoryIndex,
+              input_ptr + block_offset + size * memoryIndex,
               input_values + ItemsPerThread * memoryIndex
           );
       }
@@ -249,9 +251,11 @@ __global__ void nbnxn_kernel_sum_up(
       #pragma unroll
       for(unsigned int i = 0; i < ItemsPerThread; i++)
       {
+          unsigned int item = flat_id + i * BlockSize;
+          #pragma unroll
           for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
           {
-              input_values[i + ItemsPerThread * memoryIndex] = float3(0.0f, 0.0f, 0.0f);
+              input_ptr[size * memoryIndex + block_offset + item] = float3(0.0f, 0.0f, 0.0f);
           }
       }
   }
