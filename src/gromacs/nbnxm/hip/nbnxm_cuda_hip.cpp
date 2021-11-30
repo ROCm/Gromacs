@@ -595,9 +595,9 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     bool usePack = false;
 
 #ifdef GMX_GPU_USE_PACK
-    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 && 
-    //    	    !stepWork.computeEnergy && 
-    //    	    !(plist->haveFreshList && 
+    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 &&
+    //    	    !stepWork.computeEnergy &&
+    //    	    !(plist->haveFreshList &&
     //                !nb->timers->interaction[iloc].didPrune)) {
     //    usePack = true;
     //}
@@ -836,6 +836,15 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
         /* DtoH fshift when virial is needed */
         if (stepWork.computeVirial)
         {
+            constexpr unsigned int block_size = 256U;
+            constexpr unsigned int items_per_thread = 6U;
+            constexpr unsigned int items_per_block = block_size * items_per_thread;
+            const unsigned int number_of_blocks = (SHIFTS * c_clShiftSize + items_per_block - 1) / items_per_block;
+
+            nbnxn_kernel_sum_up<block_size,c_clShiftSize,items_per_thread><<<
+                dim3(number_of_blocks),dim3(block_size)
+            >>>(adat->fshift, SHIFTS);
+
             static_assert(sizeof(nb->nbst.fshift[0]) == sizeof(adat->fshift[0]),
                           "Sizes of host- and device-side shift vectors should be the same.");
             copyFromDeviceBuffer(nb->nbst.fshift, &adat->fshift, 0, SHIFTS, deviceStream,
@@ -845,6 +854,8 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
         /* DtoH energies */
         if (stepWork.computeEnergy)
         {
+            nbnxn_kernel_reduce_energy<64U,4U><<<dim3(1U),dim3(64U)>>>(adat->e_lj, adat->e_el);
+
             static_assert(sizeof(nb->nbst.e_lj[0]) == sizeof(adat->e_lj[0]),
                           "Sizes of host- and device-side LJ energy terms should be the same.");
             copyFromDeviceBuffer(nb->nbst.e_lj, &adat->e_lj, 0, 1, deviceStream,
