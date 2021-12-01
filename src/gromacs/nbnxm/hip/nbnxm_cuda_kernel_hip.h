@@ -653,9 +653,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         if( tidxi == 0 && tidxj < 3 )
         {
             #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-                    atomicAdd(&(atdat.fshift[nb_sci.shift + bidx % c_clShiftSize].x) + tidxj, fshift_buf);
+                    atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + tidxj, fshift_buf);
             #else
-                    atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + bidx % c_clShiftSize].x) + tidxj, fshift_buf);
+                    atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + tidxj, fshift_buf);
             #endif
         }
     }
