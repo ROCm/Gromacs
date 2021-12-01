@@ -278,8 +278,8 @@ __global__ void nbnxn_kernel_reduce_energy(
   #pragma unroll ItemsPerThread
   for (unsigned int item = 0; item < ItemsPerThread; item++)
   {
-      E_el[item] = e_lj_ptr[flat_id * ItemsPerThread + item];
-      E_lj[item] = e_el_ptr[flat_id * ItemsPerThread + item];
+      E_el[item] = e_el_ptr[flat_id * ItemsPerThread + item];
+      E_lj[item] = e_lj_ptr[flat_id * ItemsPerThread + item];
   }
 
   #pragma unroll ItemsPerThread
@@ -307,8 +307,8 @@ __global__ void nbnxn_kernel_reduce_energy(
   {
       if( flat_id == 0 && item == 0 )
       {
-          e_lj_ptr[flat_id * ItemsPerThread + item] = E_el[item];
-          e_el_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
+          e_lj_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
+          e_el_ptr[flat_id * ItemsPerThread + item] = E_el[item];
       }
       else
       {
