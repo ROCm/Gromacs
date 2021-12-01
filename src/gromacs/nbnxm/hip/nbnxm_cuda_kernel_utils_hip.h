@@ -191,52 +191,50 @@ __global__ void nbnxn_kernel_reduce_energy(
     float* e_lj_ptr,
     float* e_el_ptr)
 {
-  const unsigned int flat_id = threadIdx.x;
+    const unsigned int flat_id = threadIdx.x;
 
-  float E_lj[ItemsPerThread];
-  float E_el[ItemsPerThread];
+    float E_lj[ItemsPerThread];
+    float E_el[ItemsPerThread];
 
-  #pragma unroll ItemsPerThread
-  for (unsigned int item = 0; item < ItemsPerThread; item++)
-  {
-      E_el[item] = e_el_ptr[flat_id * ItemsPerThread + item];
-      E_lj[item] = e_lj_ptr[flat_id * ItemsPerThread + item];
-  }
+    #pragma unroll ItemsPerThread
+    for (unsigned int item = 0; item < ItemsPerThread; item++)
+    {
+        E_el[item] = e_el_ptr[flat_id * ItemsPerThread + item];
+        E_lj[item] = e_lj_ptr[flat_id * ItemsPerThread + item];
+    }
 
-  #pragma unroll ItemsPerThread
-  for (unsigned int item = 0; item < ItemsPerThread; item++)
-  {
-      int sh = 1;
-      #pragma unroll warp_size_log2
-      for (unsigned int i = 0; i < warp_size_log2; i++)
-      {
-          E_lj[item] += __shfl_down(E_lj[item], sh);
-          E_el[item] += __shfl_down(E_el[item], sh);
-          sh += sh;
-      }
-  }
+    #pragma unroll ItemsPerThread
+    for (unsigned int item = 0; item < ItemsPerThread; item++)
+    {
+        #pragma unroll
+        for (int offset = warpSize/2; offset > 0; offset /= 2)
+        {
+            E_el[item] += __shfl_down(E_el[item], offset);
+            E_lj[item] += __shfl_down(E_lj[item], offset);
+        }
+    }
 
-  #pragma unroll
-  for (unsigned int item = 1; item < ItemsPerThread; item++)
-  {
-      E_el[0] += E_el[item];
-      E_lj[0] += E_lj[item];
-  }
+    #pragma unroll
+    for (unsigned int item = 1; item < ItemsPerThread; item++)
+    {
+        E_el[0] += E_el[item];
+        E_lj[0] += E_lj[item];
+    }
 
-  #pragma unroll
-  for (unsigned int item = 0; item < ItemsPerThread; item++)
-  {
-      if( flat_id == 0 && item == 0 )
-      {
-          e_lj_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
-          e_el_ptr[flat_id * ItemsPerThread + item] = E_el[item];
-      }
-      else
-      {
-          e_lj_ptr[flat_id * ItemsPerThread + item] = 0.0f;
-          e_el_ptr[flat_id * ItemsPerThread + item] = 0.0f;
-      }
-  }
+    #pragma unroll
+    for (unsigned int item = 0; item < ItemsPerThread; item++)
+    {
+        if( flat_id == 0 && item == 0 )
+        {
+            e_lj_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
+            e_el_ptr[flat_id * ItemsPerThread + item] = E_el[item];
+        }
+        else
+        {
+            e_lj_ptr[flat_id * ItemsPerThread + item] = 0.0f;
+            e_el_ptr[flat_id * ItemsPerThread + item] = 0.0f;
+        }
+    }
 }
 
 static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
