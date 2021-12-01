@@ -76,96 +76,12 @@ static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
 template<
-    class T,
-    unsigned int BlockSize,
-    unsigned int ItemsPerThread
->
-__device__ inline
-void block_load_direct_striped(unsigned int flat_id,
-                               T* block_input,
-                               T* items)
-{
-    T* thread_iter = block_input + flat_id;
-    #pragma unroll
-    for (unsigned int item = 0; item < ItemsPerThread; item++)
-    {
-        items[item] = thread_iter[item * BlockSize];
-    }
-}
-
-template<
-    class T,
-    unsigned int BlockSize,
-    unsigned int ItemsPerThread
->
-__device__ inline
-void block_load_direct_striped(unsigned int flat_id,
-                               T* block_input,
-                               T* items,
-                               unsigned int valid)
-{
-    T* thread_iter = block_input + flat_id;
-    #pragma unroll
-    for (unsigned int item = 0; item < ItemsPerThread; item++)
-    {
-        unsigned int offset = item * BlockSize;
-        if (flat_id + offset < valid)
-        {
-            items[item] = thread_iter[offset];
-        }
-    }
-}
-
-template<
-    class T,
-    unsigned int BlockSize,
-    unsigned int ItemsPerThread
->
-__device__ inline
-void block_store_direct_striped(unsigned int flat_id,
-                                T* block_output,
-                                T* items,
-                                unsigned int valid)
-{
-    T* thread_iter = block_output + flat_id;
-    #pragma unroll
-    for (unsigned int item = 0; item < ItemsPerThread; item++)
-    {
-        unsigned int offset = item * BlockSize;
-        if (flat_id + offset < valid)
-        {
-             thread_iter[offset] = items[item];
-        }
-    }
-}
-
-template<
-    class T,
-    unsigned int BlockSize,
-    unsigned int ItemsPerThread
->
-__device__ inline
-void block_store_direct_striped(unsigned int flat_id,
-                                T* block_output,
-                                T* items)
-{
-    T* thread_iter = block_output + flat_id;
-    #pragma unroll
-    for (unsigned int item = 0; item < ItemsPerThread; item++)
-    {
-         thread_iter[item * BlockSize] = items[item];
-    }
-}
-
-template<
     unsigned int BlockSize,
     unsigned int MemoryMultiplier,
     unsigned int ItemsPerThread
 >
 __launch_bounds__(BlockSize)
-__global__ void nbnxn_kernel_sum_up(
-  float3* input_ptr,
-  unsigned int size)
+__global__ void nbnxn_kernel_sum_up(float3* values_ptr, unsigned int size)
 {
   constexpr unsigned int items_per_block = BlockSize * ItemsPerThread;
 
@@ -175,87 +91,92 @@ __global__ void nbnxn_kernel_sum_up(
   const unsigned int number_of_blocks = gridDim.x;
   const unsigned int valid_in_last_block = size - block_offset;
 
-  float3 input_values[ItemsPerThread * MemoryMultiplier];
+  float3 thread_values[ItemsPerThread * MemoryMultiplier];
 
   if(flat_block_id == (number_of_blocks - 1)) // last block
   {
-      for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
-      {
-          block_load_direct_striped<float3, BlockSize, ItemsPerThread>(
-              flat_id,
-              input_ptr + block_offset + size * memoryIndex,
-              input_values + ItemsPerThread * memoryIndex,
-              valid_in_last_block
-          );
-      }
-
+      // Load
       #pragma unroll
       for(unsigned int i = 0; i < ItemsPerThread; i++)
       {
-          if(BlockSize * i + flat_id < valid_in_last_block)
+          unsigned int item = flat_id * ItemsPerThread + i;
+          if(item < valid_in_last_block)
           {
-              for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+              #pragma unroll
+              for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
               {
-                  input_values[i] =  input_values[i] + input_values[i + ItemsPerThread * memoryIndex];
+                  thread_values[i + ItemsPerThread * memoryIndex] = values_ptr[size * memoryIndex + block_offset + item];
               }
           }
       }
 
-      block_store_direct_striped<float3, BlockSize, ItemsPerThread>(
-          flat_id,
-          input_ptr + block_offset,
-          input_values,
-          valid_in_last_block
-      );
-
+      // Sum up
       #pragma unroll
       for(unsigned int i = 0; i < ItemsPerThread; i++)
       {
-          unsigned int item = flat_id + i * BlockSize;
+          if(flat_id * ItemsPerThread + i < valid_in_last_block)
+          {
+              for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+              {
+                  thread_values[i] =  thread_values[i] + thread_values[i + ItemsPerThread * memoryIndex];
+              }
+          }
+      }
+
+      // Store
+      #pragma unroll
+      for(unsigned int i = 0; i < ItemsPerThread; i++)
+      {
+          unsigned int item = flat_id * ItemsPerThread + i;
           if(item < valid_in_last_block)
           {
+              values_ptr[block_offset + item] = thread_values[i];
               #pragma unroll
               for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
               {
-                  input_ptr[size * memoryIndex + block_offset + item] = float3(0.0f, 0.0f, 0.0f);
+                  values_ptr[size * memoryIndex + block_offset + item] = float3(0.0f, 0.0f, 0.0f);
               }
           }
       }
   }
   else
   {
-      for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
-      {
-          block_load_direct_striped<float3, BlockSize, ItemsPerThread>(
-              flat_id,
-              input_ptr + block_offset + size * memoryIndex,
-              input_values + ItemsPerThread * memoryIndex
-          );
-      }
-
+      // Load
       #pragma unroll
       for(unsigned int i = 0; i < ItemsPerThread; i++)
       {
-          for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+          unsigned int item = flat_id * ItemsPerThread + i;
+          #pragma unroll
+          for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
           {
-              input_values[i] = input_values[i] + input_values[i + ItemsPerThread * memoryIndex];
+              thread_values[i + ItemsPerThread * memoryIndex] = values_ptr[size * memoryIndex + block_offset + item];
           }
       }
 
-      block_store_direct_striped<float3, BlockSize, ItemsPerThread>(
-          flat_id,
-          input_ptr + block_offset,
-          input_values
-      );
-
+      // Sum up
       #pragma unroll
       for(unsigned int i = 0; i < ItemsPerThread; i++)
       {
-          unsigned int item = flat_id + i * BlockSize;
+          if(flat_id * ItemsPerThread + i < valid_in_last_block)
+          {
+              for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+              {
+                  thread_values[i] =  thread_values[i] + thread_values[i + ItemsPerThread * memoryIndex];
+              }
+          }
+      }
+
+      // Store
+      #pragma unroll
+      for(unsigned int i = 0; i < ItemsPerThread; i++)
+      {
+          unsigned int item = flat_id * ItemsPerThread + i;
+
+          values_ptr[block_offset + item] = thread_values[i];
           #pragma unroll
           for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
           {
-              input_ptr[size * memoryIndex + block_offset + item] = float3(0.0f, 0.0f, 0.0f);
+              values_ptr[size * memoryIndex + block_offset + item] = float3(0.0f, 0.0f, 0.0f);
           }
       }
   }
