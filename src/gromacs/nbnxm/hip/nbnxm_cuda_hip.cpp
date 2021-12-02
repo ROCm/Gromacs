@@ -617,20 +617,20 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
 
     // sum up the fshifts
-    if (stepWork.computeVirial)
+    if (c_clShiftSize > 1 && stepWork.computeVirial)
     {
         constexpr unsigned int block_size = 64U;
         constexpr unsigned int items_per_thread = 1U;
         constexpr unsigned int items_per_block = block_size * items_per_thread;
         const unsigned int number_of_blocks = (SHIFTS + items_per_block - 1) / items_per_block;
 
-        nbnxn_kernel_sum_up<block_size,c_clShiftSize,items_per_thread><<<
+        nbnxn_kernel_sum_up<block_size, c_clShiftSize, items_per_thread><<<
             dim3(number_of_blocks), dim3(block_size), 0, deviceStream.stream()
         >>>(adat->fshift, SHIFTS);
     }
 
     // sum up the energies
-    if (stepWork.computeEnergy)
+    if ( c_clEnergySize > 1 && stepWork.computeEnergy)
     {
         nbnxn_kernel_reduce_energy<64U,4U><<<
             dim3(1U), dim3(64U), 0, deviceStream.stream()

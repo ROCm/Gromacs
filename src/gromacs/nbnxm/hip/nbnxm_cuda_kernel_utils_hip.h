@@ -116,6 +116,7 @@ __global__ void nbnxn_kernel_sum_up(float3* values_ptr, unsigned int size)
       {
           if(flat_id * ItemsPerThread + i < valid_in_last_block)
           {
+              #pragma unroll
               for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
               {
                   thread_values[i] =  thread_values[i] + thread_values[i + ItemsPerThread * memoryIndex];
@@ -226,13 +227,13 @@ __global__ void nbnxn_kernel_reduce_energy(
     {
         if( flat_id == 0 && item == 0 )
         {
-            e_lj_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
             e_el_ptr[flat_id * ItemsPerThread + item] = E_el[item];
+            e_lj_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
         }
         else
         {
-            e_lj_ptr[flat_id * ItemsPerThread + item] = 0.0f;
             e_el_ptr[flat_id * ItemsPerThread + item] = 0.0f;
+            e_lj_ptr[flat_id * ItemsPerThread + item] = 0.0f;
         }
     }
 }
