@@ -632,7 +632,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     // sum up the energies
     if ( c_clEnergySize > 1 && stepWork.computeEnergy)
     {
-        nbnxn_kernel_reduce_energy<1U,32U><<<
+        nbnxn_kernel_reduce_energy<1U,2U><<<
             dim3(1U), dim3(1U), 0, deviceStream.stream()
         >>>(adat->e_lj, adat->e_el);
     }
