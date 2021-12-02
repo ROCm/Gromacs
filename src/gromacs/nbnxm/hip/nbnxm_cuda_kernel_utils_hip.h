@@ -204,7 +204,7 @@ __global__ void nbnxn_kernel_reduce_energy(
         E_lj[item] = e_lj_ptr[flat_id * ItemsPerThread + item];
     }
 
-    #pragma unroll ItemsPerThread
+    /*#pragma unroll ItemsPerThread
     for (unsigned int item = 0; item < ItemsPerThread; item++)
     {
         #pragma unroll
@@ -213,7 +213,7 @@ __global__ void nbnxn_kernel_reduce_energy(
             E_el[item] += __shfl_down(E_el[item], offset);
             E_lj[item] += __shfl_down(E_lj[item], offset);
         }
-    }
+    }*/
 
     #pragma unroll
     for (unsigned int item = 1; item < ItemsPerThread; item++)
