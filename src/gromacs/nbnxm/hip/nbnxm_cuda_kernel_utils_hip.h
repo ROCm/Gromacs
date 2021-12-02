@@ -200,11 +200,11 @@ __global__ void nbnxn_kernel_reduce_energy(
     #pragma unroll ItemsPerThread
     for (unsigned int item = 0; item < ItemsPerThread; item++)
     {
-        E_el[item] = e_el_ptr[flat_id * ItemsPerThread + item];
-        E_lj[item] = e_lj_ptr[flat_id * ItemsPerThread + item];
+        E_el[item] = e_el_ptr[flat_id * ItemsPerThread + item + 1];
+        E_lj[item] = e_lj_ptr[flat_id * ItemsPerThread + item + 1];
     }
 
-    /*#pragma unroll ItemsPerThread
+    #pragma unroll ItemsPerThread
     for (unsigned int item = 0; item < ItemsPerThread; item++)
     {
         #pragma unroll
@@ -213,7 +213,7 @@ __global__ void nbnxn_kernel_reduce_energy(
             E_el[item] += __shfl_down(E_el[item], offset);
             E_lj[item] += __shfl_down(E_lj[item], offset);
         }
-    }*/
+    }
 
     #pragma unroll
     for (unsigned int item = 1; item < ItemsPerThread; item++)
@@ -222,19 +222,17 @@ __global__ void nbnxn_kernel_reduce_energy(
         E_lj[0] += E_lj[item];
     }
 
-    #pragma unroll
+    if( flat_id == 0 )
+    {
+        atomicAdd(e_lj_ptr, E_el[0]);
+        atomicAdd(e_el_ptr, E_lj[0]);
+    }
+
+    #pragma unroll ItemsPerThread
     for (unsigned int item = 0; item < ItemsPerThread; item++)
     {
-        if( flat_id == 0 && item == 0 )
-        {
-            e_el_ptr[flat_id * ItemsPerThread + item] = E_el[item];
-            e_lj_ptr[flat_id * ItemsPerThread + item] = E_lj[item];
-        }
-        else
-        {
-            e_el_ptr[flat_id * ItemsPerThread + item] = 0.0f;
-            e_lj_ptr[flat_id * ItemsPerThread + item] = 0.0f;
-        }
+        e_el_ptr[flat_id * ItemsPerThread + item + 1] = 0.0f;
+        e_lj_ptr[flat_id * ItemsPerThread + item + 1] = 0.0f;
     }
 }
 

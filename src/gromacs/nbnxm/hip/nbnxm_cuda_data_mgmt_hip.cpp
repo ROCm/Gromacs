@@ -104,8 +104,8 @@ static void init_atomdata_first(cu_atomdata_t* ad, int ntypes, const DeviceConte
     ad->bShiftVecUploaded = false;
 
     allocateDeviceBuffer(&ad->fshift, c_clShiftSize * SHIFTS, deviceContext);
-    allocateDeviceBuffer(&ad->e_lj, c_clEnergySize, deviceContext);
-    allocateDeviceBuffer(&ad->e_el, c_clEnergySize, deviceContext);
+    allocateDeviceBuffer(&ad->e_lj, c_clEnergySize + 1, deviceContext);
+    allocateDeviceBuffer(&ad->e_el, c_clEnergySize + 1, deviceContext);
 
     /* initialize to nullptr poiters to data that is not allocated here and will
        need reallocation in nbnxn_cuda_init_atomdata */
@@ -361,8 +361,8 @@ static void nbnxn_cuda_clear_e_fshift(NbnxmGpu* nb)
     const DeviceStream& localStream = *nb->deviceStreams[InteractionLocality::Local];
 
     clearDeviceBufferAsync(&adat->fshift, 0, c_clShiftSize * SHIFTS, localStream);
-    clearDeviceBufferAsync(&adat->e_lj, 0, c_clEnergySize, localStream);
-    clearDeviceBufferAsync(&adat->e_el, 0, c_clEnergySize, localStream);
+    clearDeviceBufferAsync(&adat->e_lj, 0, c_clEnergySize + 1, localStream);
+    clearDeviceBufferAsync(&adat->e_el, 0, c_clEnergySize + 1, localStream);
 }
 
 void gpu_clear_outputs(NbnxmGpu* nb, bool computeVirial)
