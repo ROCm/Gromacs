@@ -75,6 +75,142 @@ static const unsigned __device__ superClInteractionMask =
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
+template<
+    unsigned int BlockSize,
+    unsigned int MemoryMultiplier
+>
+static __forceinline__ __device__
+void force_sum_up(float3* values_ptr, int size)
+{
+    constexpr unsigned int items_per_block = BlockSize;
+
+    const unsigned int flat_id = threadIdx.x;
+    const unsigned int flat_block_id = blockIdx.x;
+    const unsigned int block_offset = flat_block_id * items_per_block;
+    const unsigned int number_of_blocks = gridDim.x;
+    const unsigned int valid_in_last_block = size - block_offset;
+
+    float3 thread_values[MemoryMultiplier];
+
+    if(flat_block_id == (number_of_blocks - 1)) // last block
+    {
+        // Load
+        if( flat_id < valid_in_last_block )
+        {
+            #pragma unroll
+            for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
+            {
+                thread_values[memoryIndex] = values_ptr[size * memoryIndex + block_offset + flat_id];
+            }
+        }
+
+        // Sum up
+        if( flat_id < valid_in_last_block )
+        {
+            #pragma unroll
+            for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+            {
+                thread_values[0] =  thread_values[0] + thread_values[memoryIndex];
+            }
+        }
+
+        // Store
+        if( flat_id < valid_in_last_block )
+        {
+            values_ptr[block_offset + flat_id] = thread_values[0];
+            #pragma unroll
+            for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+            {
+                values_ptr[size * memoryIndex + block_offset + flat_id] = float3(0.0f, 0.0f, 0.0f);
+            }
+        }
+    }
+    else
+    {
+        // Load
+        // Load
+        #pragma unroll
+        for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
+        {
+            thread_values[memoryIndex] = values_ptr[size * memoryIndex + block_offset + flat_id];
+        }
+
+        // Sum up
+        #pragma unroll
+        for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+        {
+            thread_values[0] =  thread_values[0] + thread_values[memoryIndex];
+        }
+
+        // Store
+        values_ptr[block_offset + flat_id] = thread_values[0];
+        #pragma unroll
+        for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
+        {
+            values_ptr[size * memoryIndex + block_offset + flat_id] = float3(0.0f, 0.0f, 0.0f);
+        }
+    }
+}
+
+static __forceinline__ __device__
+void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
+{
+    const unsigned int flat_id = threadIdx.x;
+
+    float E_lj;
+    float E_el;
+
+    // Load the results
+    E_lj = e_lj_ptr[flat_id + 1];
+    E_el = e_el_ptr[flat_id + 1];
+
+    // Clean the extre space
+    e_lj_ptr[flat_id + 1] = 0.0f;
+    e_el_ptr[flat_id + 1] = 0.0f;
+
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
+    {
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
+    }
+
+    if( flat_id == 0 )
+    {
+        atomicAdd(e_lj_ptr, E_lj);
+        atomicAdd(e_el_ptr, E_el);
+    }
+}
+
+template<
+    unsigned int BlockSize,
+    unsigned int MemoryMultiplier
+>
+__launch_bounds__(BlockSize) __global__
+void nbnxn_kernel_sum_up(
+    const cu_atomdata_t atdat,
+    bool computeEnergy,
+    bool computeVirial,
+    int fshiftSize)
+{
+    // Sum up fshifts
+    if(computeVirial)
+    {
+        float3* values_ptr = atdat.fshift;
+
+        force_sum_up<BlockSize, MemoryMultiplier>(values_ptr, fshiftSize);
+    }
+
+    // Sum up energies
+    if(computeEnergy)
+    {
+        float* e_lj_ptr = atdat.e_lj;
+        float* e_el_ptr = atdat.e_el;
+
+        energy_reduce_final(e_lj_ptr, e_el_ptr);
+    }
+}
+
 static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
   const int* address_as_ull = (int*)address;
   int old = *address_as_ull;
