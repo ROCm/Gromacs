@@ -94,6 +94,9 @@ void startGpuProfiler() CUDA_FUNC_TERM;
 #elif GMX_GPU_HIP
 HIP_FUNC_QUALIFIER
 void startGpuProfiler() HIP_FUNC_TERM;
+#else
+CUDA_FUNC_QUALIFIER
+void startGpuProfiler() CUDA_FUNC_TERM;
 #endif
 
 /*! \brief Resets the GPU profiler if mdrun is being profiled.
@@ -112,6 +115,9 @@ void resetGpuProfiler() CUDA_FUNC_TERM;
 #elif GMX_GPU_HIP
 HIP_FUNC_QUALIFIER
 void resetGpuProfiler() HIP_FUNC_TERM;
+#else
+CUDA_FUNC_QUALIFIER
+void resetGpuProfiler() CUDA_FUNC_TERM;
 #endif
 
 /*! \brief Stops the CUDA profiler if mdrun is being profiled.
@@ -128,6 +134,9 @@ void stopGpuProfiler() CUDA_FUNC_TERM;
 #elif GMX_GPU_HIP
 HIP_FUNC_QUALIFIER
 void stopGpuProfiler() HIP_FUNC_TERM;
+#else
+CUDA_FUNC_QUALIFIER
+void stopGpuProfiler() CUDA_FUNC_TERM;
 #endif
 
 //! Tells whether the host buffer was pinned for non-blocking transfers. Only implemented for CUDA.
@@ -137,6 +146,9 @@ bool isHostMemoryPinned(const void* CUDA_FUNC_ARGUMENT(h_ptr)) CUDA_FUNC_TERM_WI
 #elif GMX_GPU_HIP
 HIP_FUNC_QUALIFIER
 bool isHostMemoryPinned(const void* HIP_FUNC_ARGUMENT(h_ptr)) HIP_FUNC_TERM_WITH_RETURN(false);
+#else
+CUDA_FUNC_QUALIFIER
+bool isHostMemoryPinned(const void* CUDA_FUNC_ARGUMENT(h_ptr)) CUDA_FUNC_TERM_WITH_RETURN(false);
 #endif
 
 /*! \brief Enable peer access between GPUs where supported
@@ -151,6 +163,10 @@ void setupGpuDevicePeerAccess(const std::vector<int>& CUDA_FUNC_ARGUMENT(gpuIdsT
 HIP_FUNC_QUALIFIER
 void setupGpuDevicePeerAccess(const std::vector<int>& HIP_FUNC_ARGUMENT(gpuIdsToUse),
                               const gmx::MDLogger&    HIP_FUNC_ARGUMENT(mdlog)) HIP_FUNC_TERM;
+#else
+CUDA_FUNC_QUALIFIER
+void setupGpuDevicePeerAccess(const std::vector<int>& CUDA_FUNC_ARGUMENT(gpuIdsToUse),
+                              const gmx::MDLogger&    CUDA_FUNC_ARGUMENT(mdlog)) CUDA_FUNC_TERM;
 #endif
 
 #endif

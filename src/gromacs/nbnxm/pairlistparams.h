@@ -86,6 +86,8 @@ static constexpr int c_gpuNumClusterPerCell =
 static constexpr int c_nbnxnGpuClusterpairSplit = 2;
 #elif GMX_GPU_HIP
 static constexpr int c_nbnxnGpuClusterpairSplit = 1;
+#else
+static constexpr int c_nbnxnGpuClusterpairSplit = 2;
 #endif
 
 //! The fixed size of the exclusion mask array for a half GPU cluster pair
