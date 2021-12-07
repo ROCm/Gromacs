@@ -195,7 +195,7 @@ TYPED_TEST(HostAllocatorTestCopyable, VectorsWithDefaultHostAllocatorAlwaysWorks
 // Several tests actually do CUDA transfers. This is not necessary
 // because the state of page alignment or pinning is not currently
 // relevant to the success of a CUDA transfer. CUDA checks happen only
-// during cudaHostRegister and cudaHostUnregister. Such tests are of
+// during hipHostRegister and hipHostUnregister. Such tests are of
 // value only when this behaviour changes, if ever.
 
 TYPED_TEST(HostAllocatorTestCopyable, TransfersWithoutPinningWork)

@@ -54,13 +54,13 @@ class DeviceEvent
 public:
     DeviceEvent() : isMarked_(false)
     {
-        cudaError_t stat = cudaEventCreateWithFlags(&event_, cudaEventDisableTiming);
-        if (stat != cudaSuccess)
+        hipError_t stat = hipEventCreateWithFlags(&event_, hipEventDisableTiming);
+        if (stat != hipSuccess)
         {
-            GMX_THROW(gmx::InternalError("cudaEventCreate failed: " + gmx::getDeviceErrorString(stat)));
+            GMX_THROW(gmx::InternalError("hipEventCreate failed: " + gmx::getDeviceErrorString(stat)));
         }
     }
-    ~DeviceEvent() { cudaEventDestroy(event_); }
+    ~DeviceEvent() { hipEventDestroy(event_); }
     // Disable copy, move, and assignment. Move can be allowed, but not needed yet.
     DeviceEvent& operator=(const DeviceEvent&) = delete;
     DeviceEvent(const DeviceEvent&)            = delete;
@@ -72,48 +72,48 @@ public:
      */
     inline void mark(const DeviceStream& deviceStream)
     {
-        cudaError_t stat = cudaEventRecord(event_, deviceStream.stream());
-        if (stat != cudaSuccess)
+        hipError_t stat = hipEventRecord(event_, deviceStream.stream());
+        if (stat != hipSuccess)
         {
-            GMX_THROW(gmx::InternalError("cudaEventRecord failed: " + gmx::getDeviceErrorString(stat)));
+            GMX_THROW(gmx::InternalError("hipEventRecord failed: " + gmx::getDeviceErrorString(stat)));
         }
         isMarked_ = true;
     }
     //! Synchronizes the host thread on the marked event.
     inline void wait()
     {
-        cudaError_t gmx_used_in_debug stat = cudaEventSynchronize(event_);
-        if (stat != cudaSuccess)
+        hipError_t gmx_used_in_debug stat = hipEventSynchronize(event_);
+        if (stat != hipSuccess)
         {
-            GMX_THROW(gmx::InternalError("cudaEventSynchronize failed: " + gmx::getDeviceErrorString(stat)));
+            GMX_THROW(gmx::InternalError("hipEventSynchronize failed: " + gmx::getDeviceErrorString(stat)));
         }
     }
     //! Checks the completion of the underlying event.
     inline bool isReady()
     {
-        cudaError_t stat = cudaEventQuery(event_);
-        if (stat != cudaSuccess && stat != cudaErrorNotReady)
+        hipError_t stat = hipEventQuery(event_);
+        if (stat != hipSuccess && stat != hipErrorNotReady)
         {
-            GMX_THROW(gmx::InternalError("cudaEventQuery failed: " + gmx::getDeviceErrorString(stat)));
+            GMX_THROW(gmx::InternalError("hipEventQuery failed: " + gmx::getDeviceErrorString(stat)));
         }
-        return (stat == cudaSuccess);
+        return (stat == hipSuccess);
     }
     //! Check if this event was marked
     inline bool isMarked() const { return isMarked_; }
     //! Enqueues a wait for the recorded event in stream \p stream
     inline void enqueueWait(const DeviceStream& deviceStream)
     {
-        cudaError_t stat = cudaStreamWaitEvent(deviceStream.stream(), event_, 0);
-        if (stat != cudaSuccess)
+        hipError_t stat = hipStreamWaitEvent(deviceStream.stream(), event_, 0);
+        if (stat != hipSuccess)
         {
-            GMX_THROW(gmx::InternalError("cudaStreamWaitEvent failed: " + gmx::getDeviceErrorString(stat)));
+            GMX_THROW(gmx::InternalError("hipStreamWaitEvent failed: " + gmx::getDeviceErrorString(stat)));
         }
     }
     //! Reset the event
     inline void reset() { isMarked_ = false; }
 
 private:
-    cudaEvent_t event_;
+    hipEvent_t event_;
     bool        isMarked_;
 };
 

@@ -44,11 +44,11 @@
  * \inlibraryapi
  * \ingroup module_gpu_utils
  */
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #include "gromacs/math/vectypes.h"
 
 //! Device texture for fast read-only data fetching
-using DeviceTexture = cudaTextureObject_t;
+using DeviceTexture = hipTextureObject_t;
 
 //! \brief Single GPU call timing event - meaningless in CUDA
 using CommandEvent = void;

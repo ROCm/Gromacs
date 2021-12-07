@@ -47,7 +47,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <cuda_profiler_api.h>
+#include <hip/hip_profile.h>
 
 #include "gromacs/gpu_utils/cudautils.cuh"
 #include "gromacs/gpu_utils/device_context.h"
@@ -70,17 +70,17 @@ static bool cudaProfilerRun = ((getenv("NVPROF_ID") != nullptr));
 
 bool isHostMemoryPinned(const void* h_ptr)
 {
-    cudaPointerAttributes memoryAttributes;
-    cudaError_t           stat = cudaPointerGetAttributes(&memoryAttributes, h_ptr);
+    hipPointerAttribute_t memoryAttributes;
+    hipError_t           stat = hipPointerGetAttributes(&memoryAttributes, h_ptr);
 
     bool isPinned = false;
     switch (stat)
     {
-        case cudaSuccess:
+        case hipSuccess:
             // In CUDA 11.0, the field called memoryType in
-            // cudaPointerAttributes was replaced by a field called
+            // hipPointerAttribute_t was replaced by a field called
             // type, along with a documented change of behavior when the
-            // pointer passed to cudaPointerGetAttributes is to
+            // pointer passed to hipPointerGetAttributes is to
             // non-registered host memory. That change means that this
             // code needs conditional compilation and different
             // execution paths to function with all supported versions.
@@ -91,11 +91,11 @@ bool isHostMemoryPinned(const void* h_ptr)
 #endif
             break;
 
-        case cudaErrorInvalidValue:
+        case hipErrorInvalidValue:
             // If the buffer was not pinned, then it will not be recognized by CUDA at all
             isPinned = false;
             // Reset the last error status
-            cudaGetLastError();
+            hipGetLastError();
             break;
 
         default: CU_RET_ERR(stat, "Unexpected CUDA error");
@@ -113,9 +113,9 @@ void startGpuProfiler()
      */
     if (cudaProfilerRun)
     {
-        cudaError_t stat;
-        stat = cudaProfilerStart();
-        CU_RET_ERR(stat, "cudaProfilerStart failed");
+        hipError_t stat;
+        stat = hipProfilerStart();
+        CU_RET_ERR(stat, "hipProfilerStart failed");
     }
 }
 
@@ -125,9 +125,9 @@ void stopGpuProfiler()
        API calls from the trace, e.g. uninitialization and cleanup. */
     if (cudaProfilerRun)
     {
-        cudaError_t stat;
-        stat = cudaProfilerStop();
-        CU_RET_ERR(stat, "cudaProfilerStop failed");
+        hipError_t stat;
+        stat = hipProfilerStop();
+        CU_RET_ERR(stat, "hipProfilerStop failed");
     }
 }
 
@@ -148,11 +148,11 @@ void resetGpuProfiler()
 
 /*! \brief Check and act on status returned from peer access CUDA call
  *
- * If status is "cudaSuccess", we continue. If
- * "cudaErrorPeerAccessAlreadyEnabled", then peer access has already
- * been enabled so we ignore. If "cudaErrorInvalidDevice" then the
+ * If status is "hipSuccess", we continue. If
+ * "hipErrorPeerAccessAlreadyEnabled", then peer access has already
+ * been enabled so we ignore. If "hipErrorInvalidDevice" then the
  * run is trying to access an invalid GPU, so we throw an error. If
- * "cudaErrorInvalidValue" then there is a problem with the arguments
+ * "hipErrorInvalidValue" then there is a problem with the arguments
  * to the CUDA call, and we throw an error. These cover all expected
  * statuses, but if any other is returned we issue a warning and
  * continue.
@@ -163,27 +163,27 @@ void resetGpuProfiler()
  * \param[in] mdlog          Logger object
  * \param[in] cudaCallName   name of CUDA peer access call
  */
-static void peerAccessCheckStat(const cudaError_t    stat,
+static void peerAccessCheckStat(const hipError_t    stat,
                                 const int            gpuA,
                                 const int            gpuB,
                                 const gmx::MDLogger& mdlog,
                                 const char*          cudaCallName)
 {
 
-    if (stat == cudaErrorPeerAccessAlreadyEnabled)
+    if (stat == hipErrorPeerAccessAlreadyEnabled)
     {
         // Since peer access has already been enabled, this error can safely be ignored.
         // Now clear the error internally within CUDA:
-        cudaGetLastError();
+        hipGetLastError();
         return;
     }
-    if ((stat == cudaErrorInvalidDevice) || (stat == cudaErrorInvalidValue))
+    if ((stat == hipErrorInvalidDevice) || (stat == hipErrorInvalidValue))
     {
         std::string errorString =
                 gmx::formatString("%s from GPU %d to GPU %d failed", cudaCallName, gpuA, gpuB);
         CU_RET_ERR(stat, errorString);
     }
-    if (stat != cudaSuccess)
+    if (stat != hipSuccess)
     {
         GMX_LOG(mdlog.warning)
                 .asParagraph()
@@ -195,18 +195,18 @@ static void peerAccessCheckStat(const cudaError_t    stat,
                         cudaCallName,
                         gmx::getDeviceErrorString(stat).c_str());
         // Clear the error internally within CUDA
-        cudaGetLastError();
+        hipGetLastError();
     }
 }
 
 void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MDLogger& mdlog)
 {
-    cudaError_t stat;
+    hipError_t stat;
 
     // take a note of currently-set GPU
     int currentGpu;
-    stat = cudaGetDevice(&currentGpu);
-    CU_RET_ERR(stat, "cudaGetDevice in setupGpuDevicePeerAccess failed");
+    stat = hipGetDevice(&currentGpu);
+    CU_RET_ERR(stat, "hipGetDevice in setupGpuDevicePeerAccess failed");
 
     std::string message = gmx::formatString(
             "Note: Peer access enabled between the following GPU pairs in the node:\n ");
@@ -215,14 +215,14 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     for (unsigned int i = 0; i < gpuIdsToUse.size(); i++)
     {
         int gpuA = gpuIdsToUse[i];
-        stat     = cudaSetDevice(gpuA);
-        if (stat != cudaSuccess)
+        stat     = hipSetDevice(gpuA);
+        if (stat != hipSuccess)
         {
             GMX_LOG(mdlog.warning)
                     .asParagraph()
                     .appendTextFormatted(
                             "GPU peer access not enabled due to unexpected return value from "
-                            "cudaSetDevice(%d). %s",
+                            "hipSetDevice(%d). %s",
                             gpuA,
                             gmx::getDeviceErrorString(stat).c_str());
             return;
@@ -233,13 +233,13 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
             {
                 int gpuB          = gpuIdsToUse[j];
                 int canAccessPeer = 0;
-                stat              = cudaDeviceCanAccessPeer(&canAccessPeer, gpuA, gpuB);
-                peerAccessCheckStat(stat, gpuA, gpuB, mdlog, "cudaDeviceCanAccessPeer");
+                stat              = hipDeviceCanAccessPeer(&canAccessPeer, gpuA, gpuB);
+                peerAccessCheckStat(stat, gpuA, gpuB, mdlog, "hipDeviceCanAccessPeer");
 
                 if (canAccessPeer)
                 {
-                    stat = cudaDeviceEnablePeerAccess(gpuB, 0);
-                    peerAccessCheckStat(stat, gpuA, gpuB, mdlog, "cudaDeviceEnablePeerAccess");
+                    stat = hipDeviceEnablePeerAccess(gpuB, 0);
+                    peerAccessCheckStat(stat, gpuA, gpuB, mdlog, "hipDeviceEnablePeerAccess");
 
                     message           = gmx::formatString("%s%d->%d ", message.c_str(), gpuA, gpuB);
                     peerAccessEnabled = true;
@@ -249,10 +249,10 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     }
 
     // re-set GPU to that originally set
-    stat = cudaSetDevice(currentGpu);
-    if (stat != cudaSuccess)
+    stat = hipSetDevice(currentGpu);
+    if (stat != hipSuccess)
     {
-        CU_RET_ERR(stat, "cudaSetDevice in setupGpuDevicePeerAccess failed");
+        CU_RET_ERR(stat, "hipSetDevice in setupGpuDevicePeerAccess failed");
         return;
     }
 

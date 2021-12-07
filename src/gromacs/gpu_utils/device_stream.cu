@@ -53,11 +53,11 @@ DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
                            DeviceStreamPriority priority,
                            const bool /* useTiming */)
 {
-    cudaError_t stat;
+    hipError_t stat;
 
     if (priority == DeviceStreamPriority::Normal)
     {
-        stat = cudaStreamCreate(&stream_);
+        stat = hipStreamCreate(&stream_);
         gmx::checkDeviceError(stat, "Could not create CUDA stream.");
     }
     else if (priority == DeviceStreamPriority::High)
@@ -66,10 +66,10 @@ DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
         // support priorities, because we are querying the priority
         // range, which in that case will be a single value.
         int highestPriority;
-        stat = cudaDeviceGetStreamPriorityRange(nullptr, &highestPriority);
+        stat = hipDeviceGetStreamPriorityRange(nullptr, &highestPriority);
         gmx::checkDeviceError(stat, "Could not query CUDA stream priority range.");
 
-        stat = cudaStreamCreateWithPriority(&stream_, cudaStreamDefault, highestPriority);
+        stat = hipStreamCreateWithPriority(&stream_, hipStreamDefault, highestPriority);
         gmx::checkDeviceError(stat, "Could not create CUDA stream with high priority.");
     }
 }
@@ -78,14 +78,14 @@ DeviceStream::~DeviceStream()
 {
     if (isValid())
     {
-        cudaError_t stat = cudaStreamDestroy(stream_);
-        GMX_RELEASE_ASSERT(stat == cudaSuccess,
+        hipError_t stat = hipStreamDestroy(stream_);
+        GMX_RELEASE_ASSERT(stat == hipSuccess,
                            ("Failed to release CUDA stream. " + gmx::getDeviceErrorString(stat)).c_str());
         stream_ = nullptr;
     }
 }
 
-cudaStream_t DeviceStream::stream() const
+hipStream_t DeviceStream::stream() const
 {
     return stream_;
 }
@@ -97,7 +97,7 @@ bool DeviceStream::isValid() const
 
 void DeviceStream::synchronize() const
 {
-    cudaError_t stat = cudaStreamSynchronize(stream_);
-    GMX_RELEASE_ASSERT(stat == cudaSuccess,
-                       ("cudaStreamSynchronize failed. " + gmx::getDeviceErrorString(stat)).c_str());
+    hipError_t stat = hipStreamSynchronize(stream_);
+    GMX_RELEASE_ASSERT(stat == hipSuccess,
+                       ("hipStreamSynchronize failed. " + gmx::getDeviceErrorString(stat)).c_str());
 }

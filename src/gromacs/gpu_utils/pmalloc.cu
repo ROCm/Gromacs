@@ -53,9 +53,9 @@
  */
 void pmalloc(void** h_ptr, size_t nbytes)
 {
-    cudaError_t stat;
+    hipError_t stat;
     char        strbuf[STRLEN];
-    int         flag = cudaHostAllocDefault;
+    int         flag = hipHostMallocDefault;
 
     if (nbytes == 0)
     {
@@ -65,8 +65,8 @@ void pmalloc(void** h_ptr, size_t nbytes)
 
     gmx::ensureNoPendingDeviceError("Could not allocate page-locked memory.");
 
-    stat = cudaMallocHost(h_ptr, nbytes, flag);
-    sprintf(strbuf, "cudaMallocHost of size %d bytes failed", static_cast<int>(nbytes));
+    stat = hipHostMalloc(h_ptr, nbytes, flag);
+    sprintf(strbuf, "hipHostMalloc of size %d bytes failed", static_cast<int>(nbytes));
     CU_RET_ERR(stat, strbuf);
 }
 
@@ -76,7 +76,7 @@ void pmalloc(void** h_ptr, size_t nbytes)
  */
 void pfree(void* h_ptr)
 {
-    cudaError_t stat;
+    hipError_t stat;
 
     if (h_ptr == nullptr)
     {
@@ -85,6 +85,6 @@ void pfree(void* h_ptr)
 
     gmx::ensureNoPendingDeviceError("Could not free page-locked memory.");
 
-    stat = cudaFreeHost(h_ptr);
-    CU_RET_ERR(stat, "cudaFreeHost failed");
+    stat = hipHostFree(h_ptr);
+    CU_RET_ERR(stat, "hipHostFree failed");
 }

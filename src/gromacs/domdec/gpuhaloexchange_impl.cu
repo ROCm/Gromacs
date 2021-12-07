@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
@@ -470,7 +471,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
                                                               int     recvRank)
 {
 
-    cudaError_t stat;
+    hipError_t stat;
 
     // We asynchronously push data to remote rank. The remote
     // destination pointer has already been set in the init fn.  We
@@ -481,13 +482,13 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
     // send data to neighbor, if any data exists to send
     if (sendSize > 0)
     {
-        stat = cudaMemcpyAsync(remotePtr,
+        stat = hipMemcpyAsync(remotePtr,
                                sendPtr,
                                sendSize * DIM * sizeof(float),
-                               cudaMemcpyDeviceToDevice,
+                               hipMemcpyDeviceToDevice,
                                haloStream_->stream());
 
-        CU_RET_ERR(stat, "cudaMemcpyAsync on GPU Domdec CUDA direct data transfer failed");
+        CU_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec CUDA direct data transfer failed");
     }
 
 #if GMX_MPI

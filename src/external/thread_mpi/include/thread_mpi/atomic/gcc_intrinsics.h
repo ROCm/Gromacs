@@ -52,7 +52,7 @@ TMPI_EXPORT
 static inline int tMPI_Atomic_ptr_cas(tMPI_Atomic_ptr_t* a, void *oldval,
                                       void *newval)
 {
-#if !defined(__INTEL_COMPILER) && !defined(__CUDACC__)
+#if !defined(__INTEL_COMPILER) && !defined(__HIPCC__)
     return __sync_bool_compare_and_swap( &(a->value), oldval, newval);
 #else
     /* the intel compilers need integer type arguments for compare_and_swap.

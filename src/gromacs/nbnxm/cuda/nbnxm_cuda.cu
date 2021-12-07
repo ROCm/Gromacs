@@ -540,7 +540,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     if (GMX_NATIVE_WINDOWS)
     {
         /* Windows: force flushing WDDM queue */
-        cudaStreamQuery(deviceStream.stream());
+        hipStreamQuery(deviceStream.stream());
     }
 }
 
@@ -683,24 +683,24 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     if (GMX_NATIVE_WINDOWS)
     {
         /* Windows: force flushing WDDM queue */
-        cudaStreamQuery(deviceStream.stream());
+        hipStreamQuery(deviceStream.stream());
     }
 }
 
 void cuda_set_cacheconfig()
 {
-    cudaError_t stat;
+    hipError_t stat;
 
     for (int i = 0; i < c_numElecTypes; i++)
     {
         for (int j = 0; j < c_numVdwTypes; j++)
         {
             /* Default kernel 32/32 kB Shared/L1 */
-            cudaFuncSetCacheConfig(nb_kfunc_ener_prune_ptr[i][j], cudaFuncCachePreferEqual);
-            cudaFuncSetCacheConfig(nb_kfunc_ener_noprune_ptr[i][j], cudaFuncCachePreferEqual);
-            cudaFuncSetCacheConfig(nb_kfunc_noener_prune_ptr[i][j], cudaFuncCachePreferEqual);
-            stat = cudaFuncSetCacheConfig(nb_kfunc_noener_noprune_ptr[i][j], cudaFuncCachePreferEqual);
-            CU_RET_ERR(stat, "cudaFuncSetCacheConfig failed");
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_prune_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_ptr[i][j]), hipFuncCachePreferEqual);
+            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            CU_RET_ERR(stat, "hipFuncSetCacheConfig failed");
         }
     }
 }

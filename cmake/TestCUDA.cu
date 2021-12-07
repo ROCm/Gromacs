@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
@@ -37,6 +38,6 @@ __global__ void kernel (void) {}
 int
 main()
 {
-    kernel<<< 1, 1>>> ();
+    hipLaunchKernelGGL(kernel, dim3(1), dim3(1), 0, 0);
     return 0;
 }

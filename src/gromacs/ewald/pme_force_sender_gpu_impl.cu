@@ -145,12 +145,12 @@ void PmeForceSenderGpu::Impl::sendFToPpCudaDirect(int ppRank, int numAtoms, bool
 
     pmeForcesReady_->enqueueWaitEvent(*ppCommStream_[ppRank]);
 
-    cudaError_t stat = cudaMemcpyAsync(pmeRemoteForcePtr,
+    hipError_t stat = hipMemcpyAsync(pmeRemoteForcePtr,
                                        localForcePtr_[ppRank],
                                        numAtoms * sizeof(rvec),
-                                       cudaMemcpyDefault,
+                                       hipMemcpyDefault,
                                        ppCommStream_[ppRank]->stream());
-    CU_RET_ERR(stat, "cudaMemcpyAsync on Recv from PME CUDA direct data transfer failed");
+    CU_RET_ERR(stat, "hipMemcpyAsync on Recv from PME CUDA direct data transfer failed");
     ppCommEvent_[ppRank]->markEvent(*ppCommStream_[ppRank]);
     std::atomic<bool>* tmpPpCommEventRecordedPtr =
             reinterpret_cast<std::atomic<bool>*>(&(ppCommEventRecorded_[ppRank]));

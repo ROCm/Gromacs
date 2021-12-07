@@ -53,7 +53,7 @@
 #include "gromacs/utility/gmxmpi.h"
 #include "gpu_3dfft_impl.h"
 
-#include <cufft.h>
+#include <hipfft.h>
 
 class DeviceContext;
 class DeviceStream;
@@ -89,10 +89,10 @@ public:
     void perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent) override;
 
 private:
-    cufftHandle   planR2C_;
-    cufftHandle   planC2R_;
-    cufftReal*    realGrid_;
-    cufftComplex* complexGrid_;
+    hipfftHandle   planR2C_;
+    hipfftHandle   planC2R_;
+    hipfftReal*    realGrid_;
+    hipfftComplex* complexGrid_;
 };
 
 } // namespace gmx

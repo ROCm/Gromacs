@@ -61,28 +61,28 @@ namespace gmx
 void doDeviceTransfers(const DeviceInformation& deviceInfo, ArrayRef<const char> input, ArrayRef<char> output)
 {
     GMX_RELEASE_ASSERT(input.size() == output.size(), "Input and output must have matching size");
-    cudaError_t status;
+    hipError_t status;
 
     int oldDeviceId;
 
-    status = cudaGetDevice(&oldDeviceId);
+    status = hipGetDevice(&oldDeviceId);
     checkDeviceError(status, "Error while getting old device id.");
-    status = cudaSetDevice(deviceInfo.id);
+    status = hipSetDevice(deviceInfo.id);
     checkDeviceError(status, "Error while setting device id to the first compatible GPU.");
 
     void* devicePointer;
-    status = cudaMalloc(&devicePointer, input.size());
+    status = hipMalloc(&devicePointer, input.size());
     checkDeviceError(status, "Error while creating buffer.");
 
-    status = cudaMemcpy(devicePointer, input.data(), input.size(), cudaMemcpyHostToDevice);
+    status = hipMemcpy(devicePointer, input.data(), input.size(), hipMemcpyHostToDevice);
     checkDeviceError(status, "Error while transferring host to device.");
-    status = cudaMemcpy(output.data(), devicePointer, output.size(), cudaMemcpyDeviceToHost);
+    status = hipMemcpy(output.data(), devicePointer, output.size(), hipMemcpyDeviceToHost);
     checkDeviceError(status, "Error while transferring device to host.");
 
-    status = cudaFree(devicePointer);
+    status = hipFree(devicePointer);
     checkDeviceError(status, "Error while releasing buffer.");
 
-    status = cudaSetDevice(oldDeviceId);
+    status = hipSetDevice(oldDeviceId);
     checkDeviceError(status, "Error while setting old device id.");
 }
 

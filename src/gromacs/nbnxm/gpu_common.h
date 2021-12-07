@@ -246,7 +246,7 @@ static inline void gpu_accumulate_timings(gmx_wallclock_gpu_nbnxn_t* timings,
  * See documentation in nbnxm_gpu.h for details.
  *
  * \todo Move into shared source file, perhaps including
- * cuda_runtime.h if needed for any remaining CUDA-specific
+ * hip/hip_runtime.h if needed for any remaining CUDA-specific
  * objects.
  */
 //NOLINTNEXTLINE(misc-definitions-in-headers)

@@ -58,28 +58,28 @@ namespace
 
 /*! \brief Add the API information on the specific error to the error message.
  *
- * \param[in]  deviceError  The error to assert cudaSuccess on.
+ * \param[in]  deviceError  The error to assert hipSuccess on.
  *
- * \returns A description of the API error. Returns '(CUDA error #0 (cudaSuccess): no error)' in case deviceError is cudaSuccess.
+ * \returns A description of the API error. Returns '(CUDA error #0 (hipSuccess): no error)' in case deviceError is hipSuccess.
  */
-inline std::string getDeviceErrorString(const cudaError_t deviceError)
+inline std::string getDeviceErrorString(const hipError_t deviceError)
 {
     return formatString("CUDA error #%d (%s): %s.",
                         deviceError,
-                        cudaGetErrorName(deviceError),
-                        cudaGetErrorString(deviceError));
+                        hipGetErrorName(deviceError),
+                        hipGetErrorString(deviceError));
 }
 
 /*! \brief Check if API returned an error and throw an exception with information on it.
  *
- * \param[in]  deviceError  The error to assert cudaSuccess on.
+ * \param[in]  deviceError  The error to assert hipSuccess on.
  * \param[in]  errorMessage  Undecorated error message.
  *
  *  \throws InternalError if deviceError is not a success.
  */
-inline void checkDeviceError(const cudaError_t deviceError, const std::string& errorMessage)
+inline void checkDeviceError(const hipError_t deviceError, const std::string& errorMessage)
 {
-    if (deviceError != cudaSuccess)
+    if (deviceError != hipSuccess)
     {
         GMX_THROW(gmx::InternalError(errorMessage + " " + getDeviceErrorString(deviceError)));
     }
@@ -97,8 +97,8 @@ inline void ensureNoPendingDeviceError(const std::string& errorMessage)
 {
     // Ensure there is no pending error that would otherwise affect
     // the behaviour of future error handling.
-    cudaError_t deviceError = cudaGetLastError();
-    if (deviceError == cudaSuccess)
+    hipError_t deviceError = hipGetLastError();
+    if (deviceError == hipSuccess)
     {
         return;
     }
@@ -109,7 +109,7 @@ inline void ensureNoPendingDeviceError(const std::string& errorMessage)
     const std::string fullErrorMessage =
             errorMessage + " An unhandled error from a previous CUDA operation was detected. "
             + gmx::getDeviceErrorString(deviceError);
-    GMX_ASSERT(deviceError == cudaSuccess, fullErrorMessage.c_str());
+    GMX_ASSERT(deviceError == hipSuccess, fullErrorMessage.c_str());
     // TODO When we evolve a better logging framework, use that
     // for release-build error reporting.
     gmx_warning("%s", fullErrorMessage.c_str());
@@ -139,7 +139,7 @@ enum class GpuApiCallBehavior;
 #    define CU_RET_ERR(deviceError, msg)                                                            \
         do                                                                                          \
         {                                                                                           \
-            if ((deviceError) != cudaSuccess)                                                       \
+            if ((deviceError) != hipSuccess)                                                       \
             {                                                                                       \
                 gmx_fatal(FARGS, "%s\n", ((msg) + gmx::getDeviceErrorString(deviceError)).c_str()); \
             }                                                                                       \
@@ -177,22 +177,22 @@ static inline void rvec_inc(rvec a, const float3 b)
  */
 static inline bool haveStreamTasksCompleted(const DeviceStream& deviceStream)
 {
-    cudaError_t stat = cudaStreamQuery(deviceStream.stream());
+    hipError_t stat = hipStreamQuery(deviceStream.stream());
 
-    if (stat == cudaErrorNotReady)
+    if (stat == hipErrorNotReady)
     {
         // work is still in progress in the stream
         return false;
     }
 
-    GMX_ASSERT(stat != cudaErrorInvalidResourceHandle,
+    GMX_ASSERT(stat != hipErrorInvalidHandle,
                ("Stream identifier not valid. " + gmx::getDeviceErrorString(stat)).c_str());
 
-    // cudaSuccess and cudaErrorNotReady are the expected return values
-    CU_RET_ERR(stat, "Unexpected cudaStreamQuery failure. ");
+    // hipSuccess and hipErrorNotReady are the expected return values
+    CU_RET_ERR(stat, "Unexpected hipStreamQuery failure. ");
 
-    GMX_ASSERT(stat == cudaSuccess,
-               ("Values other than cudaSuccess should have been explicitly handled. "
+    GMX_ASSERT(stat == hipSuccess,
+               ("Values other than hipSuccess should have been explicitly handled. "
                 + gmx::getDeviceErrorString(stat))
                        .c_str());
 
@@ -285,7 +285,7 @@ void launchGpuKernel(void (*kernel)(Args...),
 {
     dim3 blockSize(config.blockSize[0], config.blockSize[1], config.blockSize[2]);
     dim3 gridSize(config.gridSize[0], config.gridSize[1], config.gridSize[2]);
-    cudaLaunchKernel(reinterpret_cast<void*>(kernel),
+    hipLaunchKernel(reinterpret_cast<void*>(kernel),
                      gridSize,
                      blockSize,
                      const_cast<void**>(kernelArgs.data()),

@@ -49,7 +49,7 @@
 #include "config.h"
 
 #if GMX_GPU_CUDA
-#    include <cuda_runtime.h>
+#    include <hip/hip_runtime.h>
 #endif
 
 #if GMX_GPU_OPENCL
@@ -90,7 +90,7 @@ enum class DeviceStatus : int
      */
     NonFunctional,
     /*! \brief CUDA devices are busy or unavailable.
-     * typically due to use of \p cudaComputeModeExclusive, \p cudaComputeModeProhibited modes.
+     * typically due to use of \p hipComputeModeExclusive, \p hipComputeModeProhibited modes.
      */
     Unavailable,
     /*! \brief The device is outside the set of compilation targets.
@@ -157,7 +157,7 @@ struct DeviceInformation
     DeviceVendor deviceVendor;
 #if GMX_GPU_CUDA
     //! CUDA device properties.
-    cudaDeviceProp prop;
+    hipDeviceProp_t prop;
 #elif GMX_GPU_OPENCL
     cl_platform_id oclPlatformId;       //!< OpenCL Platform ID.
     cl_device_id   oclDeviceId;         //!< OpenCL Device ID.

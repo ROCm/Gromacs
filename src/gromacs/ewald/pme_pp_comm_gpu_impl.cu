@@ -160,12 +160,12 @@ void PmePpCommGpu::Impl::sendCoordinatesToPmeCudaDirect(float3*               se
     // ensure stream waits until coordinate data is available on device
     coordinatesReadyOnDeviceEvent->enqueueWaitEvent(pmePpCommStream_);
 
-    cudaError_t stat = cudaMemcpyAsync(remotePmeXBuffer_,
+    hipError_t stat = hipMemcpyAsync(remotePmeXBuffer_,
                                        sendPtr,
                                        sendSize * DIM * sizeof(float),
-                                       cudaMemcpyDefault,
+                                       hipMemcpyDefault,
                                        pmePpCommStream_.stream());
-    CU_RET_ERR(stat, "cudaMemcpyAsync on Send to PME CUDA direct data transfer failed");
+    CU_RET_ERR(stat, "hipMemcpyAsync on Send to PME CUDA direct data transfer failed");
 
 #if GMX_MPI
     // Record and send event to allow PME task to sync to above transfer before commencing force calculations

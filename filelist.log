@@ -1,0 +1,146 @@
+  warn:0 LOC:42 in './cmake/TestCUDA.cu'
+  warn:6 LOC:627 in './src/gromacs/ewald/pme_gather.cu'
+  warn:0 LOC:220 in './src/gromacs/ewald/pme_force_sender_gpu_impl.cu'
+  warn:15 LOC:364 in './src/gromacs/ewald/pme_solve.cu'
+  warn:0 LOC:328 in './src/gromacs/ewald/pme_spread.cu'
+  warn:0 LOC:271 in './src/gromacs/ewald/pme_pp_comm_gpu_impl.cu'
+  warn:0 LOC:708 in './src/gromacs/nbnxm/cuda/nbnxm_cuda.cu'
+  warn:0 LOC:452 in './src/gromacs/mdlib/settle_gpu_internal.cu'
+  warn:0 LOC:466 in './src/gromacs/mdlib/lincs_gpu_internal.cu'
+  warn:0 LOC:90 in './src/gromacs/gpu_utils/pmalloc.cu'
+  warn:0 LOC:103 in './src/gromacs/gpu_utils/device_stream.cu'
+  warn:0 LOC:126 in './src/gromacs/gpu_utils/pinning.cu'
+  warn:0 LOC:89 in './src/gromacs/gpu_utils/tests/devicetransfers.cu'
+  warn:9 LOC:263 in './src/gromacs/gpu_utils/gpu_utils.cu'
+  warn:2 LOC:381 in './src/gromacs/hardware/device_management.cu'
+  warn:0 LOC:611 in './src/gromacs/domdec/gpuhaloexchange_impl.cu'
+  warn:0 LOC:66 in './src/gromacs/utility/cuda_version_information.cu'
+  warn:0 LOC:960 in './src/gromacs/listed_forces/listed_forces_gpu_internal.cu'
+  warn:0 LOC:405 in './src/gromacs/listed_forces/listed_forces_gpu_impl.cu'
+  warn:0 LOC:162 in './src/gromacs/fft/gpu_3dfft_cufft.cu'
+  warn:0 LOC:2025 in './src/gromacs/ewald/pme_gpu_internal.cpp'
+  warn:0 LOC:379 in './src/gromacs/gpu_utils/tests/hostallocator.cpp'
+  warn:0 LOC:137 in './src/gromacs/gpu_utils/tests/pinnedmemorychecker.cpp'
+  warn:0 LOC:387 in './src/gromacs/ewald/pme_gpu_calculate_splines.cuh'
+  warn:13 LOC:692 in './src/gromacs/nbnxm/cuda/nbnxm_cuda_kernel_utils.cuh'
+  warn:0 LOC:299 in './src/gromacs/nbnxm/cuda/nbnxm_cuda_kernel_pruneonly.cuh'
+  warn:0 LOC:686 in './src/gromacs/nbnxm/cuda/nbnxm_cuda_kernel.cuh'
+  warn:0 LOC:104 in './src/gromacs/gpu_utils/cuda_kernel_utils.cuh'
+  warn:0 LOC:397 in './src/gromacs/gpu_utils/devicebuffer.cuh'
+  warn:0 LOC:84 in './src/gromacs/gpu_utils/gputraits.cuh'
+  warn:0 LOC:299 in './src/gromacs/gpu_utils/cudautils.cuh'
+  warn:0 LOC:118 in './src/gromacs/gpu_utils/gpuregiontimer.cuh'
+  warn:0 LOC:122 in './src/gromacs/gpu_utils/device_event.cuh'
+  warn:0 LOC:594 in './src/gromacs/ewald/pme_gpu_internal.h'
+  warn:0 LOC:243 in './src/gromacs/ewald/pme_gpu_types.h'
+  warn:0 LOC:310 in './src/gromacs/nbnxm/nbnxm_gpu.h'
+  warn:0 LOC:377 in './src/gromacs/nbnxm/gpu_common.h'
+  warn:2 LOC:252 in './src/gromacs/gpu_utils/sycl_kernel_utils.h'
+  warn:0 LOC:157 in './src/gromacs/gpu_utils/device_stream.h'
+  warn:0 LOC:176 in './src/gromacs/hardware/device_information.h'
+  warn:0 LOC:100 in './src/gromacs/fft/gpu_3dfft_cufft.h'
+  warn:0 LOC:80 in './src/external/thread_mpi/include/thread_mpi/atomic/gcc_intrinsics.h'
+
+  info: TOTAL-converted 352 CUDA->HIP refs ( error:12 init:0 version:5 device:27 context:0 module:0 memory:28 virtual_memory:0 addressing:2 stream:13 event:16 external_resource_interop:0 stream_memory:0 execution:3 graph:0 occupancy:0 texture:3 surface:0 peer:4 graphics:0 profiler:4 openGL:0 D3D9:0 D3D10:0 D3D11:0 VDPAU:0 EGL:0 thread:0 complex:0 library:18 device_library:0 device_function:38 include:1 include_cuda_main_header:5 type:70 literal:0 numeric_literal:96 define:6 extern_shared:0 kernel_launch:1 )
+  warn:47 LOC:986548
+  warning: unconverted cudaProfilerRun : 4
+  warning: unconverted cudaCallName : 4
+  warning: unconverted cudaErrorDevicesUnavailable : 2
+  warning: unconverted cudaMemoryTypeHost : 1
+  kernels (1 total) :   kernel(1)
+
+  hipSYCL 51
+  hipSuccess 50
+  hipError_t 40
+  hipMemcpyAsync 9
+  hipGetLastError 8
+  hipSetDevice 8
+  hipErrorInvalidValue 6
+  hipFuncSetCacheConfig 6
+  HIPSYCL_PLATFORM_ROCM 6
+  hipMemcpy 6
+  hipStream_t 5
+  hipTextureObject_t 5
+  hipStreamQuery 4
+  hipEventRecord 4
+  hipDriverGetVersion 4
+  hip_runtime 4
+  hipGetDevice 4
+  hipMemcpyHostToDevice 4
+  hipFuncCachePreferEqual 4
+  hipErrorNotReady 3
+  hipStreamWaitEvent 3
+  hipDeviceProp_t 3
+  hipEventDestroy 3
+  hipEventCreate 3
+  hipDeviceReset 3
+  hipGetDeviceCount 3
+  hipMemcpyDeviceToHost 3
+  HIPSYCL_PLATFORM_CUDA 3
+  hipMemcpyDeviceToDevice 3
+  hipEvent_t 3
+  hipStreamSynchronize 3
+  hipProfilerStart 2
+  hipHostFree 2
+  hipHostRegister 2
+  hipFuncGetAttributes 2
+  hipHostMalloc 2
+  hipMalloc 2
+  hipPointerAttribute_t 2
+  hipMemcpyDefault 2
+  HIPFFT_C2R 2
+  hipPointerGetAttributes 2
+  hipGetErrorString 2
+  hipSYCL_enqueue_custom_operation 2
+  hipErrorPeerAccessAlreadyEnabled 2
+  hipEventSynchronize 2
+  hipProfilerStop 2
+  hipDeviceEnablePeerAccess 2
+  hipHostUnregister 2
+  hipEventQuery 2
+  HIPFFT_R2C 2
+  hipErrorInvalidDevice 2
+  hipErrorNoDevice 2
+  hipDeviceCanAccessPeer 2
+  hipFree 2
+  hipEventDisableTiming 1
+  hipComputeModeExclusive 1
+  hipEventElapsedTime 1
+  hipErrorHostMemoryNotRegistered 1
+  hipFuncAttributes 1
+  hipResourceTypeLinear 1
+  hipErrorInvalidDeviceFunction 1
+  hipDeviceGetStreamPriorityRange 1
+  hipPeekAtLastError 1
+  hipRuntimeGetVersion 1
+  hipDeviceSynchronize 1
+  hipErrorNotSupported 1
+  hipCreateChannelDesc 1
+  hipDestroyTextureObject 1
+  hipResourceDesc 1
+  hipMemsetAsync 1
+  hipStreamDestroy 1
+  hipGetErrorName 1
+  HIP_VISIBLE_DEVICES 1
+  hipLaunchKernel 1
+  hip_profile 1
+  hipErrorInvalidHandle 1
+  hipHostRegisterDefault 1
+  hipStreamCreateWithPriority 1
+  HIPSYCL_EXT_FP_ATOMICS 1
+  HIPSYCL_EXT_QUEUE_WAIT_LIST 1
+  hipTextureDesc 1
+  hipStreamDefault 1
+  hipStreamCreate 1
+  hipReadModeElementType 1
+  hipEventDefault 1
+  hipCreateTextureObject 1
+  hipErrorOutOfMemory 1
+  HIPFFT_SUCCESS 1
+  hipGetDeviceProperties 1
+  hipErrorHostMemoryAlreadyRegistered 1
+  hipComputeModeProhibited 1
+  hipLaunchKernelGGL 1
+  hipEventCreateWithFlags 1
+  hipHostMallocDefault 1
+

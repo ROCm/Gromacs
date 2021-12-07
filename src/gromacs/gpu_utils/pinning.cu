@@ -77,18 +77,18 @@ void pinBuffer(void* pointer, std::size_t numBytes) noexcept
             1, numBytes); // C++11 3.7.4.1 gurantees that every pointer is different thus at least 1 byte
 
     ensureNoPendingDeviceError(errorMessage);
-    cudaError_t stat = cudaHostRegister(pointer, numBytes, cudaHostRegisterDefault);
+    hipError_t stat = hipHostRegister(pointer, numBytes, hipHostRegisterDefault);
 
     // These errors can only arise from a coding error somewhere.
-    GMX_RELEASE_ASSERT(stat != cudaErrorInvalidValue && stat != cudaErrorNotSupported
-                               && stat != cudaErrorHostMemoryAlreadyRegistered,
+    GMX_RELEASE_ASSERT(stat != hipErrorInvalidValue && stat != hipErrorNotSupported
+                               && stat != hipErrorHostMemoryAlreadyRegistered,
                        (errorMessage + getDeviceErrorString(stat)).c_str());
 
     // We always handle the error, but if it's a type we didn't expect
     // (e.g. because CUDA changes the set of errors it returns) then
     // we should get a descriptive assertion in Debug mode so we know
     // to fix our expectations.
-    GMX_ASSERT(stat != cudaErrorMemoryAllocation,
+    GMX_ASSERT(stat != hipErrorOutOfMemory,
                (errorMessage + getDeviceErrorString(stat) + " which was an unexpected error").c_str());
 
     // It might be preferable to throw InternalError here, because the
@@ -97,7 +97,7 @@ void pinBuffer(void* pointer, std::size_t numBytes) noexcept
     // engineer GROMACS to be forward-compatible with future CUDA
     // versions, so if this proves to be a problem in practice, then
     // GROMACS must be patched, or a supported CUDA version used.
-    GMX_RELEASE_ASSERT(stat == cudaSuccess, (errorMessage + getDeviceErrorString(stat)).c_str());
+    GMX_RELEASE_ASSERT(stat == hipSuccess, (errorMessage + getDeviceErrorString(stat)).c_str());
 }
 
 void unpinBuffer(void* pointer) noexcept
@@ -108,9 +108,9 @@ void unpinBuffer(void* pointer) noexcept
     GMX_ASSERT(pointer != nullptr, (errorMessage + "Pointer should not be nullptr when pinned.").c_str());
 
     ensureNoPendingDeviceError(errorMessage);
-    cudaError_t stat = cudaHostUnregister(pointer);
+    hipError_t stat = hipHostUnregister(pointer);
     // These errors can only arise from a coding error somewhere.
-    GMX_RELEASE_ASSERT(stat != cudaErrorInvalidValue && stat != cudaErrorHostMemoryNotRegistered,
+    GMX_RELEASE_ASSERT(stat != hipErrorInvalidValue && stat != hipErrorHostMemoryNotRegistered,
                        (errorMessage + getDeviceErrorString(stat)).c_str());
     // If there's an error whose type we didn't expect (e.g. because a
     // future CUDA changes the set of errors it returns) then we
@@ -120,7 +120,7 @@ void unpinBuffer(void* pointer) noexcept
     // unpin() from a destructor, in which case any attempt to throw
     // an uncaught exception would anyway terminate the program. A
     // release assertion is a better behaviour than that.
-    GMX_RELEASE_ASSERT(stat == cudaSuccess, (errorMessage + getDeviceErrorString(stat)).c_str());
+    GMX_RELEASE_ASSERT(stat == hipSuccess, (errorMessage + getDeviceErrorString(stat)).c_str());
 }
 
 } // namespace gmx

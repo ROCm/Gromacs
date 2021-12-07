@@ -1448,9 +1448,9 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     // (e.g. on 660 Ti where 50% occupancy is ~25% faster than 100% occupancy with RNAse (~17.8k atoms))
     // If doing so, change atomsPerBlock in the kernels as well.
     // TODO: test varying block sizes on modern arch-s as well
-    // TODO: also consider using cudaFuncSetCacheConfig() for preferring shared memory on older architectures
+    // TODO: also consider using hipFuncSetCacheConfig(reinterpret_cast<const void*>() for preferring shared memory on older architectures
     //(for spline data mostly)
-    GMX_ASSERT(!(c_pmeAtomDataBlockSize % atomsPerBlock),
+    GMX_ASSERT(!(c_pmeAtomDataBlockSize % atomsPerBlock)),
                "inconsistent atom data padding vs. spreading block size");
 
     // Ensure that coordinates are ready on the device before launching spread;

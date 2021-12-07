@@ -64,7 +64,7 @@ __device__ __forceinline__ T LDG(const T* ptr)
  * \returns             The value from the table at \p index
  */
 template<typename T>
-static __forceinline__ __device__ T fetchFromTexture(const cudaTextureObject_t texObj, int index)
+static __forceinline__ __device__ T fetchFromTexture(const hipTextureObject_t texObj, int index)
 {
     assert(index >= 0);
     // NOLINTNEXTLINE(misc-static-assert)
@@ -85,7 +85,7 @@ static __forceinline__ __device__ T fetchFromTexture(const cudaTextureObject_t t
  */
 template<typename T>
 static __forceinline__ __device__ T fetchFromParamLookupTable(const T*                  d_ptr,
-                                                              const cudaTextureObject_t texObj,
+                                                              const hipTextureObject_t texObj,
                                                               int                       index)
 {
     assert(index >= 0);

@@ -318,7 +318,7 @@ void ListedForcesGpu::Impl::waitAccumulateEnergyTerms(gmx_enerdata_t* enerd)
                "accumulation should not occur");
 
     wallcycle_start(wcycle_, WallCycleCounter::WaitGpuBonded);
-    cudaError_t stat = cudaStreamSynchronize(deviceStream_.stream());
+    hipError_t stat = hipStreamSynchronize(deviceStream_.stream());
     CU_RET_ERR(stat, "D2H transfer of bonded energies failed");
     wallcycle_stop(wcycle_, WallCycleCounter::WaitGpuBonded);
 

@@ -46,7 +46,7 @@ namespace gmx
 std::string getCudaDriverVersionString()
 {
     int cuda_driver = 0;
-    if (cudaDriverGetVersion(&cuda_driver) != cudaSuccess)
+    if (hipDriverGetVersion(&cuda_driver) != hipSuccess)
     {
         return "N/A";
     }
@@ -56,7 +56,7 @@ std::string getCudaDriverVersionString()
 std::string getCudaRuntimeVersionString()
 {
     int cuda_runtime = 0;
-    if (cudaRuntimeGetVersion(&cuda_runtime) != cudaSuccess)
+    if (hipRuntimeGetVersion(&cuda_runtime) != hipSuccess)
     {
         return "N/A";
     }
