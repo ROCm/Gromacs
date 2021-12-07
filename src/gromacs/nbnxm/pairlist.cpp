@@ -636,7 +636,7 @@ static inline int nblCj(gmx::ArrayRef<const nbnxn_cj4_t> cj4List, int cjIndex)
 }
 
 /* Returns the i-interaction mask of the j sub-cell for index cj_ind */
-static gpu_mask_t nbl_imask0(const NbnxnPairlistGpu* nbl, int cj_ind)
+static unsigned int nbl_imask0(const NbnxnPairlistGpu* nbl, int cj_ind)
 {
     return nbl->cj4[cj_ind / c_nbnxnGpuJgroupSize].imei[0].imask;
 }
@@ -904,13 +904,13 @@ static void setSelfAndNewtonExclusionsGpu(NbnxnPairlistGpu* nbl,
 }
 
 /* Returns a diagonal or off-diagonal interaction mask for plain C lists */
-static gpu_mask_t get_imask(gmx_bool rdiag, int ci, int cj)
+static unsigned int get_imask(gmx_bool rdiag, int ci, int cj)
 {
     return (rdiag && ci == cj ? NBNXN_INTERACTION_MASK_DIAG : NBNXN_INTERACTION_MASK_ALL);
 }
 
 /* Returns a diagonal or off-diagonal interaction mask for cj-size=2 */
-gmx_unused static gpu_mask_t get_imask_simd_j2(gmx_bool rdiag, int ci, int cj)
+gmx_unused static unsigned int get_imask_simd_j2(gmx_bool rdiag, int ci, int cj)
 {
     return (rdiag && ci * 2 == cj ? NBNXN_INTERACTION_MASK_DIAG_J2_0
                                   : (rdiag && ci * 2 + 1 == cj ? NBNXN_INTERACTION_MASK_DIAG_J2_1
@@ -918,13 +918,13 @@ gmx_unused static gpu_mask_t get_imask_simd_j2(gmx_bool rdiag, int ci, int cj)
 }
 
 /* Returns a diagonal or off-diagonal interaction mask for cj-size=4 */
-gmx_unused static gpu_mask_t get_imask_simd_j4(gmx_bool rdiag, int ci, int cj)
+gmx_unused static unsigned int get_imask_simd_j4(gmx_bool rdiag, int ci, int cj)
 {
     return (rdiag && ci == cj ? NBNXN_INTERACTION_MASK_DIAG : NBNXN_INTERACTION_MASK_ALL);
 }
 
 /* Returns a diagonal or off-diagonal interaction mask for cj-size=8 */
-gmx_unused static gpu_mask_t get_imask_simd_j8(gmx_bool rdiag, int ci, int cj)
+gmx_unused static unsigned int get_imask_simd_j8(gmx_bool rdiag, int ci, int cj)
 {
     return (rdiag && ci == cj * 2 ? NBNXN_INTERACTION_MASK_DIAG_J8_0
                                   : (rdiag && ci == cj * 2 + 1 ? NBNXN_INTERACTION_MASK_DIAG_J8_1
@@ -1151,7 +1151,7 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
 #endif
 
         int          npair = 0;
-        gpu_mask_t imask = 0;
+        unsigned int imask = 0;
         /* We use a fixed upper-bound instead of ci1 to help optimization */
         for (int ci = 0; ci < c_gpuNumClusterPerCell; ci++)
         {

@@ -236,14 +236,14 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    if defined CALC_ENERGIES || defined LJ_POT_SWITCH
     float        E_lj_p;
 #    endif
-    unsigned long long wexcl, imask, mask_ji;
+    unsigned int wexcl, imask, mask_ji;
     float4       xqbuf;
     float3       xi, xj, rv, f_ij, fcj_buf;
     float3       fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
     nbnxn_sci_t  nb_sci;
 
     /*! i-cluster interaction mask for a super-cluster with all c_nbnxnGpuNumClusterPerSupercluster=8 bits set */
-    const unsigned long long superClInteractionMask = ((1ULL << c_nbnxnGpuNumClusterPerSupercluster) - 1ULL);
+    const unsigned superClInteractionMask = ((1U << c_nbnxnGpuNumClusterPerSupercluster) - 1U);
 
     /*********************************************************************
      * Set up shared memory pointers.
@@ -374,7 +374,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     {
         wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
         imask     = pl_cj4[j4].imei[0].imask;
-        wexcl     = excl[wexcl_idx].pair[tidx];
+        wexcl     = excl[wexcl_idx].pair[(tidx) & (warp_size - 1)];
 
 #    ifndef PRUNE_NBL
         if (imask)
@@ -390,11 +390,18 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 //            __syncwarp(c_fullWarpMask); //cm todo
               __all(1);
 
+            /* Unrolling this loop
+               - with pruning leads to register spilling;
+               - on Kepler and later it is much slower;
+               Tested with up to nvcc 7.5 */
+#    if !defined PRUNE_NBL
+#        pragma unroll 4
+#    endif
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
-                    mask_ji = (1ULL << (jm * c_nbnxnGpuNumClusterPerSupercluster));
+                    mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
                     cj = cjs[jm];
                     aj = cj * c_clSize + tidxj;
@@ -410,6 +417,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
 
                     fcj_buf = make_float3(0.0f);
+
+#    if !defined PRUNE_NBL
+#        pragma unroll 8
+#    endif
                     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
                     {
                         if (imask & mask_ji)
@@ -621,6 +632,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float fshift_buf = 0.0f;
 
     /* reduce i forces */
+#    if !defined PRUNE_NBL
+#        pragma unroll 8
+#    endif
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
@@ -630,6 +644,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
     if ( bCalcFshift)
     {
+        #pragma unroll
         for (unsigned int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
         {
             fshift_buf += __shfl_down(fshift_buf, offset);
