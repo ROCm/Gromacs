@@ -56,8 +56,8 @@ if(GMX_GPU)
     gmx_add_libgromacs_sources(
        state_propagator_data_gpu_impl_gpu.cpp
        )
-   if(GMX_GPU_CUDA)
-       _gmx_add_files_to_property(CUDA_SOURCES
+   if(GMX_GPU_HIP)
+       _gmx_add_files_to_property(HIP_SOURCES
            state_propagator_data_gpu_impl_gpu.cpp
            )
    endif()

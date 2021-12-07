@@ -42,7 +42,7 @@
  * This file's solving kernel specifically expects the following definitions for its flavors:
  *
  * - gridOrdering must be defined to either XYZ or YZX
- * and corresponds to the dimension order of the grid (GridOrdering enum in CUDA kernels);
+ * and corresponds to the dimension order of the grid (GridOrdering enum in HIP kernels);
  * - computeEnergyAndVirial must evaluate to true or false, and expresses
  * whether the reduction is performed.
  *
@@ -249,7 +249,7 @@ __kernel void CUSTOMIZED_KERNEL_NAME(pme_solve_kernel)(const struct PmeOpenCLKer
     /* Optional energy/virial reduction */
     if (computeEnergyAndVirial)
     {
-        // TODO: implement AMD intrinsics reduction, like with shuffles in CUDA version. #2514
+        // TODO: implement AMD intrinsics reduction, like with shuffles in HIP version. #2514
 
         /* Shared memory reduction with atomics.
          * Each component is first reduced into warp_size positions in the shared memory;

@@ -618,7 +618,7 @@ gmx_opencl_inline void
 reduce_force_j_shfl(float3 fin, __global float* fout, int gmx_unused tidxi, int gmx_unused tidxj, int aidx)
 {
     /* Only does reduction over 4 elements in cluster. Needs to be changed
-     * for CL_SIZE>4. See CUDA code for required code */
+     * for CL_SIZE>4. See HIP code for required code */
     fin.x += intel_sub_group_shuffle_down(fin.x, fin.x, 1);
     fin.y += intel_sub_group_shuffle_up(fin.y, fin.y, 1);
     fin.z += intel_sub_group_shuffle_down(fin.z, fin.z, 1);

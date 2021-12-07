@@ -324,14 +324,14 @@ void pme_gpu_copy_input_gather_atom_data(const PmeGpu* pmeGpu);
 void pme_gpu_sync_spread_grid(const PmeGpu* pmeGpu);
 
 /*! \libinternal \brief
- * Initializes the CUDA FFT structures.
+ * Initializes the HIP FFT structures.
  *
  * \param[in] pmeGpu  The PME GPU structure.
  */
 void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu);
 
 /*! \libinternal \brief
- * Destroys the CUDA FFT structures.
+ * Destroys the HIP FFT structures.
  *
  * \param[in] pmeGpu  The PME GPU structure.
  */

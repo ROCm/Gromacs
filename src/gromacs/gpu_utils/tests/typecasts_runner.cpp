@@ -50,7 +50,7 @@
 
 #include "testutils/testasserts.h"
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_HIP
 
 namespace gmx
 {
@@ -61,17 +61,17 @@ namespace test
 void convertRVecToFloat3OnHost(ArrayRef<gmx::RVec> /* rVecOutput */,
                                ArrayRef<const gmx::RVec> /* rVecInput */)
 {
-    FAIL() << "Can't test float3 and RVec compatibility without CUDA.";
+    FAIL() << "Can't test float3 and RVec compatibility without HIP.";
 }
 
 void convertRVecToFloat3OnDevice(ArrayRef<gmx::RVec> /* rVecOutput */,
                                  ArrayRef<const gmx::RVec> /* rVecInput */,
                                  const TestDevice* /* testDevice */)
 {
-    FAIL() << "Can't test float3 and RVec compatibility without CUDA.";
+    FAIL() << "Can't test float3 and RVec compatibility without HIP.";
 }
 
 } // namespace test
 } // namespace gmx
 
-#endif // !GMX_GPU_CUDA
+#endif // !GMX_GPU_HIP

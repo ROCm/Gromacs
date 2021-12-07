@@ -47,7 +47,7 @@
  *
  * The module includes support for flavors of Coulomb and Lennard-Jones interaction
  * treatment implemented for a large range of SIMD instruction sets for CPU
- * architectures as well as in CUDA and OpenCL for GPU architectures.
+ * architectures as well as in HIP and OpenCL for GPU architectures.
  * Additionally there is a reference CPU non-SIMD and a reference CPU
  * for GPU pair-list setup interaction kernel.
  *
@@ -175,7 +175,7 @@ enum class KernelType;
  *  in the CPU kernels, the tabulated kernels are ATM Ewald-only.
  *
  *  The row-order of pointers to different electrostatic kernels defined in
- *  nbnxn_cuda.cu by the nb_*_kfunc_ptr function pointer table
+ *  nbnxn_hip.cu by the nb_*_kfunc_ptr function pointer table
  *  should match the order of enumerated types below.
  */
 enum class ElecType : int
@@ -198,7 +198,7 @@ constexpr int c_numElecTypes = static_cast<int>(ElecType::Count);
  * kernels.
  *
  * The column-order of pointers to different electrostatic kernels defined in
- * nbnxn_cuda_ocl.cpp/.cu by the nb_*_kfunc_ptr function pointer table
+ * nbnxn_hip_ocl.cpp/.cu by the nb_*_kfunc_ptr function pointer table
  * should match the order of enumerated types below.
  */
 enum class VdwType : int

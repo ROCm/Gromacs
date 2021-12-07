@@ -34,7 +34,7 @@
  */
 /*! \libinternal \file
  *
- * \brief Basic routines to handle periodic boundary conditions with CUDA.
+ * \brief Basic routines to handle periodic boundary conditions with HIP.
  *
  * This file contains GPU implementation of the PBC-aware vector evaluation.
  *
@@ -50,10 +50,10 @@
  * \inlibraryapi
  * \ingroup module_pbcutil
  */
-#ifndef GMX_PBCUTIL_PBC_AIUC_CUDA_CUH
-#define GMX_PBCUTIL_PBC_AIUC_CUDA_CUH
+#ifndef GMX_PBCUTIL_PBC_AIUC_HIP_CUH
+#define GMX_PBCUTIL_PBC_AIUC_HIP_CUH
 
-#include "gromacs/gpu_utils/vectype_ops.cuh"
+#include "gromacs/gpu_utils/vectype_ops.hpp"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/pbc_aiuc.h"
 
@@ -79,7 +79,7 @@ static inline __device__ int int3ToShiftIndex(int3 iv)
  * 0.5/sqrt(2) times a box vector length (e.g. for a rhombic dodecahedron)
  * can use a more distant periodic image.
  *
- * \todo This routine uses CUDA float4 types for input coordinates and
+ * \todo This routine uses HIP float4 types for input coordinates and
  *       returns in rvec data-type. Other than that, it does essentially
  *       the same thing as the version below, as well as SIMD and CPU
  *       versions. This routine is used in GPU listed forces module.
@@ -135,7 +135,7 @@ pbcDxAiuc(const PbcAiuc& pbcAiuc, const float4 r1, const float4 r2, float3& dr)
  * periodic boundary conditions, described in pbcAiuc object. Same as above,
  * only takes and returns data in float3 format. Does not return shifts.
  *
- * \todo This routine uses CUDA float3 types for both input and returns
+ * \todo This routine uses HIP float3 types for both input and returns
  *       values. Other than that, it does essentially the same thing as the
  *       version above, as well as SIMD and CPU versions. This routine is
  *       used in GPU-based constraints.
@@ -169,4 +169,4 @@ static __forceinline__ __host__ __device__ float3 pbcDxAiuc(const PbcAiuc& pbcAi
     return dr;
 }
 
-#endif // GMX_PBCUTIL_PBC_AIUC_CUDA_CUH
+#endif // GMX_PBCUTIL_PBC_AIUC_HIP_CUH

@@ -81,11 +81,11 @@ struct PmeGpuSettings
      *  Controls whether we use order (i.e. 4) threads per atom for the GPU
      *  or order*order (i.e. 16) threads per atom.
      *
-     *  Currently ThreadsPerAtom::Order is only supported by CUDA.
+     *  Currently ThreadsPerAtom::Order is only supported by HIP.
      */
     ThreadsPerAtom threadsPerAtom;
     /*! \brief
-     * Currently only supported by CUDA.
+     * Currently only supported by HIP.
      * Controls if we should recalculate the splines in the gather or
      * save the values in the spread and reload in the gather.
      */

@@ -40,7 +40,7 @@
  * for performing the PME calculations on GPU.
  *
  * Note that this file is compiled as regular C++ source in OpenCL builds, but
- * it is treated as CUDA source in CUDA-enabled GPU builds.
+ * it is treated as HIP source in HIP-enabled GPU builds.
  *
  * \author Aleksei Iupinov <a.yupinov@gmail.com>
  * \ingroup module_ewald
@@ -77,8 +77,8 @@
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme_coordinate_receiver_gpu.h"
 
-#if GMX_GPU_CUDA
-#    include "pme.cuh"
+#if GMX_GPU_HIP
+#    include "pme.hpp"
 #endif
 
 #include "pme_gpu_calculate_splines.h"
@@ -94,7 +94,7 @@
 #include "pme_gpu_grid.h"
 
 /*! \brief
- * CUDA only
+ * HIP only
  * Atom limit above which it is advantageous to turn on the
  * recalculating of the splines in the gather and using less threads per atom in the spline and spread
  */
@@ -108,7 +108,7 @@ constexpr int c_pmeGpuPerformanceAtomLimit = 23000;
  */
 static PmeGpuKernelParamsBase* pme_gpu_get_kernel_params_base_ptr(const PmeGpu* pmeGpu)
 {
-    // reinterpret_cast is needed because the derived CUDA structure is not known in this file
+    // reinterpret_cast is needed because the derived HIP structure is not known in this file
     auto* kernelParamsPtr = reinterpret_cast<PmeGpuKernelParamsBase*>(pmeGpu->kernelParams.get());
     return kernelParamsPtr;
 }
@@ -567,7 +567,7 @@ void pme_gpu_realloc_and_copy_fract_shifts(PmeGpu* pmeGpu)
 void pme_gpu_free_fract_shifts(const PmeGpu* pmeGpu)
 {
     auto* kernelParamsPtr = pmeGpu->kernelParams.get();
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
     destroyParamLookupTable(&kernelParamsPtr->grid.d_fractShiftsTable,
                             &kernelParamsPtr->fractShiftsTableTexture);
     destroyParamLookupTable(&kernelParamsPtr->grid.d_gridlineIndicesTable,
@@ -698,13 +698,13 @@ static void pme_gpu_init_internal(PmeGpu* pmeGpu, const DeviceContext& deviceCon
      * TODO: PME could also try to pick up nice grid sizes (with factors of 2, 3, 5, 7).
      */
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
     pmeGpu->kernelParams->usePipeline       = char(false);
     pmeGpu->kernelParams->pipelineAtomStart = 0;
     pmeGpu->kernelParams->pipelineAtomEnd   = 0;
     pmeGpu->maxGridWidthX                   = deviceContext.deviceInfo().prop.maxGridSize[0];
 #else
-    // Use this path for any non-CUDA GPU acceleration
+    // Use this path for any non-HIP GPU acceleration
     // TODO: is there no really global work size limit in OpenCL?
     pmeGpu->maxGridWidthX = INT32_MAX / 2;
 #endif
@@ -720,7 +720,7 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
         MPI_Comm           comm                      = MPI_COMM_NULL;
         std::array<int, 1> gridOffsetsInXForEachRank = { 0 };
         std::array<int, 1> gridOffsetsInYForEachRank = { 0 };
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
         const gmx::FftBackend backend = gmx::FftBackend::Cufft;
 #elif GMX_GPU_OPENCL
         const gmx::FftBackend backend = gmx::FftBackend::Ocl;
@@ -1003,7 +1003,7 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
  */
 static void pme_gpu_select_best_performing_pme_spreadgather_kernels(PmeGpu* pmeGpu)
 {
-    if (GMX_GPU_CUDA && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
+    if (GMX_GPU_HIP && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
     {
         pmeGpu->settings.threadsPerAtom     = ThreadsPerAtom::Order;
         pmeGpu->settings.recalculateSplines = true;
@@ -1180,7 +1180,7 @@ void pme_gpu_reinit_atoms(PmeGpu* pmeGpu, const int nAtoms, const real* chargesA
 
 /*! \internal \brief
  * Returns raw timing event from the corresponding GpuRegionTimer (if timings are enabled).
- * In CUDA result can be nullptr stub, per GpuRegionTimer implementation.
+ * In HIP result can be nullptr stub, per GpuRegionTimer implementation.
  *
  * \param[in] pmeGpu         The PME GPU data structure.
  * \param[in] pmeStageId     The PME GPU stage gtPME_ index from the enum in src/gromacs/timing/gpu_timing.h
@@ -1231,7 +1231,7 @@ std::pair<int, int> inline pmeGpuCreateGrid(const PmeGpu* pmeGpu, int blockCount
  * \param[in]  writeSplinesToGlobal     bool controlling if we should write spline data to global memory
  * \param[in]  numGrids                 Number of grids to use. numGrids == 2 if Coulomb is perturbed.
  *
- * \return Pointer to CUDA kernel
+ * \return Pointer to HIP kernel
  */
 static auto selectSplineAndSpreadKernelPtr(const PmeGpu*  pmeGpu,
                                            ThreadsPerAtom threadsPerAtom,
@@ -1301,7 +1301,7 @@ static auto selectSplineAndSpreadKernelPtr(const PmeGpu*  pmeGpu,
  * \param[in]  writeSplinesToGlobal     bool controlling if we should write spline data to global memory
  * \param[in]  numGrids                 Number of grids to use. numGrids == 2 if Coulomb is perturbed.
  *
- * \return Pointer to CUDA kernel
+ * \return Pointer to HIP kernel
  */
 static auto selectSplineKernelPtr(const PmeGpu*   pmeGpu,
                                   ThreadsPerAtom  threadsPerAtom,
@@ -1346,7 +1346,7 @@ static auto selectSplineKernelPtr(const PmeGpu*   pmeGpu,
  * \param[in]  writeSplinesToGlobal     bool controlling if we should write spline data to global memory
  * \param[in]  numGrids                 Number of grids to use. numGrids == 2 if Coulomb is perturbed.
  *
- * \return Pointer to CUDA kernel
+ * \return Pointer to HIP kernel
  */
 static auto selectSpreadKernelPtr(const PmeGpu*  pmeGpu,
                                   ThreadsPerAtom threadsPerAtom,
@@ -1458,7 +1458,7 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     // as these cases use a single stream (hence xReadyOnDevice == nullptr).
     GMX_ASSERT(xReadyOnDevice != nullptr || pmeGpu->common->isRankPmeOnly
                        || pme_gpu_settings(pmeGpu).copyAllOutputs,
-               "Need a valid coordinate synchronizer on PP+PME ranks with CUDA.");
+               "Need a valid coordinate synchronizer on PP+PME ranks with HIP.");
 
     if (xReadyOnDevice)
     {
@@ -1717,8 +1717,8 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     const int warpSize  = pmeGpu->programHandle_->warpSize();
     const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
-    static_assert(!GMX_GPU_CUDA || c_solveMaxWarpsPerBlock / 2 >= 4,
-                  "The CUDA solve energy kernels needs at least 4 warps. "
+    static_assert(!GMX_GPU_HIP || c_solveMaxWarpsPerBlock / 2 >= 4,
+                  "The HIP solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");
 
     KernelLaunchConfig config;
@@ -1805,7 +1805,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
  * \param[in]  readSplinesFromGlobal    bool controlling if we should write spline data to global memory
  * \param[in]  numGrids                 Number of grids to use. numGrids == 2 if Coulomb is perturbed.
  *
- * \return Pointer to CUDA kernel
+ * \return Pointer to HIP kernel
  */
 inline auto selectGatherKernelPtr(const PmeGpu*  pmeGpu,
                                   ThreadsPerAtom threadsPerAtom,

@@ -38,7 +38,7 @@
  * The test runs on several small systems, containing 1 to 17 water molecules,
  * with and without periodic boundary conditions, with and without velocity
  * and virial updates. The CPU and GPU versions are tested, if the code was
- * compiled with CUDA support and there is a CUDA-capable GPU in the system.
+ * compiled with HIP support and there is a HIP-capable GPU in the system.
  *
  * The tests check:
  * 1. If the final distances between constrained atoms are within tolerance
@@ -60,8 +60,8 @@
  *
  * \todo The CPU and GPU versions are tested against each other. This
  *       should be changed to a proper test against pre-computed
- *       reference values. Also, these test will dry-run on a CUDA
- *       build if no CUDA-capable GPU is available.
+ *       reference values. Also, these test will dry-run on a HIP
+ *       build if no HIP-capable GPU is available.
  *
  * \author Mark Abraham  <mark.j.abraham@gmail.com>
  * \author Artem Zhmurov <zhmurov@gmail.com>

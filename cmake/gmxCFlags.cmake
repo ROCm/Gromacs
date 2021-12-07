@@ -59,7 +59,7 @@ MACRO(GMX_TEST_CXXFLAG VARIABLE FLAGS CXXFLAGSVAR)
     ENDIF ()
 ENDMACRO(GMX_TEST_CXXFLAG VARIABLE FLAGS CXXFLAGSVAR)
 
-# Prepare some local variables so CUDA and non-CUDA code in targets
+# Prepare some local variables so HIP and non-HIP code in targets
 # works the same way.
 function(gmx_target_compile_options_inner)
     set(CFLAGS
@@ -85,7 +85,7 @@ endfunction()
 # GROMACS build configurations, and those expected for the current
 # CMake build type (e.g. Release) to TARGET. Other GROMACS CMake code
 # is expected to use either gmx_target_compile_options(name_of_target)
-# or gmx_cuda_target_compile_options(name_of_variable) because CUDA
+# or gmx_hip_target_compile_options(name_of_variable) because HIP
 # compilation has special requirements.
 #
 # Most targets (ie. libraries, executables) need compiler flags that
@@ -132,27 +132,27 @@ function(gmx_target_compile_options TARGET)
         )
 endfunction()
 
-# The approach taken by FindCUDA.cmake is to require that the compiler
+# The approach taken by FindHIP.cmake is to require that the compiler
 # flags are known and present in a variable before creating the target
 # for the library. (Those get embedded in files that are generated at
-# the point of calling cuda_add_library, which does not create a
+# the point of calling hip_add_library, which does not create a
 # target that one could later call target_compile_options upon.) So,
 # this function instead returns appropriate content in
 # ${VARIABLE_NAME}, along with other such variables that are
 # specialized for the various build_types. Hopefully this will improve
-# when we use native CUDA language support in our CMake.
-function(gmx_cuda_target_compile_options VARIABLE_NAME)
+# when we use native HIP language support in our CMake.
+function(gmx_hip_target_compile_options VARIABLE_NAME)
     if (GMX_SKIP_DEFAULT_CFLAGS)
         set (CXXFLAGS "")
     else()
         # Prepare the generic compiler options
         gmx_target_compile_options_inner()
-        # CUDA headers issue lots of warnings when compiled with
+        # HIP headers issue lots of warnings when compiled with
         # -Wundef because they use old-style #ifdef a lot. We'd prefer
-        # to have FindCUDA.cmake treat CUDA internal headers with
+        # to have FindHIP.cmake treat HIP internal headers with
         # -isystem so that these warnings are naturally suppressed,
         # but there's no way to do that without bundling a modified
-        # form of FindCUDA.cmake. That creates its own problems,
+        # form of FindHIP.cmake. That creates its own problems,
         # because people either don't know we do that, or don't
         # remember that we don't do that in user tarballs.
         #
@@ -160,7 +160,7 @@ function(gmx_cuda_target_compile_options VARIABLE_NAME)
         # config.h any time we use such symbols in commits in a merge
         # request. Local development could run that too. So, we can
         # tolerate any remaining risk from accidentally using
-        # e.g. #ifdef GMX_MPI rather than #if GMX_MPI in CUDA source
+        # e.g. #ifdef GMX_MPI rather than #if GMX_MPI in HIP source
         # files.
         #
         # So we disable -Wundef by the simple hack of appending
@@ -168,11 +168,11 @@ function(gmx_cuda_target_compile_options VARIABLE_NAME)
         # logic to avoid adding -Wundef to GMXC_CXXFLAGS, given the
         # current approach to adding them. Hopefully this will improve
         # if/when we have more CMake object libraries, and/or native
-        # CUDA compilation.
+        # HIP compilation.
         GMX_TEST_CXXFLAG(CXXFLAGS_WARN_NOUNDEF "-Wno-undef" CXXFLAGS)
     endif()
 
-    # Only C++ compilation is supported with CUDA code in GROMACS
+    # Only C++ compilation is supported with HIP code in GROMACS
     set(${VARIABLE_NAME} ${CXXFLAGS} PARENT_SCOPE)
 
     # Now organize the flags for different build
@@ -253,7 +253,7 @@ macro (gmx_c_flags)
         endif()
         if (GMX_COMPILER_WARNINGS)
             GMX_TEST_CXXFLAG(CXXFLAGS_WARN "-Wall" GMXC_CXXFLAGS)
-            # Problematic with CUDA
+            # Problematic with HIP
             # GMX_TEST_CXXFLAG(CXXFLAGS_WARN_EFFCXX "-Wnon-virtual-dtor" GMXC_CXXFLAGS)
             GMX_TEST_CXXFLAG(CXXFLAGS_WARN_EXTRA "-Wextra;-Wpointer-arith;-Wmissing-declarations" GMXC_CXXFLAGS)
             GMX_TEST_CXXFLAG(CXXFLAGS_WARN_UNDEF "-Wundef" GMXC_CXXFLAGS)

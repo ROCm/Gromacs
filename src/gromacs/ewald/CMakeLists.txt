@@ -56,9 +56,9 @@ gmx_add_libgromacs_sources(
     pme_coordinate_receiver_gpu_impl.cpp
     pme_force_sender_gpu_impl.cpp
     )
-if (GMX_GPU_CUDA)
+if (GMX_GPU_HIP)
     gmx_add_libgromacs_sources(
-        # CUDA-specific sources
+        # HIP-specific sources
         pme_gather.cu
         pme_solve.cu
         pme_spread.cu
@@ -72,7 +72,7 @@ if (GMX_GPU_CUDA)
         pme_gpu_internal.cpp
         pme_gpu_timings.cpp
         )
-    _gmx_add_files_to_property(CUDA_SOURCES
+    _gmx_add_files_to_property(HIP_SOURCES
         # Must add these files so they can include device_information.h
         pme_gpu_internal.cpp
         pme_gpu_timings.cpp

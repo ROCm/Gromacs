@@ -141,7 +141,7 @@ static DeviceDetectionResult detectAllDeviceInformation(const PhysicalNodeCommun
     /* The SYCL and OpenCL support requires us to run detection on all
      * ranks.
      *
-     * With CUDA we don't need to, and prefer to detect on one rank
+     * With HIP we don't need to, and prefer to detect on one rank
      * and send the information to the other ranks over MPI. This
      * avoids creating a start-up bottleneck with each MPI rank on a
      * node making the same GPU API calls. */

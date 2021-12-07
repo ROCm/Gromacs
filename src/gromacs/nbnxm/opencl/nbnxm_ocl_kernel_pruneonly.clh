@@ -121,7 +121,7 @@ nbnxn_kernel_prune_rolling_opencl
          + (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize))
 #endif
 #if !USE_SUBGROUP_ANY
-    /* Local buffer used to implement __any warp vote function from CUDA.
+    /* Local buffer used to implement __any warp vote function from HIP.
        volatile is used to avoid compiler optimizations for AMD builds. */
     //NOLINTNEXTLINE(google-readability-casting)
     volatile __local int* const warp_any     = (__local int*)(LOCAL_OFFSET);

@@ -34,7 +34,7 @@
  */
 /*! \libinternal \file
  * \brief Declares functions for pinning memory to be suitable for
- * efficient GPU transfers on CUDA.
+ * efficient GPU transfers on HIP.
  *
  * \author Mark Abraham <mark.j.abraham@gmail.com>
  * \inlibraryapi
@@ -53,8 +53,8 @@ namespace gmx
  *
  * Does not throw.
  */
-CUDA_FUNC_QUALIFIER void pinBuffer(void*       CUDA_FUNC_ARGUMENT(pointer),
-                                   std::size_t CUDA_FUNC_ARGUMENT(numBytes)) noexcept CUDA_FUNC_TERM;
+HIP_FUNC_QUALIFIER void pinBuffer(void*       HIP_FUNC_ARGUMENT(pointer),
+                                   std::size_t HIP_FUNC_ARGUMENT(numBytes)) noexcept HIP_FUNC_TERM;
 
 /*! \brief Unpin the allocation.
  *
@@ -63,6 +63,6 @@ CUDA_FUNC_QUALIFIER void pinBuffer(void*       CUDA_FUNC_ARGUMENT(pointer),
  *
  * Does not throw.
  */
-CUDA_FUNC_QUALIFIER void unpinBuffer(void* CUDA_FUNC_ARGUMENT(pointer)) noexcept CUDA_FUNC_TERM;
+HIP_FUNC_QUALIFIER void unpinBuffer(void* HIP_FUNC_ARGUMENT(pointer)) noexcept HIP_FUNC_TERM;
 
 } // namespace gmx

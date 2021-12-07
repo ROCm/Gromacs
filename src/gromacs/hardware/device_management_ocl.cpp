@@ -108,7 +108,7 @@ static bool runningOnCompatibleOSForAmd()
 /*! \brief Return true if executing on compatible GPU for NVIDIA OpenCL.
  *
  * There are known issues with OpenCL when running on NVIDIA Volta or newer (CC 7+).
- * As a workaround, we recommend using CUDA on such hardware.
+ * As a workaround, we recommend using HIP on such hardware.
  *
  * This function relies on cl_nv_device_attribute_query. In case it's not functioning properly,
  * we trust the user and mark the device as compatible.
@@ -569,10 +569,10 @@ void setActiveDevice(const DeviceInformation& deviceInfo)
         // Ignore return values, failing to set the variable does not mean
         // that something will go wrong later.
 #ifdef _MSC_VER
-        _putenv("CUDA_CACHE_DISABLE=1");
+        _putenv("HIP_CACHE_DISABLE=1");
 #else
         // Don't override, maybe a dev is testing.
-        setenv("CUDA_CACHE_DISABLE", "1", 0);
+        setenv("HIP_CACHE_DISABLE", "1", 0);
 #endif
     }
 }

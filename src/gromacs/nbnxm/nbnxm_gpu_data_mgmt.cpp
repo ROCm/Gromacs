@@ -48,8 +48,8 @@
 
 #include "config.h"
 
-#if GMX_GPU_CUDA
-#    include "cuda/nbnxm_cuda_types.h"
+#if GMX_GPU_HIP
+#    include "hip/nbnxm_hip_types.h"
 #endif
 
 #if GMX_GPU_OPENCL
@@ -133,10 +133,10 @@ static inline ElecType nbnxn_gpu_pick_ewald_kernel_type(const interaction_const_
                 "requested through environment variables.");
     }
 
-    /* By default, use analytical Ewald except with CUDA on NVIDIA CC 7.0 and 8.0.
+    /* By default, use analytical Ewald except with HIP on NVIDIA CC 7.0 and 8.0.
      */
     const bool c_useTabulatedEwaldDefault =
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
             (deviceInfo.prop.major == 7 && deviceInfo.prop.minor == 0)
             || (deviceInfo.prop.major == 8 && deviceInfo.prop.minor == 0);
 #else
@@ -550,7 +550,7 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
         iTimers.didPairlistH2D = true;
     }
 
-    // TODO most of this function is same in CUDA and OpenCL, move into the header
+    // TODO most of this function is same in HIP and OpenCL, move into the header
     const DeviceContext& deviceContext = *nb->deviceContext_;
 
     reallocateDeviceBuffer(

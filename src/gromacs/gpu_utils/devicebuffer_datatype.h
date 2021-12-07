@@ -50,7 +50,7 @@
 
 #include "gromacs/math/vectypes.h"
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
 
 //! \brief A device-side buffer of ValueTypes
 template<typename ValueType>
@@ -117,7 +117,7 @@ struct DeviceBuffer
     //! Helper function to get the size in bytes of a single element
     static constexpr size_t elementSize() { return sizeof(ValueType); }
 
-    // Both explicit and implicit casts to void* are used in MPI+CUDA code, this stub is necessary for compilation.
+    // Both explicit and implicit casts to void* are used in MPI+HIP code, this stub is necessary for compilation.
     operator void*() const { throw; }
 
     //! Allow implicit conversion to bool to check buffer status for compatibility with other implementations.

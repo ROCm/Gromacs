@@ -36,7 +36,7 @@
 /*! \libinternal \file
  * \brief Provides backported functions/classes from utility
  *
- * \todo Remove when CUDA 11 is a requirement.
+ * \todo Remove when HIP 11 is a requirement.
  *
  * \author Roland Schulz <roland.schulz@intel.com>
  * \ingroup module_compat

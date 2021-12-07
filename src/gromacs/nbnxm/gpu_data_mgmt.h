@@ -128,10 +128,10 @@ GPU_FUNC_QUALIFIER
 bool gpu_is_kernel_ewald_analytical(const NbnxmGpu gmx_unused* nb) GPU_FUNC_TERM_WITH_RETURN(FALSE);
 
 /** Returns an opaque pointer to the GPU coordinate+charge array
- *  Note: CUDA only.
+ *  Note: HIP only.
  */
-CUDA_FUNC_QUALIFIER
-void* gpu_get_xq(NbnxmGpu gmx_unused* nb) CUDA_FUNC_TERM_WITH_RETURN(nullptr);
+HIP_FUNC_QUALIFIER
+void* gpu_get_xq(NbnxmGpu gmx_unused* nb) HIP_FUNC_TERM_WITH_RETURN(nullptr);
 
 /** Returns forces device buffer.
  */
@@ -140,11 +140,11 @@ DeviceBuffer<gmx::RVec> gpu_get_f(NbnxmGpu gmx_unused* nb)
         GPU_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
 
 /** Returns an opaque pointer to the GPU shift force array
- *  Note: CUDA only.
+ *  Note: HIP only.
  */
-CUDA_FUNC_QUALIFIER
+HIP_FUNC_QUALIFIER
 DeviceBuffer<gmx::RVec> gpu_get_fshift(NbnxmGpu gmx_unused* nb)
-        CUDA_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
+        HIP_FUNC_TERM_WITH_RETURN(DeviceBuffer<gmx::RVec>{});
 
 } // namespace Nbnxm
 

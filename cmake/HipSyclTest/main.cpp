@@ -39,18 +39,18 @@
 #endif
 
 /* Next, we optionally check three backends.
- * If CHECK_CUDA_TARGET is defined:
- *  - If we are not compiling for CUDA (because we did not specify CUDA devices among targets),
+ * If CHECK_HIP_TARGET is defined:
+ *  - If we are not compiling for HIP (because we did not specify HIP devices among targets),
  *  this test compilation will fail.
- *  - If we are compiling for CUDA, the compilation will proceed.
+ *  - If we are compiling for HIP, the compilation will proceed.
  * Same for HIP and LevelZero.
  *
  * This allows us to compile this test file with different -DCHECK_x_TARGET flags to see which
  * backends we are compiling for and report it to CMake.
  * */
 
-#if defined(CHECK_CUDA_TARGET) && !defined(__HIPSYCL_ENABLE_CUDA_TARGET__)
-#    error "CUDA target not enabled";
+#if defined(CHECK_HIP_TARGET) && !defined(__HIPSYCL_ENABLE_HIP_TARGET__)
+#    error "HIP target not enabled";
 #endif
 
 #if defined(CHECK_HIP_TARGET) && !defined(__HIPSYCL_ENABLE_HIP_TARGET__)

@@ -37,7 +37,7 @@
  * \brief May be used to implement PME-PP GPU comm interfaces for non-GPU builds.
  *
  * Currently, reports and exits if any of the interfaces are called.
- * Needed to satisfy compiler on systems, where CUDA is not available.
+ * Needed to satisfy compiler on systems, where HIP is not available.
  *
  * \author Alan Gray <alang@nvidia.com>
  *
@@ -51,7 +51,7 @@
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/gmxassert.h"
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_HIP
 
 namespace gmx
 {
@@ -82,14 +82,14 @@ void PmeCoordinateReceiverGpu::reinitCoordinateReceiver(DeviceBuffer<RVec> /* d_
                "correct implementation.");
 }
 
-void PmeCoordinateReceiverGpu::receiveCoordinatesSynchronizerFromPpCudaDirect(int /* ppRank */)
+void PmeCoordinateReceiverGpu::receiveCoordinatesSynchronizerFromPpHipDirect(int /* ppRank */)
 {
     GMX_ASSERT(!impl_,
                "A CPU stub for PME-PP GPU communication was called instead of the correct "
                "implementation.");
 }
 
-void PmeCoordinateReceiverGpu::launchReceiveCoordinatesFromPpCudaMpi(DeviceBuffer<RVec> /* recvbuf */,
+void PmeCoordinateReceiverGpu::launchReceiveCoordinatesFromPpHipMpi(DeviceBuffer<RVec> /* recvbuf */,
                                                                      int /* numAtoms */,
                                                                      int /* numBytes */,
                                                                      int /* ppRank */,
@@ -143,4 +143,4 @@ int PmeCoordinateReceiverGpu::ppCommNumSenderRanks()
 
 } // namespace gmx
 
-#endif // !GMX_GPU_CUDA
+#endif // !GMX_GPU_HIP

@@ -44,8 +44,8 @@ if(GMX_DOUBLE)
     message(FATAL_ERROR "OpenCL acceleration is not available in double precision")
 endif()
 
-# for some reason FindOpenCL checks CUDA_PATH but not CUDA_HOME
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH};$ENV{CUDA_HOME})
+# for some reason FindOpenCL checks HIP_PATH but not HIP_HOME
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH};$ENV{HIP_HOME})
 find_package(OpenCL)
 
 if (OpenCL_FOUND)

@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /*! \internal \file
- * \brief Declares GPU implementation class for CUDA bonded
+ * \brief Declares GPU implementation class for HIP bonded
  * interactions.
  *
  * This header file is needed to include from both the device-side
@@ -49,7 +49,7 @@
 #define GMX_LISTED_FORCES_LISTED_FORCES_GPU_IMPL_H
 
 #include "gromacs/gpu_utils/device_context.h"
-#include "gromacs/gpu_utils/gputraits.cuh"
+#include "gromacs/gpu_utils/gputraits.hpp"
 #include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/listed_forces/listed_forces_gpu.h"
 #include "gromacs/pbcutil/pbc_aiuc.h"
@@ -76,7 +76,7 @@ struct HostInteractionList
  * to the GPU as a single structure.
  *
  */
-struct BondedCudaKernelParameters
+struct BondedHipKernelParameters
 {
     //! Periodic boundary data
     PbcAiuc pbcAiuc;
@@ -100,7 +100,7 @@ struct BondedCudaKernelParameters
     //! Interaction list atoms (on GPU)
     t_iatom* d_iatoms[numFTypesOnGpu];
 
-    BondedCudaKernelParameters()
+    BondedHipKernelParameters()
     {
         matrix boxDummy = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } };
 
@@ -190,8 +190,8 @@ private:
     //! \brief Bonded GPU stream, not owned by this module
     const DeviceStream& deviceStream_;
 
-    //! Parameters and pointers, passed to the CUDA kernel
-    BondedCudaKernelParameters kernelParams_;
+    //! Parameters and pointers, passed to the HIP kernel
+    BondedHipKernelParameters kernelParams_;
 
     //! GPU kernel launch configuration
     KernelLaunchConfig kernelLaunchConfig_;

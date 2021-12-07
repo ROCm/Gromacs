@@ -273,7 +273,7 @@ static inline void calculateSplines(const int                           atomInde
             int   tableIndex, tInt;
             float n, t;
             assert(atomIndexLocal < DIM * atomsPerBlock);
-            // Switch structure inherited from CUDA.
+            // Switch structure inherited from HIP.
             // TODO: Issue #4153: Direct indexing with dimIndex can be better with SYCL
             switch (dimIndex)
             {

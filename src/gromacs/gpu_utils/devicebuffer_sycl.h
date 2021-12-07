@@ -138,7 +138,7 @@ DeviceBuffer<T>& DeviceBuffer<T>::operator=(DeviceBuffer<T>&& src) noexcept = de
 
 /*! \brief Dummy assignment operator to allow compilation of some cross-platform code.
  *
- * A hacky way to make SYCL implementation of DeviceBuffer compatible with details of CUDA and
+ * A hacky way to make SYCL implementation of DeviceBuffer compatible with details of HIP and
  * OpenCL implementations.
  *
  * \todo Should be removed after DeviceBuffer refactoring.
@@ -375,7 +375,7 @@ void freeDeviceBuffer(DeviceBuffer<ValueType>* buffer)
 /*! \brief
  * Performs the host-to-device data copy, synchronous or asynchronously on request.
  *
- * Unlike in CUDA and OpenCL, synchronous call does not guarantee that all previously
+ * Unlike in HIP and OpenCL, synchronous call does not guarantee that all previously
  * submitted operations are complete, only the ones that are required for \p buffer consistency.
  *
  * \tparam        ValueType            Raw value type of the \p buffer.
@@ -434,7 +434,7 @@ void copyToDeviceBuffer(DeviceBuffer<ValueType>* buffer,
 /*! \brief
  * Performs the device-to-host data copy, synchronous or asynchronously on request.
  *
- * Unlike in CUDA and OpenCL, synchronous call does not guarantee that all previously
+ * Unlike in HIP and OpenCL, synchronous call does not guarantee that all previously
  * submitted operations are complete, only the ones that are required for \p buffer consistency.
  *
  * \tparam        ValueType            Raw value type of the \p buffer.

@@ -36,7 +36,7 @@
 #define GMX_GPU_UTILS_DEVICEBUFFER_H
 
 /*! \libinternal \file
- *  \brief Implements the logic for handling of DeviceBuffer types in OpenCL, CUDA and SYCL.
+ *  \brief Implements the logic for handling of DeviceBuffer types in OpenCL, HIP and SYCL.
  *
  *  Can only be included on GPU build paths.
  *
@@ -55,8 +55,8 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h" // TODO: this is only for over_alloc_large
 
-#if GMX_GPU_CUDA
-#    include "gromacs/gpu_utils/devicebuffer.cuh"
+#if GMX_GPU_HIP
+#    include "gromacs/gpu_utils/devicebuffer.hpp"
 #elif GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/devicebuffer_ocl.h"
 #elif GMX_GPU_SYCL

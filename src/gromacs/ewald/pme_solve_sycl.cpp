@@ -428,7 +428,7 @@ sycl::event PmeSolveKernel<gridOrdering, computeEnergyAndVirial, gridIndex, subG
 
     using KernelNameType = PmeSolveKernel<gridOrdering, computeEnergyAndVirial, gridIndex, subGroupSize>;
 
-    // SYCL has different multidimensional layout than OpenCL/CUDA.
+    // SYCL has different multidimensional layout than OpenCL/HIP.
     const sycl::range<3> localSize{ config.blockSize[2], config.blockSize[1], config.blockSize[0] };
     const sycl::range<3> groupRange{ config.gridSize[2], config.gridSize[1], config.gridSize[0] };
     const sycl::nd_range<3> range{ groupRange * localSize, localSize };

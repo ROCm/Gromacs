@@ -36,7 +36,7 @@
 
 /*! \libinternal \file
  *  \brief Defines the GPU region timer implementation/wrapper classes.
- *  The implementations live in gpuregiontimer.cuh for CUDA and gpuregiontimer_ocl.h for OpenCL.
+ *  The implementations live in gpuregiontimer.hpp for HIP and gpuregiontimer_ocl.h for OpenCL.
  *
  *  \author Aleksei Iupinov <a.yupinov@gmail.com>
  */

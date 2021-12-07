@@ -44,8 +44,8 @@
  *  \author Andrey Alekseenko <al42and@gmail.com>
  */
 
-//! \brief Full warp active thread mask used in CUDA warp-level primitives.
-static constexpr unsigned int c_cudaFullWarpMask = 0xffffffff;
+//! \brief Full warp active thread mask used in HIP warp-level primitives.
+static constexpr unsigned int c_hipFullWarpMask = 0xffffffff;
 
 /*! \brief Convenience wrapper to do atomic addition to a global buffer.
  */
@@ -70,7 +70,7 @@ static inline T atomicLoad(T& val)
 
 /*! \brief Issue an intra sub-group barrier.
  *
- * Equivalent with CUDA's \c syncwarp(c_cudaFullWarpMask).
+ * Equivalent with HIP's \c syncwarp(c_hipFullWarpMask).
  *
  */
 template<int Dim>
@@ -90,8 +90,8 @@ __device__ __host__ static inline float shift_left(sycl::sub_group, float var, s
 {
     // No sycl::sub_group::shift_left / shuffle_down in hipSYCL yet
 #    ifdef SYCL_DEVICE_ONLY
-#        if defined(HIPSYCL_PLATFORM_CUDA) && defined(__HIPSYCL_ENABLE_CUDA_TARGET__)
-    return __shfl_down_sync(c_cudaFullWarpMask, var, delta);
+#        if defined(HIPSYCL_PLATFORM_HIP) && defined(__HIPSYCL_ENABLE_HIP_TARGET__)
+    return __shfl_down_sync(c_hipFullWarpMask, var, delta);
 #        elif defined(HIPSYCL_PLATFORM_ROCM) && defined(__HIPSYCL_ENABLE_HIP_TARGET__)
     // Do we need more ifdefs? https://github.com/ROCm-Developer-Tools/HIP/issues/1491
     return __shfl_down(var, delta);
@@ -118,8 +118,8 @@ __device__ __host__ static inline float shift_right(sycl::sub_group, float var, 
 {
     // No sycl::sub_group::shift_right / shuffle_up in hipSYCL yet
 #    ifdef SYCL_DEVICE_ONLY
-#        if defined(HIPSYCL_PLATFORM_CUDA) && defined(__HIPSYCL_ENABLE_CUDA_TARGET__)
-    return __shfl_up_sync(c_cudaFullWarpMask, var, delta);
+#        if defined(HIPSYCL_PLATFORM_HIP) && defined(__HIPSYCL_ENABLE_HIP_TARGET__)
+    return __shfl_up_sync(c_hipFullWarpMask, var, delta);
 #        elif defined(HIPSYCL_PLATFORM_ROCM) && defined(__HIPSYCL_ENABLE_HIP_TARGET__)
     // Do we need more ifdefs? https://github.com/ROCm-Developer-Tools/HIP/issues/1491
     return __shfl_up(var, delta);
@@ -152,7 +152,7 @@ __device__ __host__ static inline bool isfinite(Real value)
     // This is not yet implemented in hipSYCL pending
     // https://github.com/illuhad/hipSYCL/issues/636
 #    ifdef SYCL_DEVICE_ONLY
-#        if defined(HIPSYCL_PLATFORM_CUDA) && defined(__HIPSYCL_ENABLE_CUDA_TARGET__)
+#        if defined(HIPSYCL_PLATFORM_HIP) && defined(__HIPSYCL_ENABLE_HIP_TARGET__)
     return ::isfinite(value);
 #        elif defined(HIPSYCL_PLATFORM_ROCM) && defined(__HIPSYCL_ENABLE_HIP_TARGET__)
     return ::isfinite(value);

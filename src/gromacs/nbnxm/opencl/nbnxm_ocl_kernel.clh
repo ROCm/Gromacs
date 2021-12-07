@@ -90,7 +90,7 @@
  */
 
 /* NOTE:
-   NB_KERNEL_FUNC_NAME differs from the CUDA equivalent as it is not a variadic macro due to OpenCL
+   NB_KERNEL_FUNC_NAME differs from the HIP equivalent as it is not a variadic macro due to OpenCL
    not having a support for them, this version only takes exactly 2 arguments. Thus if more strings
    need to be appended a new macro must be written or it must be directly appended here.
  */
@@ -211,7 +211,7 @@ __kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_opencl)
     __local float* f_buf             = 0;
 #endif
 #if !USE_SUBGROUP_ANY
-    /* Local buffer used to implement __any warp vote function from CUDA.
+    /* Local buffer used to implement __any warp vote function from HIP.
        volatile is used to avoid compiler optimizations for AMD builds. */
     //NOLINTNEXTLINE(google-readability-casting)
     volatile __local int* warp_any = (__local int*)(LOCAL_OFFSET);

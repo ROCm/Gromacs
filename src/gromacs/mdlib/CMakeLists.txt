@@ -50,7 +50,7 @@ list(REMOVE_ITEM MDLIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/update_constrain_gpu_internal_sycl.cpp)
 
 set(MDLIB_SOURCES ${MDLIB_SOURCES} PARENT_SCOPE)
-if(GMX_GPU_CUDA)
+if(GMX_GPU_HIP)
     gmx_add_libgromacs_sources(
        gpuforcereduction_impl.cpp
        gpuforcereduction_impl_internal.cu
@@ -63,7 +63,7 @@ if(GMX_GPU_CUDA)
        update_constrain_gpu_impl.cpp
        update_constrain_gpu_internal.cu
        )
-    _gmx_add_files_to_property(CUDA_SOURCES
+    _gmx_add_files_to_property(HIP_SOURCES
        gpuforcereduction_impl.cpp
        leapfrog_gpu.cpp
        lincs_gpu.cpp

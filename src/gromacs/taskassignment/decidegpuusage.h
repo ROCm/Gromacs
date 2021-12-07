@@ -84,8 +84,8 @@ struct DevelopmentFeatureFlags
     bool enableGpuBufferOps = false;
     //! If true, forces 'mdrun -update auto' default to 'gpu'
     bool forceGpuUpdateDefault = false;
-    //! True if the CUDA-aware MPI can be used for GPU direct communication feature
-    bool canUseCudaAwareMpi = false;
+    //! True if the HIP-aware MPI can be used for GPU direct communication feature
+    bool canUseHipAwareMpi = false;
     //! True if GPU PME-decomposition is enabled
     bool enableGpuPmeDecomposition = false;
 };

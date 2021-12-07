@@ -59,7 +59,7 @@ enum class KernelType;
 //! The i-cluster size for CPU kernels, always 4 atoms
 static constexpr int c_nbnxnCpuIClusterSize = 4;
 
-//! The i- and j-cluster size for GPU lists, 8 atoms for CUDA, set at configure time for OpenCL and SYCL
+//! The i- and j-cluster size for GPU lists, 8 atoms for HIP, set at configure time for OpenCL and SYCL
 #if GMX_GPU_OPENCL || GMX_GPU_SYCL
 static constexpr int c_nbnxnGpuClusterSize = GMX_GPU_NB_CLUSTER_SIZE;
 #else
@@ -79,7 +79,7 @@ static constexpr int c_gpuNumClusterPerCell =
 
 /*! \brief The number of sub-parts used for data storage for a GPU cluster pair
  *
- * In CUDA the number of threads in a warp is 32 and we have cluster pairs
+ * In HIP the number of threads in a warp is 32 and we have cluster pairs
  * of 8*8=64 atoms, so it's convenient to store data for cluster pair halves.
  */
 static constexpr int c_nbnxnGpuClusterpairSplit = 2;

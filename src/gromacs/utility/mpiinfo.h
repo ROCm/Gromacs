@@ -37,25 +37,25 @@
 
 namespace gmx
 {
-/*! \brief Enum describing CUDA-aware support in underlying MPI library.
+/*! \brief Enum describing HIP-aware support in underlying MPI library.
  */
-enum class CudaAwareMpiStatus : int
+enum class HipAwareMpiStatus : int
 {
-    Supported,    //!< CUDA-aware support available.
-    NotSupported, //!< CUDA-aware support NOT available.
-    NotKnown      //!< CUDA-aware support status not known.
+    Supported,    //!< HIP-aware support available.
+    NotSupported, //!< HIP-aware support NOT available.
+    NotKnown      //!< HIP-aware support status not known.
 };
 
 
 /*! \brief
- * Wrapper on top of MPIX_Query_cuda_support()
+ * Wrapper on top of MPIX_Query_hip_support()
  * For MPI implementations which don't support this function, it returns NotKnown
  * Even when an MPI implementation does support this function, MPI library might not be
- * robust enough to detect CUDA-aware support at runtime correcly e.g. when UCX PML is used
- * or CUDA is disabled at runtime
+ * robust enough to detect HIP-aware support at runtime correcly e.g. when UCX PML is used
+ * or HIP is disabled at runtime
  *
- * \returns     CUDA-aware status in MPI implementation */
-CudaAwareMpiStatus checkMpiCudaAwareSupport();
+ * \returns     HIP-aware status in MPI implementation */
+HipAwareMpiStatus checkMpiHipAwareSupport();
 
 } // namespace gmx
 

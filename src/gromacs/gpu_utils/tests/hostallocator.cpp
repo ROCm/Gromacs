@@ -192,9 +192,9 @@ TYPED_TEST(HostAllocatorTestCopyable, VectorsWithDefaultHostAllocatorAlwaysWorks
     output.resizeWithPadding(input.size());
 }
 
-// Several tests actually do CUDA transfers. This is not necessary
+// Several tests actually do HIP transfers. This is not necessary
 // because the state of page alignment or pinning is not currently
-// relevant to the success of a CUDA transfer. CUDA checks happen only
+// relevant to the success of a HIP transfer. HIP checks happen only
 // during hipHostRegister and hipHostUnregister. Such tests are of
 // value only when this behaviour changes, if ever.
 
@@ -292,11 +292,11 @@ TYPED_TEST(HostAllocatorTestNoMem, Comparison)
     EXPECT_NE(AllocatorType{}, AllocatorType{ PinningPolicy::PinnedIfSupported });
 }
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
 
-// Policy suitable for pinning is only supported for a CUDA build
+// Policy suitable for pinning is only supported for a HIP build
 
-TYPED_TEST(HostAllocatorTestCopyable, TransfersWithPinningWorkWithCuda)
+TYPED_TEST(HostAllocatorTestCopyable, TransfersWithPinningWorkWithHip)
 {
     for (const auto& testDevice : getTestHardwareEnvironment()->getTestDeviceList())
     {
@@ -320,7 +320,7 @@ bool isPinned(const VectorType& v)
     return isHostMemoryPinned(data);
 }
 
-TYPED_TEST(HostAllocatorTestCopyable, ManualPinningOperationsWorkWithCuda)
+TYPED_TEST(HostAllocatorTestCopyable, ManualPinningOperationsWorkWithHip)
 {
     for (const auto& testDevice : getTestHardwareEnvironment()->getTestDeviceList())
     {

@@ -218,8 +218,8 @@
 /* Define if any type of GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU
 
-/* Define if CUDA GPU acceleration is compiled */
-#cmakedefine01 GMX_GPU_CUDA
+/* Define if HIP GPU acceleration is compiled */
+#cmakedefine01 GMX_GPU_HIP
 
 /* Define if OpenCL GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU_OPENCL
@@ -233,8 +233,8 @@
 // Define if hipSYCL has HIP target(s)
 #cmakedefine01 GMX_HIPSYCL_HAVE_HIP_TARGET
 
-// Define if hipSYCL has CUDA target(s)
-#cmakedefine01 GMX_HIPSYCL_HAVE_CUDA_TARGET
+// Define if hipSYCL has HIP target(s)
+#cmakedefine01 GMX_HIPSYCL_HAVE_HIP_TARGET
 
 /* Define if Intel's DPC++ is used (default unless hipSYCL is chosen) */
 #define GMX_SYCL_DPCPP (!GMX_SYCL_HIPSYCL && GMX_GPU_SYCL)
@@ -242,11 +242,11 @@
 /* Define if we wish to use USM (otherwise buffer-accessor mechanism is used) */
 #cmakedefine01 GMX_SYCL_USE_USM
 
-/* Use a single compilation unit when compiling the CUDA (non-bonded) kernels.  */
-#cmakedefine01 GMX_CUDA_NB_SINGLE_COMPILATION_UNIT
+/* Use a single compilation unit when compiling the HIP (non-bonded) kernels.  */
+#cmakedefine01 GMX_HIP_NB_SINGLE_COMPILATION_UNIT
 
-/* Use CUDA-aware MPI.  */
-#cmakedefine01 HAVE_CUDA_AWARE_MPI
+/* Use HIP-aware MPI.  */
+#cmakedefine01 HAVE_HIP_AWARE_MPI
 
 /* Define if HeFFTe library found */
 #cmakedefine01 Heffte_FOUND

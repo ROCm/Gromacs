@@ -126,8 +126,8 @@ LincsGpu::LincsGpu(int                  numIterations,
                    const DeviceStream&  deviceStream) :
     deviceContext_(deviceContext), deviceStream_(deviceStream)
 {
-    GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_SYCL),
-                       "LINCS GPU is only implemented in CUDA and SYCL.");
+    GMX_RELEASE_ASSERT(bool(GMX_GPU_HIP) || bool(GMX_GPU_SYCL),
+                       "LINCS GPU is only implemented in HIP and SYCL.");
     kernelParams_.numIterations  = numIterations;
     kernelParams_.expansionOrder = expansionOrder;
 
@@ -342,8 +342,8 @@ bool LincsGpu::isNumCoupledConstraintsSupported(const gmx_mtop_t& mtop)
 
 void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const real* invmass)
 {
-    GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_SYCL),
-                       "LINCS GPU is only implemented in CUDA and SYCL.");
+    GMX_RELEASE_ASSERT(bool(GMX_GPU_HIP) || bool(GMX_GPU_SYCL),
+                       "LINCS GPU is only implemented in HIP and SYCL.");
     // List of constrained atoms (CPU memory)
     std::vector<AtomPair> constraintsHost;
     // Equilibrium distances for the constraints (CPU)
@@ -383,7 +383,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
         if (numCoupledConstraints[c] > c_threadsPerBlock)
         {
             gmx_fatal(FARGS,
-                      "Maximum number of coupled constraints (%d) exceeds the size of the CUDA "
+                      "Maximum number of coupled constraints (%d) exceeds the size of the HIP "
                       "thread block (%d). Most likely, you are trying to use the GPU version of "
                       "LINCS with constraints on all-bonds, which is not supported for large "
                       "molecules. When compatible with the force field and integration settings, "

@@ -37,7 +37,7 @@
  * for GPU host allocator.
  *
  * Undefined symbols in Google Test, GROMACS use of -Wundef, and the
- * implementation of FindCUDA.cmake and/or nvcc mean that no
+ * implementation of FindHIP.cmake and/or nvcc mean that no
  * compilation unit should include a gtest header while being compiled
  * by nvcc. None of -isystem, -Wno-undef, nor the pragma GCC
  * diagnostic work.
@@ -48,7 +48,7 @@
 
 #include "devicetransfers.h"
 
-#include "gromacs/gpu_utils/cudautils.cuh"
+#include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/hardware/device_information.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"

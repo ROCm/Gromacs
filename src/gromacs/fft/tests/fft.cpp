@@ -491,7 +491,7 @@ TEST_P(ParameterizedFFTTest3D, RunsOnDevices)
         // Use std::copy to convert from double to real easily
         std::copy(inputdata, inputdata + sizeInReals, in_.begin());
 
-#    if GMX_GPU_CUDA
+#    if GMX_GPU_HIP
         const FftBackend backend = FftBackend::Cufft;
 #    elif GMX_GPU_OPENCL
         const FftBackend backend = FftBackend::Ocl;

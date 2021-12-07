@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  * \brief
- * Tests for CUDA float3 type layout.
+ * Tests for HIP float3 type layout.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  */
@@ -42,7 +42,7 @@
 
 #include "config.h"
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
 
 #    include "gromacs/gpu_utils/gputraits.h"
 #    include "gromacs/hardware/device_management.h"
@@ -85,4 +85,4 @@ TEST(GpuDataTypesCompatibilityTest, RVecAndFloat3Device)
 } // namespace test
 } // namespace gmx
 
-#endif // GMX_GPU_CUDA
+#endif // GMX_GPU_HIP

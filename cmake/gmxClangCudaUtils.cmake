@@ -32,9 +32,9 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-function(gmx_compile_cuda_file_with_clang)
+function(gmx_compile_hip_file_with_clang)
     foreach(_file ${ARGN})
         set_source_files_properties(${_file} PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "${GMX_CUDA_CLANG_FLAGS}")
+        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "${GMX_HIP_CLANG_FLAGS}")
     endforeach()
 endfunction()

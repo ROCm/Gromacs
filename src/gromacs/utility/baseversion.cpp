@@ -77,9 +77,9 @@ const char* getGpuImplementationString()
 #endif
     if (GMX_GPU)
     {
-        if (GMX_GPU_CUDA)
+        if (GMX_GPU_HIP)
         {
-            return "CUDA";
+            return "HIP";
         }
         else if (GMX_GPU_OPENCL)
         {

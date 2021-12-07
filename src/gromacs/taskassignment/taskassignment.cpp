@@ -283,7 +283,7 @@ GpuTaskAssignments GpuTaskAssignmentsBuilder::build(const gmx::ArrayRef<const in
         // Valid GPU ID assignments are `an ordered set of digits that
         // identify GPU device IDs (e.g. as understood by the GPU
         // runtime, and subject to environment modification such as
-        // with CUDA_VISIBLE_DEVICES) that will be used for the
+        // with HIP_VISIBLE_DEVICES) that will be used for the
         // GPU-suitable tasks on all of the ranks of that node.
         std::vector<int> generatedGpuIds;
         if (userGpuTaskAssignment.empty())

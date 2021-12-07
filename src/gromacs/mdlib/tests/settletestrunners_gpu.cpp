@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /*! \internal \file
- * \brief Defines the runner for CUDA version of SETTLE.
+ * \brief Defines the runner for HIP version of SETTLE.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  * \ingroup module_mdlib

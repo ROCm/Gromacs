@@ -34,10 +34,10 @@
  */
 /*! \internal \file
  *
- * \brief May be used to implement Domdec CUDA interfaces for non-GPU builds.
+ * \brief May be used to implement Domdec HIP interfaces for non-GPU builds.
  *
  * Currently, reports and exits if any of the interfaces are called.
- * Needed to satisfy compiler on systems, where CUDA is not available.
+ * Needed to satisfy compiler on systems, where HIP is not available.
  *
  * \author Alan Gray <alang@nvidia.com>
  *
@@ -52,7 +52,7 @@
 #include "gromacs/domdec/gpuhaloexchange.h"
 #include "gromacs/utility/gmxassert.h"
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_HIP
 
 namespace gmx
 {
@@ -121,4 +121,4 @@ GpuEventSynchronizer* GpuHaloExchange::getForcesReadyOnDeviceEvent()
 
 } // namespace gmx
 
-#endif // !GMX_GPU_CUDA
+#endif // !GMX_GPU_HIP

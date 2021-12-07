@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  *
- * \brief Declares CUDA implementation class for PME-PP communications
+ * \brief Declares HIP implementation class for PME-PP communications
  *
  * \author Alan Gray <alang@nvidia.com>
  *
@@ -53,7 +53,7 @@
 namespace gmx
 {
 
-/*! \internal \brief Class with interfaces and data for CUDA version of PME-PP Communication */
+/*! \internal \brief Class with interfaces and data for HIP version of PME-PP Communication */
 class PmePpCommGpu::Impl
 {
 
@@ -79,8 +79,8 @@ public:
     void reinit(int size);
 
     /*! \brief Pull force buffer directly from GPU memory on PME
-     * rank to either GPU or CPU memory on PP task using CUDA
-     * Memory copy or CUDA-aware MPI.
+     * rank to either GPU or CPU memory on PP task using HIP
+     * Memory copy or HIP-aware MPI.
      *
      * recvPtr should be in GPU or CPU memory if recvPmeForceToGpu
      * is true or false, respectively. If receiving to GPU, this
@@ -97,8 +97,8 @@ public:
     void receiveForceFromPme(float3* recvPtr, int recvSize, bool receivePmeForceToGpu);
 
     /*! \brief Push coordinates buffer directly to GPU memory on PME
-     * task, from either GPU or CPU memory on PP task using CUDA
-     * Memory copy or CUDA-aware MPI. If sending from GPU, this method should
+     * task, from either GPU or CPU memory on PP task using HIP
+     * Memory copy or HIP-aware MPI. If sending from GPU, this method should
      * be called after the local GPU coordinate buffer operations.
      * The remote PME task will automatically wait for data to be copied
      * before commencing PME force calculations.
@@ -120,45 +120,45 @@ public:
 
 private:
     /*! \brief Pull force buffer directly from GPU memory on PME
-     * rank to either GPU or CPU memory on PP task using CUDA
+     * rank to either GPU or CPU memory on PP task using HIP
      * Memory copy. This method is used with Thread-MPI.
      * \param[in] receivePmeForceToGpu Whether receive is to GPU, otherwise CPU
      */
-    void receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu);
+    void receiveForceFromPmeHipDirect(bool receivePmeForceToGpu);
 
     /*! \brief Pull force buffer directly from GPU memory on PME
-     * rank to either GPU or CPU memory on PP task using CUDA-aware
+     * rank to either GPU or CPU memory on PP task using HIP-aware
      * MPI. This method is used with process-MPI.
      * \param[out] recvPtr CPU buffer to receive PME force data
      * \param[in] recvSize Number of elements to receive
      */
-    void receiveForceFromPmeCudaMpi(float3* recvPtr, int recvSize);
+    void receiveForceFromPmeHipMpi(float3* recvPtr, int recvSize);
 
     /*! \brief Push coordinates buffer directly to GPU memory on PME
-     * task, from either GPU or CPU memory on PP task using CUDA Memory copy.
+     * task, from either GPU or CPU memory on PP task using HIP Memory copy.
      * This method is used with Thread-MPI.
      * \param[in] sendPtr Buffer with coordinate data
      * \param[in] sendSize Number of elements to send
      * \param[in] coordinatesReadyOnDeviceEvent Event recorded when coordinates are available on device
      */
-    void sendCoordinatesToPmeCudaDirect(float3*               sendPtr,
+    void sendCoordinatesToPmeHipDirect(float3*               sendPtr,
                                         int                   sendSize,
                                         GpuEventSynchronizer* coordinatesReadyOnDeviceEvent);
 
     /*! \brief Push coordinates buffer directly to GPU memory on PME
-     * task, from either GPU or CPU memory on PP task using CUDA-aware MPI.
+     * task, from either GPU or CPU memory on PP task using HIP-aware MPI.
      * This method is used with process-MPI.
      * \param[in] sendPtr Buffer with coordinate data
      * \param[in] sendSize Number of elements to send
      * \param[in] coordinatesReadyOnDeviceEvent Event recorded when coordinates are available on device
      */
-    void sendCoordinatesToPmeCudaMpi(float3*               sendPtr,
+    void sendCoordinatesToPmeHipMpi(float3*               sendPtr,
                                      int                   sendSize,
                                      GpuEventSynchronizer* coordinatesReadyOnDeviceEvent);
 
-    //! GPU context handle (not used in CUDA)
+    //! GPU context handle (not used in HIP)
     const DeviceContext& deviceContext_;
-    //! Handle for CUDA stream used for the communication operations in this class
+    //! Handle for HIP stream used for the communication operations in this class
     const DeviceStream& pmePpCommStream_;
     //! Remote location of PME coordinate data buffer
     float3* remotePmeXBuffer_ = nullptr;

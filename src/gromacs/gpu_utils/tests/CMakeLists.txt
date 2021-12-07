@@ -52,7 +52,7 @@ gmx_add_unit_test(GpuUtilsUnitTests gpu_utils-test HARDWARE_DETECTION
         gpueventsynchronizer.cpp
         typecasts.cpp
 
-    CUDA_CU_SOURCE_FILES
+    HIP_CU_SOURCE_FILES
         devicetransfers.cu
         typecasts_runner.cu
 

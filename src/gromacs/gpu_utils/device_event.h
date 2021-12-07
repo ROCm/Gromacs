@@ -100,7 +100,7 @@ public:
         GMX_THROW(gmx::NotImplementedError("Not implemented for non-GPU build"));
     }
 
-    //! Reset the event (not needed in CUDA)
+    //! Reset the event (not needed in HIP)
     // NOLINTNEXTLINE readability-convert-member-functions-to-static
     inline void reset() // NOLINT readability-convert-member-functions-to-static
     {
@@ -112,8 +112,8 @@ public:
 #        pragma clang diagnostic pop
 #    endif
 
-#elif GMX_GPU_CUDA
-#    include "device_event.cuh"
+#elif GMX_GPU_HIP
+#    include "device_event.hpp"
 #elif GMX_GPU_OPENCL
 #    include "device_event_ocl.h"
 #elif GMX_GPU_SYCL

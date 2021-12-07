@@ -54,7 +54,7 @@ if(GMX_GPU_OPENCL)
         ocl_caching.cpp
         oclutils.cpp
         )
-elseif(GMX_GPU_CUDA)
+elseif(GMX_GPU_HIP)
     gmx_add_libgromacs_sources(
         device_context.cpp
         device_stream.cu
@@ -62,7 +62,7 @@ elseif(GMX_GPU_CUDA)
         pinning.cu
         pmalloc.cu
         )
-    _gmx_add_files_to_property(CUDA_SOURCES
+    _gmx_add_files_to_property(HIP_SOURCES
         device_stream_manager.cpp
         )
 elseif(GMX_GPU_SYCL)

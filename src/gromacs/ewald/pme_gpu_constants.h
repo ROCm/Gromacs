@@ -40,7 +40,7 @@
  * forwarded to the OpenCL kernel compilation as defines with same
  * names, for the sake of code similarity.
  *
- * \todo The values are currently common to both CUDA and OpenCL
+ * \todo The values are currently common to both HIP and OpenCL
  * implementations, but should be reconsidered when we tune the OpenCL
  * implementation. See Issue #2528.
  *
@@ -53,8 +53,8 @@
 
 #include "config.h"
 
-#if GMX_GPU_CUDA
-#    include "gromacs/gpu_utils/cuda_arch_utils.cuh" // for warp_size
+#if GMX_GPU_HIP
+#    include "gromacs/gpu_utils/hip_arch_utils.hpp" // for warp_size
 #endif
 
 /* General settings for PME GPU behaviour */
@@ -117,7 +117,7 @@ enum class ThreadsPerAtom : int
 {
     /*! \brief Use a number of threads equal to the PME order (ie. 4)
      *
-     * Only CUDA implements this. See Issue #2516 */
+     * Only HIP implements this. See Issue #2516 */
     Order,
     //! Use a number of threads equal to the square of the PME order (ie. 16)
     OrderSquared,
@@ -127,7 +127,7 @@ enum class ThreadsPerAtom : int
 
 /*
  * The execution widths for PME GPU kernels, used both on host and device for correct scheduling.
- * TODO: those were tuned for CUDA with assumption of warp size 32; specialize those for OpenCL
+ * TODO: those were tuned for HIP with assumption of warp size 32; specialize those for OpenCL
  * (Issue #2528).
  * As noted below, these are very approximate maximum sizes; in run time we might have to use
  * smaller block/workgroup sizes, depending on device capabilities.
@@ -143,13 +143,13 @@ constexpr int c_solveMaxWarpsPerBlock = 8;
 //! Gathering max block width in warps - picked empirically among 2, 4, 8, 16 for max. occupancy and min. runtime
 constexpr int c_gatherMaxWarpsPerBlock = 4;
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_HIP
 /* All the fields below are dependent on warp_size and should
  * ideally be removed from the device-side code, as we have to
  * do that for OpenCL already.
  *
  * They also express maximum desired block/workgroup sizes,
- * while both with CUDA and OpenCL we have to treat the device
+ * while both with HIP and OpenCL we have to treat the device
  * runtime limitations gracefully as well.
  */
 
@@ -161,9 +161,9 @@ static constexpr int c_solveMaxThreadsPerBlock = c_solveMaxWarpsPerBlock * warp_
 
 //! Gathering max block size in threads
 static constexpr int c_gatherMaxThreadsPerBlock = c_gatherMaxWarpsPerBlock * warp_size;
-//! Gathering min blocks per CUDA multiprocessor
-static constexpr int c_gatherMinBlocksPerMP = GMX_CUDA_MAX_THREADS_PER_MP / c_gatherMaxThreadsPerBlock;
+//! Gathering min blocks per HIP multiprocessor
+static constexpr int c_gatherMinBlocksPerMP = GMX_HIP_MAX_THREADS_PER_MP / c_gatherMaxThreadsPerBlock;
 
-#endif // GMX_GPU_CUDA
+#endif // GMX_GPU_HIP
 
 #endif

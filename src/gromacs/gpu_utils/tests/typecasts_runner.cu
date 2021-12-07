@@ -35,7 +35,7 @@
  */
 /*! \internal \file
  * \brief
- * Runners for tests of CUDA types compatibility.
+ * Runners for tests of HIP types compatibility.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  */
@@ -45,9 +45,9 @@
 
 #include <vector>
 
-#include "gromacs/gpu_utils/cudautils.cuh"
+#include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/devicebuffer.h"
-#include "gromacs/gpu_utils/typecasts.cuh"
+#include "gromacs/gpu_utils/typecasts.hpp"
 #include "gromacs/hardware/device_information.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
@@ -86,7 +86,7 @@ void convertRVecToFloat3OnHost(ArrayRef<gmx::RVec> rVecOutput, ArrayRef<const gm
     saveFloat3InRVecFormat(rVecOutput, dataFloat3, numElements);
 }
 
-//! Number of CUDA threads in a block.
+//! Number of HIP threads in a block.
 constexpr static int c_threadsPerBlock = 256;
 
 /*! \brief GPU kernel to perform type conversion on the device.

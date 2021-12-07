@@ -144,7 +144,7 @@ auto lincsKernel(sycl::handler&                       cgh,
         a_virialScaled.bind(cgh);
     }
 
-    /* Shared local memory buffer. Corresponds to sh_r, sm_rhs, and sm_threadVirial in CUDA.
+    /* Shared local memory buffer. Corresponds to sh_r, sm_rhs, and sm_threadVirial in HIP.
      * sh_r: one Float3 per thread.
      * sh_rhs: two floats per thread.
      * sm_threadVirial: six floats per thread.

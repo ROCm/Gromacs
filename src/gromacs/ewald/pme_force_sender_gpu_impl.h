@@ -63,7 +63,7 @@ class GpuEventSynchronizer;
 namespace gmx
 {
 
-/*! \internal \brief Class with interfaces and data for CUDA version of PME Force sending functionality*/
+/*! \internal \brief Class with interfaces and data for HIP version of PME Force sending functionality*/
 
 typedef struct CacheLineAlignedFlag
 {
@@ -99,7 +99,7 @@ public:
      * \param[in] numAtoms                 number of atoms to send
      * \param[in] sendForcesDirectToPpGpu  whether forces are transferred direct to remote GPU memory
      */
-    void sendFToPpCudaDirect(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu);
+    void sendFToPpHipDirect(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu);
 
     /*! \brief
      * Send force to PP rank (used with Lib-MPI)
@@ -109,7 +109,7 @@ public:
      * \param[in] ppRank   PP rank to receive data
      * \param[in] request  MPI request to track asynchronous MPI call status
      */
-    void sendFToPpCudaMpi(DeviceBuffer<RVec> sendbuf, int offset, int numBytes, int ppRank, MPI_Request* request);
+    void sendFToPpHipMpi(DeviceBuffer<RVec> sendbuf, int offset, int numBytes, int ppRank, MPI_Request* request);
 
 private:
     //! Event indicating when PME forces are ready on the GPU in order for PP stream to sync with the PME stream
@@ -126,7 +126,7 @@ private:
     std::vector<std::atomic<CacheLineAlignedFlag>> ppCommEventRecorded_;
     //! Addresses of local force buffers to send to remote PP ranks
     std::vector<DeviceBuffer<RVec>> localForcePtr_;
-    //! GPU context handle (not used in CUDA)
+    //! GPU context handle (not used in HIP)
     const DeviceContext& deviceContext_;
     //! Vector of CPU force buffer pointers for multiple remote PP tasks
     std::vector<float3*> pmeRemoteCpuForcePtr_;

@@ -35,7 +35,7 @@
  */
 /*! \internal \file
  *  \brief Defines the implementations of device management functions that
- *         are common for CPU, CUDA and OpenCL.
+ *         are common for CPU, HIP and OpenCL.
  *
  *  \author Anca Hamuraru <anca@streamcomputing.eu>
  *  \author Dimitrios Karkoulis <dimitris.karkoulis@gmail.com>

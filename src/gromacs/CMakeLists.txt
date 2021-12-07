@@ -36,12 +36,12 @@
 
 set(LIBGROMACS_SOURCES)
 
-if (GMX_CLANG_CUDA)
-    include(gmxClangCudaUtils)
+if (GMX_CLANG_HIP)
+    include(gmxClangHipUtils)
 endif()
 
 set_property(GLOBAL PROPERTY GMX_LIBGROMACS_SOURCES)
-set_property(GLOBAL PROPERTY CUDA_SOURCES)
+set_property(GLOBAL PROPERTY HIP_SOURCES)
 set_property(GLOBAL PROPERTY GMX_INSTALLED_HEADERS)
 set_property(GLOBAL PROPERTY GMX_AVX_512_SOURCE)
 
@@ -166,22 +166,22 @@ gmx_configure_version_file(
         )
 list(APPEND LIBGROMACS_SOURCES ${GENERATED_VERSION_FILE})
 
-# Mark some shared GPU implementation files to compile with CUDA if needed
-if (GMX_GPU_CUDA)
-    get_property(CUDA_SOURCES GLOBAL PROPERTY CUDA_SOURCES)
-    set_source_files_properties(${CUDA_SOURCES} PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+# Mark some shared GPU implementation files to compile with HIP if needed
+if (GMX_GPU_HIP)
+    get_property(HIP_SOURCES GLOBAL PROPERTY HIP_SOURCES)
+    set_source_files_properties(${HIP_SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT OBJ)
 endif()
 
-if (GMX_GPU_CUDA)
-    # Work around FindCUDA that prevents using target_link_libraries()
+if (GMX_GPU_HIP)
+    # Work around FindHIP that prevents using target_link_libraries()
     # with keywords otherwise...
-    set(CUDA_LIBRARIES PRIVATE ${CUDA_LIBRARIES})
-    if (NOT GMX_CLANG_CUDA)
-        gmx_cuda_add_library(libgromacs ${LIBGROMACS_SOURCES})
+    set(HIP_LIBRARIES PRIVATE ${HIP_LIBRARIES})
+    if (NOT GMX_CLANG_HIP)
+        gmx_hip_add_library(libgromacs ${LIBGROMACS_SOURCES})
     else()
         add_library(libgromacs ${LIBGROMACS_SOURCES})
     endif()
-    target_link_libraries(libgromacs PRIVATE ${CUDA_CUFFT_LIBRARIES})
+    target_link_libraries(libgromacs PRIVATE ${HIP_CUFFT_LIBRARIES})
 else()
     add_library(libgromacs ${LIBGROMACS_SOURCES})
 endif()
@@ -283,22 +283,22 @@ if(SIMD_AVX_512_CXX_SUPPORTED AND NOT ("${GMX_SIMD_ACTIVE}" STREQUAL "AVX_512_KN
 endif()
 
 # Do any special handling needed for .cpp files that use
-# CUDA runtime headers
-if (GMX_GPU_CUDA AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+# HIP runtime headers
+if (GMX_GPU_HIP AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     foreach(_compile_flag ${NVCC_CLANG_SUPPRESSIONS_CXXFLAGS})
-        set(GMX_CUDA_CLANG_FLAGS "${GMX_CUDA_CLANG_FLAGS} ${_compile_flag}")
+        set(GMX_HIP_CLANG_FLAGS "${GMX_HIP_CLANG_FLAGS} ${_compile_flag}")
     endforeach()
-    if (GMX_CLANG_CUDA)
+    if (GMX_CLANG_HIP)
         foreach (_file ${LIBGROMACS_SOURCES})
             get_filename_component(_ext ${_file} EXT)
-            get_source_file_property(_cuda_source_format ${_file} CUDA_SOURCE_PROPERTY_FORMAT)
-            if ("${_ext}" STREQUAL ".cu" OR _cuda_source_format)
-                gmx_compile_cuda_file_with_clang(${_file})
+            get_source_file_property(_hip_source_format ${_file} HIP_SOURCE_PROPERTY_FORMAT)
+            if ("${_ext}" STREQUAL ".cu" OR _hip_source_format)
+                gmx_compile_hip_file_with_clang(${_file})
             endif()
         endforeach()
     else()
-        get_property(CUDA_SOURCES GLOBAL PROPERTY CUDA_SOURCES)
-        set_source_files_properties(${CUDA_SOURCES} PROPERTIES COMPILE_FLAGS ${GMX_CUDA_CLANG_FLAGS})
+        get_property(HIP_SOURCES GLOBAL PROPERTY HIP_SOURCES)
+        set_source_files_properties(${HIP_SOURCES} PROPERTIES COMPILE_FLAGS ${GMX_HIP_CLANG_FLAGS})
     endif()
 endif()
 
@@ -463,21 +463,21 @@ add_library(Gromacs::libgromacs ALIAS libgromacs)
 include(InstallLibInfo.cmake)
 
 # Technically, the user could want to do this for an OpenCL build
-# using the CUDA runtime, but currently there's no reason to want to
+# using the HIP runtime, but currently there's no reason to want to
 # do that.
-if (INSTALL_CUDART_LIB) #can be set manual by user
-    if (GMX_GPU_CUDA)
-        foreach(CUDA_LIB ${CUDA_LIBRARIES})
-            string(REGEX MATCH "cudart" IS_CUDART ${CUDA_LIB})
-            if(IS_CUDART) #libcuda should not be installed
+if (INSTALL_HIPRT_LIB) #can be set manual by user
+    if (GMX_GPU_HIP)
+        foreach(HIP_LIB ${HIP_LIBRARIES})
+            string(REGEX MATCH "hiprt" IS_HIPRT ${HIP_LIB})
+            if(IS_HIPRT) #libhip should not be installed
                 #install also name-links (linker uses those)
-                file(GLOB CUDA_LIBS ${CUDA_LIB}*)
-                install(FILES ${CUDA_LIBS} DESTINATION
+                file(GLOB HIP_LIBS ${HIP_LIB}*)
+                install(FILES ${HIP_LIBS} DESTINATION
                     ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries)
             endif()
         endforeach()
     else()
-        message(WARNING "INSTALL_CUDART_LIB only makes sense when configuring for CUDA support")
+        message(WARNING "INSTALL_HIPRT_LIB only makes sense when configuring for HIP support")
     endif()
 endif()
 

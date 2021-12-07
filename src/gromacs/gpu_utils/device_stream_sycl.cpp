@@ -87,7 +87,7 @@ DeviceStream::DeviceStream(const DeviceContext& deviceContext,
 DeviceStream::~DeviceStream()
 {
 #if GMX_SYCL_HIPSYCL && GMX_SYCL_USE_USM
-    // Prevents use-after-free errors in hipSYCL's CUDA backend during unit tests
+    // Prevents use-after-free errors in hipSYCL's HIP backend during unit tests
     synchronize();
 #endif
 };

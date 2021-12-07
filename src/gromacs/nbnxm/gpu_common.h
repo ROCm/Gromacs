@@ -47,8 +47,8 @@
 
 #include <string>
 
-#if GMX_GPU_CUDA
-#    include "cuda/nbnxm_cuda_types.h"
+#if GMX_GPU_HIP
+#    include "hip/nbnxm_hip_types.h"
 #endif
 
 #if GMX_GPU_OPENCL
@@ -246,7 +246,7 @@ static inline void gpu_accumulate_timings(gmx_wallclock_gpu_nbnxn_t* timings,
  * See documentation in nbnxm_gpu.h for details.
  *
  * \todo Move into shared source file, perhaps including
- * hip/hip_runtime.h if needed for any remaining CUDA-specific
+ * hip/hip_runtime.h if needed for any remaining HIP-specific
  * objects.
  */
 //NOLINTNEXTLINE(misc-definitions-in-headers)
@@ -306,7 +306,7 @@ bool gpu_try_finish_task(NbnxmGpu*                nb,
         }
 
         // TODO: this needs to be moved later because conditional wait could brake timing
-        // with a future OpenCL implementation, but with CUDA timing is anyway disabled
+        // with a future OpenCL implementation, but with HIP timing is anyway disabled
         // in all cases where we skip the wait.
         gpu_accumulate_timings(nb->timings, nb->timers, nb->plist[iLocality], aloc, stepWork, nb->bDoTime);
 

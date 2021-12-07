@@ -59,7 +59,7 @@ struct DeviceInformation;
  *
  * Primary purpose of this is to not recompile GPU kernels for each OpenCL unit test,
  * while the relevant GPU context (e.g. cl_context) instance persists.
- * In CUDA, this just assigns the kernel function pointers.
+ * In HIP, this just assigns the kernel function pointers.
  * This also implicitly relies on the fact that reasonable share of the kernels are always used.
  * If there were more template parameters, even smaller share of all possible kernels would be used.
  *
@@ -76,14 +76,14 @@ struct DeviceInformation;
 struct PmeGpuProgramImpl
 {
     /*! \brief
-     * This is a handle to the GPU context, which is just a dummy in CUDA,
+     * This is a handle to the GPU context, which is just a dummy in HIP,
      * but is created/destroyed by this class in OpenCL.
      */
     const DeviceContext& deviceContext_;
 
     //! Conveniently all the PME kernels use the same single argument type
-#if GMX_GPU_CUDA
-    using PmeKernelHandle = void (*)(const struct PmeGpuCudaKernelParams);
+#if GMX_GPU_HIP
+    using PmeKernelHandle = void (*)(const struct PmeGpuHipKernelParams);
 #elif GMX_GPU_OPENCL
     using PmeKernelHandle = cl_kernel;
 #else
@@ -92,8 +92,8 @@ struct PmeGpuProgramImpl
 
     /*! \brief
      * Maximum synchronous GPU thread group execution width.
-     * "Warp" is a CUDA term which we end up reusing in OpenCL kernels as well.
-     * For CUDA, this is a static value that comes from gromacs/gpu_utils/cuda_arch_utils.cuh;
+     * "Warp" is a HIP term which we end up reusing in OpenCL kernels as well.
+     * For HIP, this is a static value that comes from gromacs/gpu_utils/hip_arch_utils.hpp;
      * for OpenCL, we have to query it dynamically.
      */
     size_t warpSize_;

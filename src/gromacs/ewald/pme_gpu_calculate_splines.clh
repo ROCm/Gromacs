@@ -37,7 +37,7 @@
 
 /*! \internal \file
  * \brief This file defines the PME OpenCL inline device functions for computing splines.
- * This closely mirrors pme_gpu_calculate_splines.cuh (which is used in CUDA kernels), except with no templates.
+ * This closely mirrors pme_gpu_calculate_splines.hpp (which is used in HIP kernels), except with no templates.
  * Instead of templated parameters this file expects following defines during compilation:
  * - order - PME interpolation order;
  * - atomsPerWarp - number of atoms processed by a warp (fixed for spread and gather kernels to be the same);

@@ -49,15 +49,15 @@ find_path(EXTRAE_INCLUDE_DIR extrae_user_events.h)
 # ompitrace:       MPI + OpenMP
 # pttrace:         pthreads
 # ptmpitrace       pthreads + MPI (unsupported combination in Gromacs)
-# cudatrace:       CUDA
-# cudampitrace:    CUDA + MPI
-# cudaompitrace:   CUDA+OPENMP+MPI (in the dev version)
+# hiptrace:       HIP
+# hipmpitrace:    HIP + MPI
+# hipompitrace:   HIP+OPENMP+MPI (in the dev version)
 
 # TODO: Add support for the following combinations when available in a future release:
 
-# cudaomptrace:    CUDA + OPENMP
-# cudapttrace:        CUDA + pthreads
-# cudaptmpitrace:    CUDA + pthreads + MPI (unsupported combination in Gromacs)
+# hipomptrace:    HIP + OPENMP
+# hippttrace:        HIP + pthreads
+# hipptmpitrace:    HIP + pthreads + MPI (unsupported combination in Gromacs)
 
 set (extraelib "trace")
 
@@ -69,19 +69,19 @@ if (GMX_MPI)
     set (extraelib "mpi${extraelib}")
   endif()
   if (GMX_GPU)
-    set (extraelib "cuda${extraelib}")
+    set (extraelib "hip${extraelib}")
   endif()
 
 # other libs with OpenMP support
 elseif (GMX_OPENMP)
   set (extraelib "omp${extraelib}")
     if (GMX_GPU)
-      set (extraelib "cuda${extraelib}")
+      set (extraelib "hip${extraelib}")
     endif()
 
-# library with CUDA only support
+# library with HIP only support
 elseif (GMX_GPU)
-    set (extraelib "cuda${extraelib}")
+    set (extraelib "hip${extraelib}")
 
 # library with PThreads support
 elseif (GMX_THREAD_MPI)
