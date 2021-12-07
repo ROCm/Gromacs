@@ -50,7 +50,7 @@ if(GMX_GPU_CUDA)
        gpubonded_impl.cu
        gpubondedkernels.cu
        )
-else(GMX_GPU_HIP)
+elseif(GMX_GPU_HIP)
     gmx_add_libgromacs_sources(
        gpubonded_impl_hip.cpp
        gpubondedkernels_hip.cpp

@@ -56,8 +56,8 @@
 #    include "gromacs/gpu_utils/gmxopencl.h"
 #elif GMX_GPU_SYCL
 #    include "gromacs/gpu_utils/gmxsycl.h"
-#else
-#    error "device_stream.h included on non-GPU build!"
+//#else
+//#    error "device_stream.h included on non-GPU build!"
 #endif
 
 #include "gromacs/utility/classhelpers.h"

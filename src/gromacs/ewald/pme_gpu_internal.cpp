@@ -125,7 +125,7 @@ static PmeGpuKernelParamsBase* pme_gpu_get_kernel_params_base_ptr(const PmeGpu* 
  */
 #if GMX_GPU_CUDA
 constexpr int c_pmeAtomDataBlockSize = 64;
-#else GMX_GPU_HIP
+#elif GMX_GPU_HIP
 constexpr int c_pmeAtomDataBlockSize = 128;
 #endif
 
