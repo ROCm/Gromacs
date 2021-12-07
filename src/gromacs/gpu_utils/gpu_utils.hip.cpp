@@ -98,7 +98,7 @@ bool isHostMemoryPinned(const void* h_ptr)
             hipGetLastError();
             break;
 
-        default: CU_RET_ERR(stat, "Unexpected HIP error");
+        default: HIP_RET_ERR(stat, "Unexpected HIP error");
     }
     return isPinned;
 }
@@ -115,7 +115,7 @@ void startGpuProfiler()
     {
         hipError_t stat;
         stat = hipProfilerStart();
-        CU_RET_ERR(stat, "hipProfilerStart failed");
+        HIP_RET_ERR(stat, "hipProfilerStart failed");
     }
 }
 
@@ -127,7 +127,7 @@ void stopGpuProfiler()
     {
         hipError_t stat;
         stat = hipProfilerStop();
-        CU_RET_ERR(stat, "hipProfilerStop failed");
+        HIP_RET_ERR(stat, "hipProfilerStop failed");
     }
 }
 
@@ -181,7 +181,7 @@ static void peerAccessCheckStat(const hipError_t    stat,
     {
         std::string errorString =
                 gmx::formatString("%s from GPU %d to GPU %d failed", hipCallName, gpuA, gpuB);
-        CU_RET_ERR(stat, errorString);
+        HIP_RET_ERR(stat, errorString);
     }
     if (stat != hipSuccess)
     {
@@ -206,7 +206,7 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     // take a note of currently-set GPU
     int currentGpu;
     stat = hipGetDevice(&currentGpu);
-    CU_RET_ERR(stat, "hipGetDevice in setupGpuDevicePeerAccess failed");
+    HIP_RET_ERR(stat, "hipGetDevice in setupGpuDevicePeerAccess failed");
 
     std::string message = gmx::formatString(
             "Note: Peer access enabled between the following GPU pairs in the node:\n ");
@@ -252,7 +252,7 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     stat = hipSetDevice(currentGpu);
     if (stat != hipSuccess)
     {
-        CU_RET_ERR(stat, "hipSetDevice in setupGpuDevicePeerAccess failed");
+        HIP_RET_ERR(stat, "hipSetDevice in setupGpuDevicePeerAccess failed");
         return;
     }
 

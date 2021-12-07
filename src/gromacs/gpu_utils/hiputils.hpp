@@ -136,7 +136,7 @@ enum class GpuApiCallBehavior;
 #ifdef CHECK_HIP_ERRORS
 
 /*! Check for HIP error on the return status of a HIP RT API call. */
-#    define CU_RET_ERR(deviceError, msg)                                                            \
+#    define HIP_RET_ERR(deviceError, msg)                                                            \
         do                                                                                          \
         {                                                                                           \
             if ((deviceError) != hipSuccess)                                                       \
@@ -147,7 +147,7 @@ enum class GpuApiCallBehavior;
 
 #else /* CHECK_HIP_ERRORS */
 
-#    define CU_RET_ERR(status, msg) \
+#    define HIP_RET_ERR(status, msg) \
         do                          \
         {                           \
         } while (0)
@@ -189,7 +189,7 @@ static inline bool haveStreamTasksCompleted(const DeviceStream& deviceStream)
                ("Stream identifier not valid. " + gmx::getDeviceErrorString(stat)).c_str());
 
     // hipSuccess and hipErrorNotReady are the expected return values
-    CU_RET_ERR(stat, "Unexpected hipStreamQuery failure. ");
+    HIP_RET_ERR(stat, "Unexpected hipStreamQuery failure. ");
 
     GMX_ASSERT(stat == hipSuccess,
                ("Values other than hipSuccess should have been explicitly handled. "

@@ -488,7 +488,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithHipDirect(float3* sendPtr,
                                hipMemcpyDeviceToDevice,
                                haloStream_->stream());
 
-        CU_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec HIP direct data transfer failed");
+        HIP_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec HIP direct data transfer failed");
     }
 
 #if GMX_MPI

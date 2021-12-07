@@ -165,7 +165,7 @@ void PmePpCommGpu::Impl::sendCoordinatesToPmeHipDirect(float3*               sen
                                        sendSize * DIM * sizeof(float),
                                        hipMemcpyDefault,
                                        pmePpCommStream_.stream());
-    CU_RET_ERR(stat, "hipMemcpyAsync on Send to PME HIP direct data transfer failed");
+    HIP_RET_ERR(stat, "hipMemcpyAsync on Send to PME HIP direct data transfer failed");
 
 #if GMX_MPI
     // Record and send event to allow PME task to sync to above transfer before commencing force calculations

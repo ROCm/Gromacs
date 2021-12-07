@@ -319,7 +319,7 @@ void ListedForcesGpu::Impl::waitAccumulateEnergyTerms(gmx_enerdata_t* enerd)
 
     wallcycle_start(wcycle_, WallCycleCounter::WaitGpuBonded);
     hipError_t stat = hipStreamSynchronize(deviceStream_.stream());
-    CU_RET_ERR(stat, "D2H transfer of bonded energies failed");
+    HIP_RET_ERR(stat, "D2H transfer of bonded energies failed");
     wallcycle_stop(wcycle_, WallCycleCounter::WaitGpuBonded);
 
     for (int fType : fTypesOnGpu)

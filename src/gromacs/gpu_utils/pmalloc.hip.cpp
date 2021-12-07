@@ -67,7 +67,7 @@ void pmalloc(void** h_ptr, size_t nbytes)
 
     stat = hipHostMalloc(h_ptr, nbytes, flag);
     sprintf(strbuf, "hipHostMalloc of size %d bytes failed", static_cast<int>(nbytes));
-    CU_RET_ERR(stat, strbuf);
+    HIP_RET_ERR(stat, strbuf);
 }
 
 /*! Frees page locked memory allocated with pmalloc.
@@ -86,5 +86,5 @@ void pfree(void* h_ptr)
     gmx::ensureNoPendingDeviceError("Could not free page-locked memory.");
 
     stat = hipHostFree(h_ptr);
-    CU_RET_ERR(stat, "hipHostFree failed");
+    HIP_RET_ERR(stat, "hipHostFree failed");
 }

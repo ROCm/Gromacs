@@ -700,7 +700,7 @@ void hip_set_cacheconfig()
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_ptr[i][j]), hipFuncCachePreferEqual);
             stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
-            CU_RET_ERR(stat, "hipFuncSetCacheConfig failed");
+            HIP_RET_ERR(stat, "hipFuncSetCacheConfig failed");
         }
     }
 }

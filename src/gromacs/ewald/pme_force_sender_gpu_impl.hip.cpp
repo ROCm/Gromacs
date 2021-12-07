@@ -150,7 +150,7 @@ void PmeForceSenderGpu::Impl::sendFToPpHipDirect(int ppRank, int numAtoms, bool 
                                        numAtoms * sizeof(rvec),
                                        hipMemcpyDefault,
                                        ppCommStream_[ppRank]->stream());
-    CU_RET_ERR(stat, "hipMemcpyAsync on Recv from PME HIP direct data transfer failed");
+    HIP_RET_ERR(stat, "hipMemcpyAsync on Recv from PME HIP direct data transfer failed");
     ppCommEvent_[ppRank]->markEvent(*ppCommStream_[ppRank]);
     std::atomic<bool>* tmpPpCommEventRecordedPtr =
             reinterpret_cast<std::atomic<bool>*>(&(ppCommEventRecorded_[ppRank]));

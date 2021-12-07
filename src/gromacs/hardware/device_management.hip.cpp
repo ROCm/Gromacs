@@ -197,7 +197,7 @@ static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
     }
 
     cu_err = hipDeviceReset();
-    CU_RET_ERR(cu_err, "hipDeviceReset failed");
+    HIP_RET_ERR(cu_err, "hipDeviceReset failed");
 
     return DeviceStatus::Compatible;
 }
@@ -325,7 +325,7 @@ void setActiveDevice(const DeviceInformation& deviceInfo)
     if (stat != hipSuccess)
     {
         auto message = gmx::formatString("Failed to initialize GPU #%d", deviceId);
-        CU_RET_ERR(stat, message);
+        HIP_RET_ERR(stat, message);
     }
 
     if (debug)
