@@ -186,11 +186,17 @@ typedef struct nbnxn_sci
     int cj4_ind_end;
 } nbnxn_sci_t;
 
+#if GMX_GPU_HIP
+typedef unsigned long long gpu_mask_t;
+#else
+typedef unsigned int gpu_mask_t;
+#endif
+
 //! Interaction data for a j-group for one warp
 struct nbnxn_im_ei_t
 {
     //! The i-cluster interactions mask for 1 warp
-    unsigned int imask = 0U;
+    gpu_mask_t imask = 0U;
     //! Index into the exclusion array for 1 warp, default index 0 which means no exclusions
     int excl_ind = 0;
 };
