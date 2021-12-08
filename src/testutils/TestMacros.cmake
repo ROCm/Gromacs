@@ -35,7 +35,7 @@
 # the research papers on the package. Check out http://www.gromacs.org.
 
 include(CMakeParseArguments)
-include(gmxClangHipUtils)
+include(gmxClangCudaUtils)
 
 set(GMX_CAN_RUN_MPI_TESTS 1)
 if (GMX_MPI)
@@ -83,8 +83,8 @@ function (gmx_add_unit_test_library NAME)
             gmx_target_warning_suppression(${NAME} "-Wno-gnu-zero-variadic-macro-arguments" HAS_WARNING_NO_GNU_ZERO_VARIADIC_MACRO_ARGUMENTS)
             # Use of GoogleMock can generate mock member functions that are unused
             gmx_target_warning_suppression(${NAME} "-Wno-unused-member-function" HAS_WARNING_NO_UNUSED_MEMBER_FUNCTION)
-            if(GMX_GPU_HIP)
-                # HIP headers target C, so use old-style casts that clang
+            if(GMX_GPU_CUDA)
+                # CUDA headers target C, so use old-style casts that clang
                 # warns about when it is the host compiler
                 gmx_target_warning_suppression(${NAME} "-Wno-old-style-cast" HAS_NO_OLD_STYLE_CAST)
             endif()
@@ -107,20 +107,20 @@ endfunction ()
 #   GPU_CPP_SOURCE_FILES  file1.cpp file2.cpp ...
 #     All the C++ .cpp source files that are always needed, but must be
 #     compiled in the way that suits GMX_GPU.
-#   HIP_CU_SOURCE_FILES      file1.cu  file2.cu  ...
-#     All the normal HIP .cu source files
+#   CUDA_CU_SOURCE_FILES      file1.cu  file2.cu  ...
+#     All the normal CUDA .cu source files
 #   OPENCL_CPP_SOURCE_FILES   file1.cpp file2.cpp ...
 #     All the other C++ .cpp source files needed only with OpenCL
 #   SYCL_CPP_SOURCE_FILES   file1.cpp file2.cpp ...
 #     All the C++ .cpp source files needed only with SYCL
 #   NON_GPU_CPP_SOURCE_FILES  file1.cpp file2.cpp ...
-#     All the other C++ .cpp source files needed only with neither OpenCL nor HIP nor SYCL
+#     All the other C++ .cpp source files needed only with neither OpenCL nor CUDA nor SYCL
 function (gmx_add_gtest_executable EXENAME)
     if (GMX_BUILD_UNITTESTS AND BUILD_TESTING)
         set(_options MPI HARDWARE_DETECTION DYNAMIC_REGISTRATION)
         set(_multi_value_keywords
             CPP_SOURCE_FILES
-            HIP_CU_SOURCE_FILES
+            CUDA_CU_SOURCE_FILES
             GPU_CPP_SOURCE_FILES
             OPENCL_CPP_SOURCE_FILES
             SYCL_CPP_SOURCE_FILES
@@ -154,30 +154,68 @@ function (gmx_add_gtest_executable EXENAME)
                  TEST_USES_DYNAMIC_REGISTRATION=true)
         endif()
 
-        if (GMX_GPU_HIP AND NOT GMX_CLANG_HIP)
-            # Work around FindHIP that prevents using target_link_libraries()
+        if (GMX_GPU_CUDA AND NOT GMX_CLANG_CUDA)
+            # Work around FindCUDA that prevents using target_link_libraries()
             # with keywords otherwise...
-            set(HIP_LIBRARIES PRIVATE ${HIP_LIBRARIES})
-            hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
+            set(CUDA_LIBRARIES PRIVATE ${CUDA_LIBRARIES})
+            cuda_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
                 ${ARG_CPP_SOURCE_FILES}
-                ${ARG_HIP_CU_SOURCE_FILES}
+                ${ARG_CUDA_CU_SOURCE_FILES}
                 ${ARG_GPU_CPP_SOURCE_FILES})
+	    elseif (GMX_GPU_HIP)
+	        set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+	        if(NOT DEFINED HIP_PATH)
+		        if(NOT DEFINED ENV{HIP_PATH})
+		            set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
+		            set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
+		        else()
+		            set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
+		            set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
+		        endif()
+	        endif()
+	        get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+
+	        if (NOT HIP_ADD_LIBRARY_FOUND)
+		        list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
+	            set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
+	 	        list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+		        set(CMAKE_PREFIX_PATH "/opt/rocm/hip" ${CMAKE_PREFIX_PATH})
+	            find_package(HIP QUIET)
+		        set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
+	            if(HIP_FOUND)
+		            message(STATUS "Found HIP: " ${HIP_VERSION} ${HIP_COMPILER})
+	    	    else()
+	      	        message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
+	            endif()
+ 	        endif()
+	        set_source_files_properties(${ARG_HIP_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+	        set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+	        hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS} 
+	            ${ARG_CPP_SOURCE_FILES} 
+	            ${ARG_HIP_CPP_SOURCE_FILES} 
+	    	    ${ARG_GPU_CPP_SOURCE_FILES} 
+	    	    # ${TESTUTILS_DIR}/unittest_main.cpp 
+                HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" CLANG_OPTIONS "" NVCC_OPTIONS)
         else()
             add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
                 ${ARG_CPP_SOURCE_FILES})
         endif()
 
-        if (GMX_GPU_HIP)
-            if (GMX_CLANG_HIP)
+        if (GMX_GPU_CUDA)
+            if (GMX_CLANG_CUDA)
                 target_sources(${EXENAME} PRIVATE
-                    ${ARG_HIP_CU_SOURCE_FILES}
+                    ${ARG_CUDA_CU_SOURCE_FILES}
                     ${ARG_GPU_CPP_SOURCE_FILES})
-                set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT OBJ)
-                gmx_compile_hip_file_with_clang(${ARG_HIP_CU_SOURCE_FILES})
-                gmx_compile_hip_file_with_clang(${ARG_GPU_CPP_SOURCE_FILES})
-                if(ARG_HIP_CU_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
+                set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+                gmx_compile_cuda_file_with_clang(${ARG_CUDA_CU_SOURCE_FILES})
+                gmx_compile_cuda_file_with_clang(${ARG_GPU_CPP_SOURCE_FILES})
+                if(ARG_CUDA_CU_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
                     target_link_libraries(${EXENAME} PRIVATE ${GMX_EXTRA_LIBRARIES})
                 endif()
+            endif()
+        elseif (GMX_GPU_HIP)
+            if(ARG_HIP_CPP_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
+                target_link_libraries(${EXENAME} PRIVATE hip::host)
             endif()
         elseif (GMX_GPU_OPENCL)
             target_sources(${EXENAME} PRIVATE ${ARG_OPENCL_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})
@@ -225,8 +263,8 @@ function (gmx_add_gtest_executable EXENAME)
             gmx_target_warning_suppression(${EXENAME} "-Wno-gnu-zero-variadic-macro-arguments" HAS_WARNING_NO_GNU_ZERO_VARIADIC_MACRO_ARGUMENTS)
             # Use of GoogleMock can generate mock member functions that are unused
             gmx_target_warning_suppression(${EXENAME} "-Wno-unused-member-function" HAS_WARNING_NO_UNUSED_MEMBER_FUNCTION)
-            if(GMX_GPU_HIP)
-                # HIP headers target C, so use old-style casts that clang
+            if(GMX_GPU_CUDA)
+                # CUDA headers target C, so use old-style casts that clang
                 # warns about when it is the host compiler
                 gmx_target_warning_suppression(${EXENAME} "-Wno-old-style-cast" HAS_NO_OLD_STYLE_CAST)
             endif()

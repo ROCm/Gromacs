@@ -122,7 +122,7 @@ __global__ void unpackRecvBufKernel(float3* __restrict__ data,
     {
         if (accumulate)
         {
-            *gm_dataDest += *gm_dataSrc;
+            *gm_dataDest = *gm_dataDest + *gm_dataSrc;
         }
         else
         {

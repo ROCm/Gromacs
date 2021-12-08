@@ -73,7 +73,7 @@ else()
 endif()
 
 find_package(hipfft QUIET CONFIG PATHS /opt/rocm)
-if(NOT hipfft_FOUND )
+if(NOT hipfft_FOUND)
    message(FATAL_ERROR "hipfft is required, but it is not found in this environment")
 else()
    message(STATUS "hipfft is found!")
