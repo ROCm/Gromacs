@@ -204,7 +204,7 @@ gmx_option_multichoice(
     GMX_GPU
     "Framework for GPU acceleration"
     OFF
-    OFF CUDA OpenCL SYCL)
+    OFF CUDA OpenCL SYCL HIP)
 
 gmx_option_multichoice(
     GMX_SIMD
@@ -593,6 +593,8 @@ if(GMX_GPU)
         include(gmxManageOpenCL)
     elseif(${_gmx_gpu_uppercase} STREQUAL "SYCL")
         include(gmxManageSYCL)
+    elseif(${_gmx_gpu_uppercase} STREQUAL "HIP")
+        include(gmxManageHIP)
     endif()
     if(NOT GMX_OPENMP)
         message(WARNING "To use GPU acceleration efficiently, mdrun requires OpenMP multi-threading, which is currently not enabled.")
