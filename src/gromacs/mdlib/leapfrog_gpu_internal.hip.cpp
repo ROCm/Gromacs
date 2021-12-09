@@ -149,9 +149,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             v = vp;
         }
 
-        v += f * imdt;
+        v = v + f * imdt;
 
-        x += v * dt;
+        x = x + v * dt;
         gm_v[threadIndex] = v;
         gm_x[threadIndex] = x;
     }

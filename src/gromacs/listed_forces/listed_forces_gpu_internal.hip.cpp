@@ -51,13 +51,14 @@
 
 #include <cassert>
 
-#include <math_constants.h>
+// #include <math_constants.h>
 
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/typecasts.hpp"
 #include "gromacs/gpu_utils/vectype_ops.hpp"
 #include "gromacs/listed_forces/listed_forces_gpu.h"
 #include "gromacs/math/units.h"
+#include "gromacs/math/math_constants.h"
 #include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/simulation_workload.h"
@@ -71,7 +72,7 @@
 #    include <limits>
 #endif
 
-/*-------------------------------- HIP kernels-------------------------------- */
+/*-------------------------------- HIP kernels -------------------------------- */
 /*------------------------------------------------------------------------------*/
 
 #define HIP_DEG2RAD_F (HIPRT_PI_F / 180.0F)

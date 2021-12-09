@@ -78,7 +78,7 @@ static __global__ void reduceKernel(const float3* __restrict__ gm_nbnxmForce,
         if (accumulateForce)
         {
             temp = *gm_fDest;
-            temp += gm_nbnxmForce[gm_cell[threadIndex]];
+            temp = temp + gm_nbnxmForce[gm_cell[threadIndex]];
         }
         else
         {
@@ -87,7 +87,7 @@ static __global__ void reduceKernel(const float3* __restrict__ gm_nbnxmForce,
 
         if (addRvecForce)
         {
-            temp += rvecForceToAdd[threadIndex];
+            temp = temp + rvecForceToAdd[threadIndex];
         }
 
         *gm_fDest = temp;

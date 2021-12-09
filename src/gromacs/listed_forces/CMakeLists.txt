@@ -46,10 +46,15 @@ gmx_add_libgromacs_sources(
     restcbt.cpp
     )
 
-if(GMX_GPU_HIP)
+if(GMX_GPU_CUDA)
     gmx_add_libgromacs_sources(
        listed_forces_gpu_impl.cu
        listed_forces_gpu_internal.cu
+       )
+elseif(GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+       listed_forces_gpu_impl.hip.cpp
+       listed_forces_gpu_internal.hip.cpp
        )
 endif()
 
