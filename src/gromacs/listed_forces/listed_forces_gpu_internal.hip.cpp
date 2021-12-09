@@ -854,24 +854,26 @@ __global__ void exec_kernel_gpu(BondedHipKernelParameters kernelParams, float4* 
         }
     }
 
+    float *vtotVdw, *vtotElec, *sm_vTot, *sm_vTotVdw, *sm_vTotElec;
+    int numWarps, warpId;
     if (threadComputedPotential)
     {
-        float* vtotVdw  = kernelParams.d_vTot + F_LJ14;
-        float* vtotElec = kernelParams.d_vTot + F_COUL14;
+        vtotVdw  = kernelParams.d_vTot + F_LJ14;
+        vtotElec = kernelParams.d_vTot + F_COUL14;
 
         // Stage atomic accumulation through shared memory:
         // each warp will accumulate its own partial sum
         // and then a single thread per warp will accumulate this to the global sum
 
-        int numWarps = blockDim.x / warpSize;
-        int warpId   = threadIdx.x / warpSize;
+        numWarps = blockDim.x / warpSize;
+        warpId   = threadIdx.x / warpSize;
 
         // Shared memory variables to hold block-local partial sum
-        float* sm_vTot = reinterpret_cast<float*>(sm_nextSlotPtr);
+        sm_vTot = reinterpret_cast<float*>(sm_nextSlotPtr);
         sm_nextSlotPtr += numWarps * sizeof(float);
-        float* sm_vTotVdw = reinterpret_cast<float*>(sm_nextSlotPtr);
+        sm_vTotVdw = reinterpret_cast<float*>(sm_nextSlotPtr);
         sm_nextSlotPtr += numWarps * sizeof(float);
-        float* sm_vTotElec = reinterpret_cast<float*>(sm_nextSlotPtr);
+        sm_vTotElec = reinterpret_cast<float*>(sm_nextSlotPtr);
 
         if (threadIdx.x % warpSize == 0)
         {
@@ -880,14 +882,22 @@ __global__ void exec_kernel_gpu(BondedHipKernelParameters kernelParams, float4* 
             sm_vTotVdw[warpId]  = 0.;
             sm_vTotElec[warpId] = 0.;
         }
-        __syncwarp(); // All threads in warp must wait for initialization
-
+    }
+        // __syncwarp(); // All threads in warp must wait for initialization
+    __syncthreads();
+    
+    if (threadComputedPotential)
+    {
         // Perform warp-local accumulation in shared memory
         atomicAdd(sm_vTot + warpId, vtot_loc);
         atomicAdd(sm_vTotVdw + warpId, vtotVdw_loc);
         atomicAdd(sm_vTotElec + warpId, vtotElec_loc);
-
-        __syncwarp(); // Ensure all threads in warp have completed
+    }
+        // __syncwarp(); // Ensure all threads in warp have completed
+    __syncthreads();
+    
+    if (threadComputedPotential)
+    {
         if (threadIdx.x % warpSize == 0)
         { // One thread per warp accumulates partial sum into global sum
             atomicAdd(kernelParams.d_vTot + fType, sm_vTot[warpId]);
