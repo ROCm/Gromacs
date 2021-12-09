@@ -105,17 +105,27 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
                       "TODO: rework for atomDataSize > warp_size (order 8 or larger)");
         const int width = atomDataSize;
 
+        /*        
         fx += __shfl_down_sync(activeMask, fx, 1, width);
         fy += __shfl_up_sync(activeMask, fy, 1, width);
         fz += __shfl_down_sync(activeMask, fz, 1, width);
+        */
+        
+        fx += __shfl_down(fx, 1, width);
+        fy += __shfl_up(fy, 1, width);
+        fz += __shfl_down(fz, 1, width);
 
         if (splineIndex & 1)
         {
             fx = fy;
         }
 
+        /*
         fx += __shfl_down_sync(activeMask, fx, 2, width);
         fz += __shfl_up_sync(activeMask, fz, 2, width);
+        */
+
+        fx += __shfl_down(fx, 2, width);
 
         if (splineIndex & 2)
         {
@@ -129,7 +139,8 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
         // We have to just further reduce those groups of 4
         for (int delta = 4; delta < atomDataSize; delta <<= 1)
         {
-            fx += __shfl_down_sync(activeMask, fx, delta, width);
+            // fx += __shfl_down_sync(activeMask, fx, delta, width);
+            fx += __shfl_down(fx, delta, width);
         }
 
         const int dimIndex = splineIndex;
@@ -154,7 +165,7 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
         const int minStride =
                 max(1, atomDataSize / numWarps); // order 4: 128 threads => 4, 256 threads => 2, etc
 
-#pragma unroll
+        #pragma unroll
         for (int dimIndex = 0; dimIndex < DIM; dimIndex++)
         {
             int elementIndex = smemReserved + lineIndex;
@@ -163,7 +174,7 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
             // sync here because two warps write data that the first one consumes below
             __syncthreads();
             // Reduce to fit into smemPerDim (warp size)
-#pragma unroll
+            #pragma unroll
             for (int redStride = atomDataSize / 2; redStride > minStride; redStride >>= 1)
             {
                 if (splineIndex < redStride)
@@ -189,12 +200,12 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
 
         const int warpIndex = lineIndex / warp_size;
         const int dimIndex  = warpIndex;
+        const int sourceIndex = lineIndex % warp_size;
 
         // First 3 warps can now process 1 dimension each
         if (dimIndex < DIM)
         {
-            int sourceIndex = lineIndex % warp_size;
-#pragma unroll
+            #pragma unroll
             for (int redStride = minStride / 2; redStride > 1; redStride >>= 1)
             {
                 if (!(splineIndex & redStride))
@@ -202,9 +213,12 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
                     sm_forceTemp[dimIndex][sourceIndex] += sm_forceTemp[dimIndex][sourceIndex + redStride];
                 }
             }
+        }
+        // __syncwarp();
+        __syncthreads();
 
-            __syncwarp();
-
+        if (dimIndex < DIM)
+        {
             const float n         = read_grid_size(realGridSizeFP, dimIndex);
             const int   atomIndex = sourceIndex / minStride;
 
@@ -438,7 +452,7 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
                 assert(isfinite(sm_dtheta[localSplineParamsIndex]));
             }
         }
-        __syncthreads();
+        // __syncthreads();
     }
     else
     {
@@ -466,8 +480,11 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
         }
         calculate_splines<order, atomsPerBlock, atomsPerWarp, true, false, numGrids>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, sm_dtheta, sm_gridlineIndices);
-        __syncwarp();
+        // __syncwarp();
     }
+    
+    __syncthreads();
+    
     float fx = 0.0F;
     float fy = 0.0F;
     float fz = 0.0F;
@@ -534,7 +551,8 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
                 sm_forces, forceIndexLocal, forceIndexGlobal, kernelParams.current.recipBox, scale, gm_coefficientsA);
     }
 
-    __syncwarp();
+    // __syncwarp();
+    __syncthreads();
     assert(atomsPerBlock <= warp_size);
 
     /* Writing or adding the final forces component-wise, single warp */
@@ -598,12 +616,13 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
                                         gm_coefficientsB);
         }
 
-        __syncwarp();
+        // __syncwarp();
+        __syncthreads();
 
         /* Writing or adding the final forces component-wise, single warp */
         if (threadLocalId < iterThreads)
         {
-#pragma unroll
+            #pragma unroll
             for (int i = 0; i < numIter; i++)
             {
                 int   outputIndexLocal     = i * iterThreads + threadLocalId;

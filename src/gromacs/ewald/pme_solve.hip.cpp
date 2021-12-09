@@ -44,8 +44,8 @@
 
 #include <cassert>
 
-#include <math_constants.h>
-
+// #include <math_constants.h>
+#include "gromacs/math/math_constants.h"
 #include "gromacs/gpu_utils/hip_arch_utils.hpp"
 
 #include "pme.hpp"
@@ -258,6 +258,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         const unsigned int activeMask = c_fullWarpMask;
 
         /* Making pair sums */
+        /*
         virxx += __shfl_down_sync(activeMask, virxx, 1, width);
         viryy += __shfl_up_sync(activeMask, viryy, 1, width);
         virzz += __shfl_down_sync(activeMask, virzz, 1, width);
@@ -265,6 +266,16 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         virxz += __shfl_down_sync(activeMask, virxz, 1, width);
         viryz += __shfl_up_sync(activeMask, viryz, 1, width);
         energy += __shfl_down_sync(activeMask, energy, 1, width);
+        */
+        
+        virxx += __shfl_down(virxx, 1, width);
+        viryy += __shfl_up(viryy, 1, width);
+        virzz += __shfl_down(virzz, 1, width);
+        virxy += __shfl_up(virxy, 1, width);
+        virxz += __shfl_down(virxz, 1, width);
+        viryz += __shfl_up(viryz, 1, width);
+        energy += __shfl_down(energy, 1, width);
+        
         if (threadLocalId & 1)
         {
             virxx = viryy; // virxx now holds virxx and viryy pair sums
@@ -273,10 +284,18 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         }
 
         /* Making quad sums */
+        /*
         virxx += __shfl_down_sync(activeMask, virxx, 2, width);
         virzz += __shfl_up_sync(activeMask, virzz, 2, width);
         virxz += __shfl_down_sync(activeMask, virxz, 2, width);
         energy += __shfl_up_sync(activeMask, energy, 2, width);
+        */
+
+        virxx += __shfl_down(virxx, 2, width);
+        virzz += __shfl_up(virzz, 2, width);
+        virxz += __shfl_down(virxz, 2, width);
+        energy += __shfl_up(energy, 2, width);
+
         if (threadLocalId & 2)
         {
             virxx = virzz;  // virxx now holds quad sums of virxx, virxy, virzz and virxy
@@ -284,18 +303,23 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         }
 
         /* Making octet sums */
+        /*
         virxx += __shfl_down_sync(activeMask, virxx, 4, width);
         virxz += __shfl_up_sync(activeMask, virxz, 4, width);
+        */
+        virxx += __shfl_down(virxx, 4, width);
+        virxz += __shfl_up(virxz, 4, width);
         if (threadLocalId & 4)
         {
             virxx = virxz; // virxx now holds all 7 components' octet sums + unused paddings
         }
 
         /* We only need to reduce virxx now */
-#pragma unroll
+        #pragma unroll
         for (int delta = 8; delta < width; delta <<= 1)
         {
-            virxx += __shfl_down_sync(activeMask, virxx, delta, width);
+            // virxx += __shfl_down_sync(activeMask, virxx, delta, width);
+            virxx += __shfl_down(virxx, delta, width);
         }
         /* Now first 7 threads of each warp have the full output contributions in virxx */
 
@@ -317,7 +341,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
 
         /* Reduce to the single warp size */
         const int targetIndex = threadLocalId;
-#pragma unroll
+        #pragma unroll
         for (int reductionStride = reductionBufferSize >> 1; reductionStride >= warp_size;
              reductionStride >>= 1)
         {
@@ -339,10 +363,11 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         if (threadLocalId < warp_size)
         {
             float output = sm_virialAndEnergy[threadLocalId];
-#pragma unroll
+            #pragma unroll
             for (int delta = stride; delta < warp_size; delta <<= 1)
             {
-                output += __shfl_down_sync(activeMask, output, delta, warp_size);
+                // output += __shfl_down_sync(activeMask, output, delta, warp_size);
+                output += __shfl_down(output, delta, warp_size);
             }
             /* Final output */
             if (validComponentIndex)
