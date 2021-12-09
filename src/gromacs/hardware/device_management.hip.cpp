@@ -120,7 +120,7 @@ void warnWhenDeviceNotTargeted(const gmx::MDLogger& mdlog, const DeviceInformati
  */
 static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
 {
-    hipError_t cu_err;
+    hipError_t hip_err;
 
     // Is the generation of the device supported?
     if (deviceInfo.prop.major < 3)
@@ -139,20 +139,20 @@ static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
         return DeviceStatus::NonFunctional;
     }
 
-    cu_err = hipSetDevice(deviceInfo.id);
-    if (cu_err != hipSuccess)
+    hip_err = hipSetDevice(deviceInfo.id);
+    if (hip_err != hipSuccess)
     {
         fprintf(stderr,
                 "Error while switching to device #%d. %s\n",
                 deviceInfo.id,
-                gmx::getDeviceErrorString(cu_err).c_str());
+                gmx::getDeviceErrorString(hip_err).c_str());
         return DeviceStatus::NonFunctional;
     }
 
     hipFuncAttributes attributes;
-    cu_err = hipFuncGetAttributes(&attributes, reinterpret_cast<const void*>(dummy_kernel));
+    hip_err = hipFuncGetAttributes(&attributes, reinterpret_cast<const void*>(dummy_kernel));
 
-    if (cu_err == hipErrorInvalidDeviceFunction)
+    if (hip_err == hipErrorInvalidDeviceFunction)
     {
         // Clear the error from attempting to compile the kernel
         hipGetLastError();
@@ -162,15 +162,20 @@ static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
     // Avoid triggering an error if GPU devices are in exclusive or prohibited mode;
     // it is enough to check for hipErrorDevicesUnavailable only here because
     // if we encounter it that will happen in above hipFuncGetAttributes.
-    if (cu_err == hipErrorDevicesUnavailable)
+    /*
+    if (hip_err == hipErrorDevicesUnavailable)
     {
         return DeviceStatus::Unavailable;
     }
-    else if (cu_err != hipSuccess)
+    else if (hip_err != hipSuccess)
     {
         return DeviceStatus::NonFunctional;
     }
-
+    */
+    if (hip_err != hipSuccess)
+    {
+        return DeviceStatus::NonFunctional;
+    }
     /* try to execute a dummy kernel */
     try
     {
@@ -196,8 +201,8 @@ static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
         return DeviceStatus::NonFunctional;
     }
 
-    cu_err = hipDeviceReset();
-    HIP_RET_ERR(cu_err, "hipDeviceReset failed");
+    hip_err = hipDeviceReset();
+    HIP_RET_ERR(hip_err, "hipDeviceReset failed");
 
     return DeviceStatus::Compatible;
 }

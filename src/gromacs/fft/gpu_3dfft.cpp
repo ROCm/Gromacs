@@ -46,8 +46,10 @@
 #include "gpu_3dfft.h"
 #include "gpu_3dfft_impl.h"
 
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA
 #    include "gpu_3dfft_cufft.h"
+#elif GMX_GPU_HIP
+#    include "gpu_3dfft_cufft.hip.hpp"
 #elif GMX_GPU_OPENCL
 #    include "gpu_3dfft_ocl.h"
 #elif GMX_GPU_SYCL

@@ -52,7 +52,7 @@
 
 namespace gmx
 {
-static void handleCufftError(hipfftResult_t status, const char* msg)
+static void handleHipfftError(hipfftResult_t status, const char* msg)
 {
     if (status != HIPFFT_SUCCESS)
     {
@@ -92,10 +92,10 @@ Gpu3dFft::ImplCuFft::ImplCuFft(bool allocateGrids,
     /* Commented code for a simple 3D grid with no padding */
     /*
        result = hipfftPlan3d(&planR2C_, realGridSize[XX], realGridSize[YY], realGridSize[ZZ],
-       HIPFFT_R2C); handleCufftError(result, "hipfftPlan3d R2C plan failure");
+       HIPFFT_R2C); handleHipfftError(result, "hipfftPlan3d R2C plan failure");
 
        result = hipfftPlan3d(&planC2R_, realGridSize[XX], realGridSize[YY], realGridSize[ZZ],
-       HIPFFT_C2R); handleCufftError(result, "hipfftPlan3d C2R plan failure");
+       HIPFFT_C2R); handleHipfftError(result, "hipfftPlan3d C2R plan failure");
      */
 
     const int rank = 3, batch = 1;
@@ -110,7 +110,7 @@ Gpu3dFft::ImplCuFft::ImplCuFft(bool allocateGrids,
                            complexGridSizePaddedTotal,
                            HIPFFT_R2C,
                            batch);
-    handleCufftError(result, "hipfftPlanMany R2C plan failure");
+    handleHipfftError(result, "hipfftPlanMany R2C plan failure");
 
     result = hipfftPlanMany(&planC2R_,
                            rank,
@@ -123,25 +123,25 @@ Gpu3dFft::ImplCuFft::ImplCuFft(bool allocateGrids,
                            realGridSizePaddedTotal,
                            HIPFFT_C2R,
                            batch);
-    handleCufftError(result, "hipfftPlanMany C2R plan failure");
+    handleHipfftError(result, "hipfftPlanMany C2R plan failure");
 
     hipStream_t stream = pmeStream.stream();
     GMX_RELEASE_ASSERT(stream, "Can not use the default HIP stream for PME cuFFT");
 
     result = hipfftSetStream(planR2C_, stream);
-    handleCufftError(result, "hipfftSetStream R2C failure");
+    handleHipfftError(result, "hipfftSetStream R2C failure");
 
     result = hipfftSetStream(planC2R_, stream);
-    handleCufftError(result, "hipfftSetStream C2R failure");
+    handleHipfftError(result, "hipfftSetStream C2R failure");
 }
 
 Gpu3dFft::ImplCuFft::~ImplCuFft()
 {
     hipfftResult_t result;
     result = hipfftDestroy(planR2C_);
-    handleCufftError(result, "hipfftDestroy R2C failure");
+    handleHipfftError(result, "hipfftDestroy R2C failure");
     result = hipfftDestroy(planC2R_);
-    handleCufftError(result, "hipfftDestroy C2R failure");
+    handleHipfftError(result, "hipfftDestroy C2R failure");
 }
 
 void Gpu3dFft::ImplCuFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
@@ -150,12 +150,12 @@ void Gpu3dFft::ImplCuFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*ti
     if (dir == GMX_FFT_REAL_TO_COMPLEX)
     {
         result = hipfftExecR2C(planR2C_, realGrid_, complexGrid_);
-        handleCufftError(result, "cuFFT R2C execution failure");
+        handleHipfftError(result, "hipFFT R2C execution failure");
     }
     else
     {
         result = hipfftExecC2R(planC2R_, complexGrid_, realGrid_);
-        handleCufftError(result, "cuFFT C2R execution failure");
+        handleHipfftError(result, "hipFFT C2R execution failure");
     }
 }
 

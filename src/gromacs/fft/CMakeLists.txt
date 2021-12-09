@@ -59,10 +59,19 @@ if(Heffte_FOUND)
         gpu_3dfft_heffte.cpp
         )
 endif()
-if (GMX_GPU_HIP)
+if (GMX_GPU_CUDA)
+    gmx_add_libgromacs_sources(
+        # CUDA-specific sources
+        gpu_3dfft_cufft.cu
+        )
+    _gmx_add_files_to_property(CUDA_SOURCES
+        # Must add these files so they can include cuda_runtime.h
+        gpu_3dfft.cpp
+        )
+elseif (GMX_GPU_HIP)
     gmx_add_libgromacs_sources(
         # HIP-specific sources
-        gpu_3dfft_cufft.cu
+        gpu_3dfft_cufft.hip.hpp
         )
     _gmx_add_files_to_property(HIP_SOURCES
         # Must add these files so they can include hip_runtime.h

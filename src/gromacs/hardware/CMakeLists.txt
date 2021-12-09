@@ -46,9 +46,18 @@ if(GMX_GPU_OPENCL)
     gmx_add_libgromacs_sources(
         device_management_ocl.cpp
         )
-elseif(GMX_GPU_HIP)
+elseif(GMX_GPU_CUDA)
     gmx_add_libgromacs_sources(
         device_management.cu
+        )
+    _gmx_add_files_to_property(CUDA_SOURCES
+        # Must add these files so they can include device_information.h
+        device_management_common.cpp
+        detecthardware.cpp
+	)
+elseif(GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+        device_management.hip.cpp
         )
     _gmx_add_files_to_property(HIP_SOURCES
         # Must add these files so they can include device_information.h
