@@ -216,7 +216,7 @@ static __forceinline__ __device__ void
 
     if (tidxi < 3)
     {
-        atomicAdd((&fout[aidx].x) + tidxi, f.x);
+        atomicAddNoRet((&fout[aidx].x) + tidxi, f.x);
     }
 }
 
@@ -249,7 +249,7 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if (tidxj < 3)
     {
-        atomicAdd(&fout[aidx].x + tidxj, fin.x);
+        atomicAddNoRet(&fout[aidx].x + tidxj, fin.x);
 
         if (bCalcFshift)
         {
@@ -275,8 +275,8 @@ static __forceinline__ __device__ void
     /* The first thread in the warp writes the reduced energies */
     if (tidx == 0)
     {
-        atomicAdd(e_lj, E_lj);
-        atomicAdd(e_el, E_el);
+        atomicAddNoRet(e_lj, E_lj);
+        atomicAddNoRet(e_el, E_el);
     }
 }
 
@@ -802,7 +802,7 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
 /* add up local shift forces into global mem, tidxj indexes x,y,z */
     if (bCalcFshift && tidxj < 3)
     {
-        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+        atomicAddNoRet(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
     }
 
 #    ifdef CALC_ENERGIES
