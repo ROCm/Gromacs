@@ -113,9 +113,9 @@ __forceinline__ __host__ __device__ void operator*=(float3& a, float b)
 }
 __forceinline__ __device__ void atomicAdd(float3* addr, float3 val)
 {
-    atomicAdd(&addr->x, val.x);
-    atomicAdd(&addr->y, val.y);
-    atomicAdd(&addr->z, val.z);
+    atomicAddNoRet(&addr->x, val.x);
+    atomicAddNoRet(&addr->y, val.y);
+    atomicAddNoRet(&addr->z, val.z);
 }
 /****************************************************************/
 
@@ -271,9 +271,9 @@ __forceinline__ __device__ float gmx_angle(const float3 a, const float3 b)
  */
 __forceinline__ __device__ void atomicAdd(float3& a, const float3 b)
 {
-    atomicAdd(&a.x, b.x);
-    atomicAdd(&a.y, b.y);
-    atomicAdd(&a.z, b.z);
+    atomicAddNoRet(&a.x, b.x);
+    atomicAddNoRet(&a.y, b.y);
+    atomicAddNoRet(&a.z, b.z);
 }
 
 #endif /* VECTYPE_OPS_CUH */

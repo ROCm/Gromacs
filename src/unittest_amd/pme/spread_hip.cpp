@@ -549,7 +549,7 @@ __device__ __forceinline__ void spread_charges(const bool wrapX, const bool wrap
                 const float thetaX = sm_theta[splineIndexX];
                 assert(isfinite(thetaX));
                 assert(isfinite(gm_grid[gridIndexGlobal]));
-                atomicAdd(gm_grid + gridIndexGlobal, thetaX * Val);
+                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
             }
         }
     }
@@ -720,7 +720,7 @@ template <typename T>
 void initVector3ValueFromFile(const char* fileName, int dataSize, int totalSize, T* out) {
     std::ifstream myfile;
     myfile.open(fileName);
-    
+
     float3 value;
     for (int i = 0; i < dataSize; i++) {
         myfile >> value.x;//out[i];
@@ -868,7 +868,7 @@ int main(int argc, char *argv[]) {
              int         *d_gridlineIndices,
              float       *d_realGrid0,
 	     float       *d_realGrid1);
-    
+
         //if (numGrids == 2)
         {
             spreadKernel = pme_spline_and_spread_kernel<c_pmeOrder, 2, false, ThreadsPerAtom::Order>;
@@ -878,8 +878,8 @@ int main(int argc, char *argv[]) {
        //     kernelPtr = pme_spline_and_spread_kernel<c_pmeOrder, true, true, c_wrapX, c_wrapY, 1, false, ThreadsPerAtom::Order>;
        // }
   //  for (int iter=0; iter<1000; iter++) {
-        hipLaunchKernelGGL(spreadKernel, 
-			dim3(grid_dim_x, 1, 1), 
+        hipLaunchKernelGGL(spreadKernel,
+			dim3(grid_dim_x, 1, 1),
 			dim3(order, 1, atomsPerBlock), 0, 0
     		    , true, true, true, true
     		    , nAtoms, d_coordinates, d_coefficients[0], d_coefficients[1]
