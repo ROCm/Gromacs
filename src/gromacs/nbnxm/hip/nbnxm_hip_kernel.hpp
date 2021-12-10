@@ -401,14 +401,10 @@ __launch_bounds__(THREADS_PER_BLOCK)
                 {
                     cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
                 }
-                //__syncwarp(c_fullWarpMask);
+                // __syncwarp(c_fullWarpMask);
+                __all(1);
             }
-        }
-        
-        __syncthreads();
-        
-        if (imask)
-        {
+
             /* Unrolling this loop
                - with pruning leads to register spilling;
                - on Kepler and later it is much slower;
@@ -457,7 +453,8 @@ __launch_bounds__(THREADS_PER_BLOCK)
                             /* If _none_ of the atoms pairs are in cutoff range,
                                the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            if (!__any_sync(c_fullWarpMask, r2 < rlist_sq))
+                            //if (!__any_sync(c_fullWarpMask, r2 < rlist_sq))
+                            if (!__any(r2 < rlist_sq))
                             {
                                 imask &= ~mask_ji;
                             }
@@ -648,7 +645,8 @@ __launch_bounds__(THREADS_PER_BLOCK)
         if (c_preloadCj)
         {
             // avoid shared memory WAR hazards on sm_cjs between loop iterations
-            __syncwarp(c_fullWarpMask);
+            // __syncwarp(c_fullWarpMask);
+            __all(1);
         }
     }
 

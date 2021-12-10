@@ -57,7 +57,7 @@
 #include "nbnxm_hip_types.h"
 
 #ifndef NBNXM_HIP_KERNEL_UTILS_CUH
-#    define NBNXM_HIP_KERNEL_UTILS_CUH
+#define NBNXM_HIP_KERNEL_UTILS_CUH
 
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
@@ -468,24 +468,30 @@ reduce_force_j_generic(const float* f_buf, float3* fout, int tidxi, int tidxj, i
 static __forceinline__ __device__ void
 reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned int activemask)
 {
-    f.x += __shfl_down_sync(activemask, f.x, 1);
-    f.y += __shfl_up_sync(activemask, f.y, 1);
-    f.z += __shfl_down_sync(activemask, f.z, 1);
+    // f.x += __shfl_down_sync(activemask, f.x, 1);
+    // f.y += __shfl_up_sync(activemask, f.y, 1);
+    // f.z += __shfl_down_sync(activemask, f.z, 1);
+    f.x += __shfl_down(f.x, 1);
+    f.y += __shfl_up(f.y, 1);
+    f.z += __shfl_down(f.z, 1);
 
     if (tidxi & 1)
     {
         f.x = f.y;
     }
 
-    f.x += __shfl_down_sync(activemask, f.x, 2);
-    f.z += __shfl_up_sync(activemask, f.z, 2);
+    // f.x += __shfl_down_sync(activemask, f.x, 2);
+    // f.z += __shfl_up_sync(activemask, f.z, 2);
+    f.x += __shfl_down(f.x, 2);
+    f.z += __shfl_up(f.z, 2);
 
     if (tidxi & 2)
     {
         f.x = f.z;
     }
 
-    f.x += __shfl_down_sync(activemask, f.x, 4);
+    // f.x += __shfl_down_sync(activemask, f.x, 4);
+    f.x += __shfl_down(f.x, 4);
 
     if (tidxi < 3)
     {
@@ -600,17 +606,22 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
                                                                 int                aidx,
                                                                 const unsigned int activemask)
 {
-    fin.x += __shfl_down_sync(activemask, fin.x, c_clSize);
-    fin.y += __shfl_up_sync(activemask, fin.y, c_clSize);
-    fin.z += __shfl_down_sync(activemask, fin.z, c_clSize);
+    // fin.x += __shfl_down_sync(activemask, fin.x, c_clSize);
+    // fin.y += __shfl_up_sync(activemask, fin.y, c_clSize);
+    // fin.z += __shfl_down_sync(activemask, fin.z, c_clSize);
+    fin.x += __shfl_down(fin.x, c_clSize);
+    fin.y += __shfl_up(fin.y, c_clSize);
+    fin.z += __shfl_down(fin.z, c_clSize);
 
     if (tidxj & 1)
     {
         fin.x = fin.y;
     }
 
-    fin.x += __shfl_down_sync(activemask, fin.x, 2 * c_clSize);
-    fin.z += __shfl_up_sync(activemask, fin.z, 2 * c_clSize);
+    // fin.x += __shfl_down_sync(activemask, fin.x, 2 * c_clSize);
+    // fin.z += __shfl_up_sync(activemask, fin.z, 2 * c_clSize);
+    fin.x += __shfl_down(fin.x, 2 * c_clSize);
+    fin.z += __shfl_up(fin.z, 2 * c_clSize);
 
     if (tidxj & 2)
     {
@@ -676,8 +687,10 @@ reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int ti
 #    pragma unroll 5
     for (i = 0; i < 5; i++)
     {
-        E_lj += __shfl_down_sync(activemask, E_lj, sh);
-        E_el += __shfl_down_sync(activemask, E_el, sh);
+        // E_lj += __shfl_down_sync(activemask, E_lj, sh);
+        // E_el += __shfl_down_sync(activemask, E_el, sh);
+        E_lj += __shfl_down(E_lj, sh);
+        E_el += __shfl_down(E_el, sh);
         sh += sh;
     }
 

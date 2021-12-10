@@ -257,6 +257,7 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
         calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, numGrids>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
         // __syncwarp();
+        __all(1);
     }
     else
     {
@@ -270,9 +271,9 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
         pme_gpu_stage_atom_data<int, atomsPerBlock, DIM>(sm_gridlineIndices,
                                                          kernelParams.atoms.d_gridlineIndices);
 
-        // __syncthreads();
+        __syncthreads();
     }
-    __syncthreads();
+
     /* Spreading */
     if (spreadCharges && atomIndexGlobal < kernelParams.atoms.nAtoms)
     {

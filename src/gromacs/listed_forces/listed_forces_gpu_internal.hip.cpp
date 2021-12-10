@@ -51,14 +51,13 @@
 
 #include <cassert>
 
-// #include <math_constants.h>
+#include "gromacs/math/math_constants.h"
 
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/typecasts.hpp"
 #include "gromacs/gpu_utils/vectype_ops.hpp"
 #include "gromacs/listed_forces/listed_forces_gpu.h"
 #include "gromacs/math/units.h"
-#include "gromacs/math/math_constants.h"
 #include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/simulation_workload.h"
@@ -72,7 +71,7 @@
 #    include <limits>
 #endif
 
-/*-------------------------------- HIP kernels -------------------------------- */
+/*-------------------------------- HIP kernels-------------------------------- */
 /*------------------------------------------------------------------------------*/
 
 #define HIP_DEG2RAD_F (HIPRT_PI_F / 180.0F)
@@ -854,26 +853,24 @@ __global__ void exec_kernel_gpu(BondedHipKernelParameters kernelParams, float4* 
         }
     }
 
-    float *vtotVdw, *vtotElec, *sm_vTot, *sm_vTotVdw, *sm_vTotElec;
-    int numWarps, warpId;
     if (threadComputedPotential)
     {
-        vtotVdw  = kernelParams.d_vTot + F_LJ14;
-        vtotElec = kernelParams.d_vTot + F_COUL14;
+        float* vtotVdw  = kernelParams.d_vTot + F_LJ14;
+        float* vtotElec = kernelParams.d_vTot + F_COUL14;
 
         // Stage atomic accumulation through shared memory:
         // each warp will accumulate its own partial sum
         // and then a single thread per warp will accumulate this to the global sum
 
-        numWarps = blockDim.x / warpSize;
-        warpId   = threadIdx.x / warpSize;
+        int numWarps = blockDim.x / warpSize;
+        int warpId   = threadIdx.x / warpSize;
 
         // Shared memory variables to hold block-local partial sum
-        sm_vTot = reinterpret_cast<float*>(sm_nextSlotPtr);
+        float* sm_vTot = reinterpret_cast<float*>(sm_nextSlotPtr);
         sm_nextSlotPtr += numWarps * sizeof(float);
-        sm_vTotVdw = reinterpret_cast<float*>(sm_nextSlotPtr);
+        float* sm_vTotVdw = reinterpret_cast<float*>(sm_nextSlotPtr);
         sm_nextSlotPtr += numWarps * sizeof(float);
-        sm_vTotElec = reinterpret_cast<float*>(sm_nextSlotPtr);
+        float* sm_vTotElec = reinterpret_cast<float*>(sm_nextSlotPtr);
 
         if (threadIdx.x % warpSize == 0)
         {
@@ -882,22 +879,17 @@ __global__ void exec_kernel_gpu(BondedHipKernelParameters kernelParams, float4* 
             sm_vTotVdw[warpId]  = 0.;
             sm_vTotElec[warpId] = 0.;
         }
-    }
         // __syncwarp(); // All threads in warp must wait for initialization
-    __syncthreads();
-    
-    if (threadComputedPotential)
-    {
+        __all(1);
+
         // Perform warp-local accumulation in shared memory
         atomicAdd(sm_vTot + warpId, vtot_loc);
         atomicAdd(sm_vTotVdw + warpId, vtotVdw_loc);
         atomicAdd(sm_vTotElec + warpId, vtotElec_loc);
-    }
+
         // __syncwarp(); // Ensure all threads in warp have completed
-    __syncthreads();
-    
-    if (threadComputedPotential)
-    {
+        __all(1);
+
         if (threadIdx.x % warpSize == 0)
         { // One thread per warp accumulates partial sum into global sum
             atomicAdd(kernelParams.d_vTot + fType, sm_vTot[warpId]);
