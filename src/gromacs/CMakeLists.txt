@@ -375,7 +375,7 @@ endif()
 if (GMX_GPU_HIP)
     get_property(HIP_SOURCES GLOBAL PROPERTY HIP_SOURCES)
     set_source_files_properties(${HIP_SOURCES} PROPERTIES COMPILE_FLAGS "${HIP_CXX_FLAGS}")
-    message(STATUS "HIP_COMPILE_FLAGS: ${HIP_CXX_FLAGS}")
+    message(STATUS "[src/gromacs] HIP_COMPILE_FLAGS: ${HIP_CXX_FLAGS}")
 endif()
 
 # Only add the -fsycl flag to sources that really need it
