@@ -357,7 +357,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // First 6 threads in the block add the 6 components of virial to the global memory address
         if (tib < 6)
         {
-            atomicAdd(&(gm_virialScaled[tib]), sm_threadVirial[tib * blockSize]);
+            atomicAddNoRet(&(gm_virialScaled[tib]), sm_threadVirial[tib * blockSize]);
         }
     }
 
