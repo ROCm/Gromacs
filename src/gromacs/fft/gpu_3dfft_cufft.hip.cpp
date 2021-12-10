@@ -43,7 +43,7 @@
 
 #include "gmxpre.h"
 
-#include "gpu_3dfft_cufft.h"
+#include "gpu_3dfft_cufft.hpp"
 
 #include "gromacs/gpu_utils/device_stream.h"
 #include "gromacs/utility/arrayref.h"

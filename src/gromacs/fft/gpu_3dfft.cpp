@@ -49,7 +49,7 @@
 #if GMX_GPU_CUDA
 #    include "gpu_3dfft_cufft.h"
 #elif GMX_GPU_HIP
-#    include "gpu_3dfft_cufft.hip.hpp"
+#    include "gpu_3dfft_cufft.hpp"
 #elif GMX_GPU_OPENCL
 #    include "gpu_3dfft_ocl.h"
 #elif GMX_GPU_SYCL
