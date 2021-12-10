@@ -585,7 +585,6 @@ gmx_manage_simd()
 
 
 if(GMX_GPU)
-
     string(TOUPPER "${GMX_GPU}" _gmx_gpu_uppercase)
     if(${_gmx_gpu_uppercase} STREQUAL "CUDA")
         include(gmxManageCuda)

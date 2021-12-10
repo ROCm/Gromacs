@@ -49,6 +49,9 @@ if(GMX_GPU_CUDA)
 endif()
 if(GMX_GPU_HIP)
     get_hip_compiler_info(HIP_COMPILER_INFO HIP_DEVICE_COMPILER_FLAGS HIP_HOST_COMPILER_FLAGS)
+    message(STATUS "HIP_COMPILER_INFO: ${HIP_COMPILER_INFO}")
+    message(STATUS "HIP_DEVICE_COMPILER_FLAGS: ${HIP_DEVICE_COMPILER_FLAGS}")
+    message("HIP_HOST_COMPILER_FLAGS: ${HIP_HOST_COMPILER_FLAGS}")
 endif()
 
 # Make a file with compiler flags used for libgromacs for each

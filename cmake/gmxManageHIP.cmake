@@ -35,28 +35,37 @@
 
 set(GMX_GPU_HIP ON)
 
-
 if(GMX_DOUBLE)
     message(FATAL_ERROR "HIP acceleration is not available in double precision")
 endif()
 
 # We need to call find_package even when we've already done the detection/setup
-find_package(hcc CONFIG PATHS /opt/rocm)
 find_package(hip CONFIG PATHS /opt/rocm)
+
+# Try to execute ${HIP_HIPCC_EXECUTABLE} --version and set the output
+# (or an error string) in the argument variable.
+# Note that semicolon is used as separator for nvcc.
+#
+# Parameters:
+#   COMPILER_INFO         - [output variable] string with compiler path, ID and
+#                           some compiler-provided information
+#   DEVICE_COMPILER_FLAGS - [output variable] device flags for the compiler
+#   HOST_COMPILER_FLAGS   - [output variable] host flags for the compiler, if propagated
+#
 
 set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 message(STATUS "CMAKE_HIP_LINK_EXECUTABLE: " ${CMAKE_HIP_LINK_EXECUTABLE})
 if(NOT DEFINED HIP_PATH)
     if(NOT DEFINED ENV{HIP_PATH})
         set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
-	set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
+        set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
     else()
         set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
-	set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
+        set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
     endif()
 endif()
 
-set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward). This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime.  ${_msg}")
+set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward). This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime. ${_msg}")
 unset(_msg)
 
 if(NOT hip_FOUND)
@@ -66,14 +75,14 @@ else()
     message(STATUS "HIP is found!")
 endif()
 
-find_package(rocfft QUIET CONFIG PATHS /opt/rocm)
+find_package(rocfft CONFIG PATHS /opt/rocm)
 if(NOT rocfft_FOUND)
    message(FATAL_ERROR "rocfft is required, but it is not found in this environment")
 else()
    message(STATUS "rocfft is found!")
 endif()
 
-find_package(hipfft QUIET CONFIG PATHS /opt/rocm)
+find_package(hipfft CONFIG PATHS /opt/rocm)
 if(NOT hipfft_FOUND)
    message(FATAL_ERROR "hipfft is required, but it is not found in this environment")
 else()
@@ -86,28 +95,29 @@ macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FL
          PATHS /opt/rocm/hip
     )
     if(HIP_CONFIG)
+        message(STATUS "HIP_CONFIG: ${HIP_CONFIG}") 
         execute_process(COMMAND ${HIP_CONFIG} --version
                 RESULT_VARIABLE _hipcc_version_res
                 OUTPUT_VARIABLE _hipcc_version_out
                 ERROR_VARIABLE  _hipcc_version_err
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
         if(${_hipcc_version_res} EQUAL 0)
-            find_program(HIP_CC_COMPILER hipcc
+            find_program(HIPCC_COMPILER hipcc
                  PATH_SUFFIXES bin
                  PATHS /opt/rocm/hip
             )
-            if(HIP_CC_COMPILER)
-                SET(${COMPILER_INFO} "${HIP_CC_COMPILER} ${_hipcc_version_out}")
-                SET(${DEVICE_COMPILER_FLAGS} "")
+            if(HIPCC_COMPILER)
+                set(${COMPILER_INFO} "${HIP_CC_COMPILER} ${_hipcc_version_out}")
+                set(${DEVICE_COMPILER_FLAGS} "")
             else()
-                SET(${COMPILER_INFO} "N/A")
-                SET(${DEVICE_COMPILER_FLAGS} "N/A")
+                set(${COMPILER_INFO} "N/A")
+                set(${DEVICE_COMPILER_FLAGS} "N/A")
             endif()
         else()
-            SET(${COMPILER_INFO} "N/A")
-            SET(${DEVICE_COMPILER_FLAGS} "N/A")
+            set(${COMPILER_INFO} "N/A")
+            set(${DEVICE_COMPILER_FLAGS} "N/A")
         endif()
-        SET(${HOST_COMPILER_FLAGS} "")
+        set(${HOST_COMPILER_FLAGS} "")
     endif()
 endmacro()
 

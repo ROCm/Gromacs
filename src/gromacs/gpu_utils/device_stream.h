@@ -51,8 +51,7 @@
 #include <memory>
 
 #if GMX_GPU_HIP
-#    include <hip/hip_runtime.h>
-
+#    include "hip/hip_runtime.h"
 #elif GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gmxopencl.h"
 #elif GMX_GPU_SYCL

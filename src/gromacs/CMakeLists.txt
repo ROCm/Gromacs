@@ -167,7 +167,7 @@ gmx_configure_version_file(
         )
 list(APPEND LIBGROMACS_SOURCES ${GENERATED_VERSION_FILE})
 
-# Mark some shared GPU implementation files to compile with HIP if needed
+# Mark some shared GPU implementation files to compile with CUDA if needed
 if (GMX_GPU_CUDA)
     get_property(CUDA_SOURCES GLOBAL PROPERTY CUDA_SOURCES)
     set_source_files_properties(${CUDA_SOURCES} PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
@@ -185,7 +185,6 @@ if (GMX_GPU_CUDA)
     target_link_libraries(libgromacs PRIVATE ${CUDA_CUFFT_LIBRARIES})
 elseif(GMX_GPU_HIP)
     set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-
     if(NOT GMX_THREAD_MPI)
         find_package(MPI)
 	    message (STATUS "MPI_C_FOUND:" ${MPI_C_FOUND})
@@ -210,21 +209,23 @@ elseif(GMX_GPU_HIP)
 	        set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
         endif()
     endif()
+
     get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+
 	if(NOT HIP_ADD_LIBRARY_FOUND)
         list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
         set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
-        find_package(HIP QUIET)
+        find_package(HIP)
 	    set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
         if(HIP_FOUND)
-            message(STATUS "Found HIP: " ${HIP_VERSION})
+            message(STATUS "Found HIP: ${HIP_VERSION}")
         else()
             message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
         endif()
     endif()
 
     foreach(hip_file ${LIBGROMACS_SOURCES})
-       if(${hip_file} MATCHES "\\.hip.cpp$" )
+       if(${hip_file} MATCHES "\\.hip.cpp$")
            set_source_files_properties(${hip_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
        endif()
     endforeach()
@@ -374,6 +375,7 @@ endif()
 if (GMX_GPU_HIP)
     get_property(HIP_SOURCES GLOBAL PROPERTY HIP_SOURCES)
     set_source_files_properties(${HIP_SOURCES} PROPERTIES COMPILE_FLAGS "${HIP_CXX_FLAGS}")
+    message(STATUS "HIP_COMPILE_FLAGS: ${HIP_CXX_FLAGS}")
 endif()
 
 # Only add the -fsycl flag to sources that really need it
