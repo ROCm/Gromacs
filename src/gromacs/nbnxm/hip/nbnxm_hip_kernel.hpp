@@ -401,9 +401,14 @@ __launch_bounds__(THREADS_PER_BLOCK)
                 {
                     cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
                 }
-                __syncwarp(c_fullWarpMask);
+                //__syncwarp(c_fullWarpMask);
             }
-
+        }
+        
+        __syncthreads();
+        
+        if (imask)
+        {
             /* Unrolling this loop
                - with pruning leads to register spilling;
                - on Kepler and later it is much slower;
@@ -619,10 +624,10 @@ __launch_bounds__(THREADS_PER_BLOCK)
                                 f_ij = rv * F_invr;
 
                                 /* accumulate j forces in registers */
-                                fcj_buf -= f_ij;
+                                fcj_buf = fcj_buf - f_ij;
 
                                 /* accumulate i forces in registers */
-                                fci_buf[i] += f_ij;
+                                fci_buf[i] = fci_buf[i] + f_ij;
                             }
                         }
 

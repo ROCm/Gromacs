@@ -36,18 +36,18 @@
 if(GMX_GPU_HIP)
     if(NOT GMX_HIP_NB_SINGLE_COMPILATION_UNIT)
         set(NBNXM_HIP_KERNEL_SOURCES
-                nbnxm_hip_kernel_F_noprune.cu
-                nbnxm_hip_kernel_F_prune.cu
-                nbnxm_hip_kernel_VF_noprune.cu
-                nbnxm_hip_kernel_VF_prune.cu
-                nbnxm_hip_kernel_pruneonly.cu)
+                nbnxm_hip_kernel_F_noprune.hip.cpp
+                nbnxm_hip_kernel_F_prune.hip.cpp
+                nbnxm_hip_kernel_VF_noprune.hip.cpp
+                nbnxm_hip_kernel_VF_prune.hip.cpp
+                nbnxm_hip_kernel_pruneonly.hip.cpp)
     endif()
 
     file(GLOB NBNXM_HIP_SOURCES
-         nbnxm_hip.cu
-         nbnxm_hip_data_mgmt.cu
-         nbnxm_hip_jit_support.cu
-         nbnxm_gpu_buffer_ops_internal.cu
+         nbnxm_hip.hip.cpp
+         nbnxm_hip_data_mgmt.hip.cpp
+         nbnxm_hip_jit_support.hip.cpp
+         nbnxm_gpu_buffer_ops_internal.hip.cpp
          ${NBNXM_HIP_KERNEL_SOURCES})
     set(NBNXM_SOURCES ${NBNXM_SOURCES} ${NBNXM_HIP_SOURCES} PARENT_SCOPE)
 endif()
