@@ -42,9 +42,6 @@ cmake_policy(SET CMP0048 NEW) # As of CMake 3.22, default is still "OLD"
 # CMake modules/macros are in a subdirectory to keep this file cleaner
 # This needs to be set before project() in order to pick up toolchain files
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Platform)
-foreach(path IN LISTS CMAKE_MODULE_PATH)
-    message(STATUS "CMAKE_MODULE_PATH: " ${path})
-endforeach()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     # Providing a default value >=10.14 helps to find modern C++ compatibility,
@@ -66,7 +63,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(gmxManageCcache)
-message(STATUS "CMAKE_BINARY_DIR: " ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

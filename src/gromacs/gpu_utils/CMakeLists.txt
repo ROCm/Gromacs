@@ -75,6 +75,11 @@ elseif(GMX_GPU_HIP)
         )
     _gmx_add_files_to_property(HIP_SOURCES
         device_stream_manager.cpp
+        device_context.cpp
+        device_stream.hip.cpp
+        gpu_utils.hip.cpp
+        pinning.hip.cpp
+        pmalloc.hip.cpp
         )
 elseif(GMX_GPU_SYCL)
     gmx_add_libgromacs_sources(

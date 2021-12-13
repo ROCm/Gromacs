@@ -33,14 +33,64 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
+macro(check_hip_path)
+    if(NOT DEFINED HIP_PATH)
+        if(NOT DEFINED ENV{HIP_PATH})
+            set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
+        else()
+            set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
+        endif()
+    endif()
+    if(NOT DEFINED HIP_CLANG_PATH)
+        if(NOT DEFINED ENV{HIP_CLANG_PATH})
+            set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
+        else()
+            set(HIP_CLANG_PATH $ENV{HIP_CLANG_PATH} CACHE PATH "Path to which HIP clang has been installed")
+        endif()
+    endif()
+endmacro()
+
+macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FLAGS)
+    find_program(HIP_CONFIG hipconfig
+         PATH_SUFFIXES bin
+         PATHS /opt/rocm/hip
+    )
+    if(HIP_CONFIG)
+        execute_process(COMMAND ${HIP_CONFIG} --version
+                RESULT_VARIABLE _hipcc_version_res
+                OUTPUT_VARIABLE _hipcc_version_out
+                ERROR_VARIABLE  _hipcc_version_err
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(${_hipcc_version_res} EQUAL 0)
+            find_program(HIPCC_COMPILER hipcc
+                 PATH_SUFFIXES bin
+                 PATHS /opt/rocm/hip
+            )
+            if(HIPCC_COMPILER)
+                set(${COMPILER_INFO} "${HIPCC_COMPILER} ${_hipcc_version_out}")
+                set(${DEVICE_COMPILER_FLAGS} "")
+            else()
+                set(${COMPILER_INFO} "N/A")
+                set(${DEVICE_COMPILER_FLAGS} "N/A")
+            endif()
+        else()
+            set(${COMPILER_INFO} "N/A")
+            set(${DEVICE_COMPILER_FLAGS} "N/A")
+        endif()
+        set(${HOST_COMPILER_FLAGS} "")
+    endif()
+endmacro()
+
+macro(enable_multiple_rocm_compilation_units)
+    message(STATUS "Enabling multiple compilation units for the ROCM non-bonded module.")
+    set_property(CACHE GMX_ROCM_NB_SINGLE_COMPILATION_UNIT PROPERTY VALUE OFF)
+endmacro()
+
 set(GMX_GPU_HIP ON)
 
 if(GMX_DOUBLE)
     message(FATAL_ERROR "HIP acceleration is not available in double precision")
 endif()
-
-# We need to call find_package even when we've already done the detection/setup
-find_package(hip CONFIG PATHS /opt/rocm)
 
 # Try to execute ${HIP_HIPCC_EXECUTABLE} --version and set the output
 # (or an error string) in the argument variable.
@@ -53,20 +103,14 @@ find_package(hip CONFIG PATHS /opt/rocm)
 #   HOST_COMPILER_FLAGS   - [output variable] host flags for the compiler, if propagated
 #
 
-set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-if(NOT DEFINED HIP_PATH)
-    if(NOT DEFINED ENV{HIP_PATH})
-        set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
-        set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
-    else()
-        set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
-        set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
-    endif()
-endif()
+# set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
-set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward). This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime. ${_msg}")
+check_hip_path()
+
+# We need to call find_package even when we've already done the detection/setup
+find_package(hip CONFIG PATHS /opt/rocm)
+set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward. This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime. ${_msg}")
 unset(_msg)
-
 if(NOT hip_FOUND)
     # the user requested ROCM, but it wasn't found
     message(FATAL_ERROR "${ROCM_NOTFOUND_MESSAGE}")
@@ -87,43 +131,6 @@ if(NOT hipfft_FOUND)
 else()
    message(STATUS "hipfft is found!")
 endif()
-
-macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FLAGS)
-    find_program(HIP_CONFIG hipconfig
-         PATH_SUFFIXES bin
-         PATHS /opt/rocm/hip
-    )
-    if(HIP_CONFIG)
-        message(STATUS "HIP_CONFIG: ${HIP_CONFIG}") 
-        execute_process(COMMAND ${HIP_CONFIG} --version
-                RESULT_VARIABLE _hipcc_version_res
-                OUTPUT_VARIABLE _hipcc_version_out
-                ERROR_VARIABLE  _hipcc_version_err
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if(${_hipcc_version_res} EQUAL 0)
-            find_program(HIPCC_COMPILER hipcc
-                 PATH_SUFFIXES bin
-                 PATHS /opt/rocm/hip
-            )
-            if(HIPCC_COMPILER)
-                set(${COMPILER_INFO} "${HIP_CC_COMPILER} ${_hipcc_version_out}")
-                set(${DEVICE_COMPILER_FLAGS} "")
-            else()
-                set(${COMPILER_INFO} "N/A")
-                set(${DEVICE_COMPILER_FLAGS} "N/A")
-            endif()
-        else()
-            set(${COMPILER_INFO} "N/A")
-            set(${DEVICE_COMPILER_FLAGS} "N/A")
-        endif()
-        set(${HOST_COMPILER_FLAGS} "")
-    endif()
-endmacro()
-
-macro(enable_multiple_rocm_compilation_units)
-    message(STATUS "Enabling multiple compilation units for the ROCM non-bonded module.")
-    set_property(CACHE GMX_ROCM_NB_SINGLE_COMPILATION_UNIT PROPERTY VALUE OFF)
-endmacro()
 
 option(GMX_HIP_NB_SINGLE_COMPILATION_UNIT "Whether to compile the HIP non-bonded module using a single compilation unit." OFF)
 mark_as_advanced(GMX_HIP_NB_SINGLE_COMPILATION_UNIT)
