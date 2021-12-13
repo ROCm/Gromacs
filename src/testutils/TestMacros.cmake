@@ -121,6 +121,7 @@ function (gmx_add_gtest_executable EXENAME)
         set(_multi_value_keywords
             CPP_SOURCE_FILES
             CUDA_CU_SOURCE_FILES
+            HIP_CPP_SOURCE_FILES
             GPU_CPP_SOURCE_FILES
             OPENCL_CPP_SOURCE_FILES
             SYCL_CPP_SOURCE_FILES
@@ -163,24 +164,18 @@ function (gmx_add_gtest_executable EXENAME)
                 ${ARG_CUDA_CU_SOURCE_FILES}
                 ${ARG_GPU_CPP_SOURCE_FILES})
 	    elseif (GMX_GPU_HIP)
-	        set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-	        if(NOT DEFINED HIP_PATH)
-		        if(NOT DEFINED ENV{HIP_PATH})
-		            set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
-		            set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
-		        else()
-		            set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
-		            set(HIP_CLANG_PATH "/opt/rocm/llvm/bin" CACHE PATH "Path to which HIP  clang has been installed")
-		        endif()
-	        endif()
-	        get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+	        # set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+	        
+            check_hip_path()
+
+            get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
 
 	        if (NOT HIP_ADD_LIBRARY_FOUND)
 		        list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
-	            set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
+	            # set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
 	 	        list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
-		        set(CMAKE_PREFIX_PATH "/opt/rocm/hip" ${CMAKE_PREFIX_PATH})
-	            find_package(HIP QUIET)
+		        # set(CMAKE_PREFIX_PATH "/opt/rocm/hip" ${CMAKE_PREFIX_PATH})
+	            find_package(HIP)
 		        set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
 	            if(HIP_FOUND)
 		            message(STATUS "Found HIP: " ${HIP_VERSION} ${HIP_COMPILER})
@@ -194,7 +189,6 @@ function (gmx_add_gtest_executable EXENAME)
 	            ${ARG_CPP_SOURCE_FILES} 
 	            ${ARG_HIP_CPP_SOURCE_FILES} 
 	    	    ${ARG_GPU_CPP_SOURCE_FILES} 
-	    	    # ${TESTUTILS_DIR}/unittest_main.cpp 
                 HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" CLANG_OPTIONS "" NVCC_OPTIONS)
         else()
             add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
@@ -214,7 +208,7 @@ function (gmx_add_gtest_executable EXENAME)
                 endif()
             endif()
         elseif (GMX_GPU_HIP)
-            target_sources(${EXENAME} PRIVATE ${ARG_HIP_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})
+            # target_sources(${EXENAME} PRIVATE ${ARG_HIP_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})
             if(ARG_HIP_CPP_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
                 target_link_libraries(${EXENAME} PRIVATE hip::host)
             endif()

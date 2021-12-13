@@ -52,6 +52,43 @@ if (GMX_GPU_CUDA)
         target_link_libraries(testutils PRIVATE ${GMX_CUDA_CLANG_LINK_LIBS})
     endif()
     target_link_libraries(testutils PRIVATE ${CUDA_CUFFT_LIBRARIES})
+elseif (GMX_GPU_HIP)
+    check_hip_path()
+    get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+    if(NOT HIP_ADD_LIBRARY_FOUND)
+        list(APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake)
+        # set(CMAKE_MODULE_PATH "/opt/rocm/cmake" ${CMAKE_MODULE_PATH})
+        find_package(HIP)
+	    set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
+        if(HIP_FOUND)
+            message(STATUS "Found HIP: ${HIP_VERSION}")
+        else()
+            message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
+        endif()
+    endif()
+    message(STATUS "HIP Platform: ${HIP_PLATFORM}")
+    message(STATUS "HIP Compiler: ${HIP_COMPILER}")
+    message(STATUS "HIP Runtime: ${HIP_RUNTIME}")
+    message(STATUS "HIP Version: ${HIP_VERSION}")
+
+    if (GMX_GPU_USE_VKFFT)
+        add_definitions(-DGMX_GPU_USE_VKFFT)
+        add_definitions(-DVKFFT_BACKEND=2)
+        add_library(VkFFT INTERFACE)
+        target_compile_definitions(VkFFT INTERFACE -DVKFFT_BACKEND=2)
+    endif()
+
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
+    if("${build_type}" STREQUAL "release")
+	    hip_add_library(testutils test_device.cpp HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" NVCC_OPTIONS)
+    else()
+	    hip_add_library(testutils test_device.cpp HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math" NVCC_OPTIONS)
+    endif()
+
+    if (GMX_GPU_USE_VKFFT)
+        target_link_libraries(testutils PRIVATE VkFFT)
+    endif()    
+    target_link_libraries(testutils PUBLIC roc::rocfft hip::hipfft hip::host)
 else()
     add_library(testutils STATIC ${UNITTEST_TARGET_OPTIONS})
 endif()
@@ -62,7 +99,6 @@ target_include_directories(testutils PUBLIC include)
 # Executable targets for tests based on `testutils` acquire the source for
 # their entry point from unittest_main.cpp when linking to the `testutils` target.
 target_sources(testutils INTERFACE unittest_main.cpp)
-
 
 target_sources(testutils PRIVATE
                cmdlinetest.cpp
@@ -91,7 +127,6 @@ target_sources(testutils PRIVATE
                xvgtest.cpp
                )
 
-
 if(HAVE_TINYXML2)
     target_include_directories(testutils SYSTEM PRIVATE ${TinyXML2_INCLUDE_DIR})
     target_link_libraries(testutils PRIVATE ${TinyXML2_LIBRARIES})
@@ -101,6 +136,7 @@ else()
 endif()
 
 target_include_directories(testutils PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 if (GMX_GPU_SYCL)
     add_sycl_to_target(
         TARGET testutils
