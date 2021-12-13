@@ -54,7 +54,7 @@ struct NbnxnPairlistGpuWork;
 struct t_nblist;
 
 
-#define const_cj4len_max 6
+#define const_cj4len_max 16
 #define nsp_based_sort
 
 //! Convenience type for vector with aligned memory
