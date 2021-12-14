@@ -348,7 +348,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
             if (validComponentIndex)
             {
                 assert(isfinite(output));
-                atomicAdd(gm_virialAndEnergy + componentIndex, output);
+                atomicAddNoRet(gm_virialAndEnergy + componentIndex, output);
             }
         }
     }
