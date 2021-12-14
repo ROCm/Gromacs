@@ -40,10 +40,16 @@ if(NOT GMX_THREAD_MPI)
             execute_process(
                 COMMAND ${MPI_C_COMPILER} -showme:incdirs
                 OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE)
-            separate_arguments(MPI_INCDIRS)
-            message(STATUS "MPI_INCDIRS: ${MPI_INCDIRS}")
-            include_directories(SYSTEM ${MPI_INCDIRS})
+                ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE
+		RESULT_VARIABLE  ret)
+	    if(ret AND NOT ret EQUAL 0)
+                message(STATUS "no -showme:incdir MPI_C_INCLUDE_DIRS: ${MPI_C_INCLUDE_DIRS}")
+                include_directories(SYSTEM ${MPI_C_INCLUDE_DIRS})
+            else()
+                separate_arguments(MPI_INCDIRS)
+                message(STATUS "MPI_INCDIRS: ${MPI_INCDIRS}")
+                include_directories(SYSTEM ${MPI_INCDIRS})
+            endif()
 	else()
             include_directories(SYSTEM ${MPI_C_INCLUDE_DIRS})
         endif()
