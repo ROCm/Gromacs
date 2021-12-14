@@ -37,6 +37,7 @@
 add_library(utility INTERFACE)
 
 file(GLOB UTILITY_SOURCES *.cpp)
+list(FILTER UTILITY_SOURCES EXCLUDE REGEX "\\.hip.cpp$")
 
 if (GMX_GPU_CUDA)
     gmx_add_libgromacs_sources(cuda_version_information.cu)
