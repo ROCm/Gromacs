@@ -130,8 +130,8 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
-#if GMX_PTX_ARCH == 370
-#    define NTHREAD_Z (2)
+#if defined(__gfx90a__)
+#    define NTHREAD_Z (4)
 #    define MIN_BLOCKS_PER_MP (16)
 #else
 #    define NTHREAD_Z (1)
