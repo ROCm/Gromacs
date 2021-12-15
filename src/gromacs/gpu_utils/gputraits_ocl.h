@@ -63,15 +63,15 @@ using Float3 = gmx::RVec;
 using Float4 = cl_float4;
 
 /*! \internal \brief
- * GPU kernels scheduling description. This is same in OpenCL/HIP.
+ * GPU kernels scheduling description. This is same in OpenCL/CUDA.
  * Provides reasonable defaults, one typically only needs to set the GPU stream
  * and non-1 work sizes.
  */
 struct KernelLaunchConfig
 {
-    //! Work groups (HIP blocks) counts
+    //! Work groups (CUDA blocks) counts
     size_t gridSize[3] = { 1, 1, 1 };
-    //! Per work group (HIP block) thread counts
+    //! Per work group (CUDA block) thread counts
     size_t blockSize[3] = { 1, 1, 1 };
     //! Shared memory size in bytes
     size_t sharedMemorySize = 0;

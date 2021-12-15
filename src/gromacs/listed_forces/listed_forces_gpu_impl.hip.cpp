@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  *
- * \brief Implements GPU bonded lists for HIP
+ * \brief Implements GPU bonded lists for CUDA
  *
  * \author Berk Hess <hess@kth.se>
  * \author Szilárd Páll <pall.szilard@gmail.com>

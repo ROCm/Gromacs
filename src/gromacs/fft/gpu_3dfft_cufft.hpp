@@ -42,8 +42,8 @@
  *  \ingroup module_fft
  */
 
-#ifndef GMX_FFT_GPU_3DFFT_CUFFT_H
-#define GMX_FFT_GPU_3DFFT_CUFFT_H
+#ifndef GMX_FFT_GPU_3DFFT_CUFFT_HPP
+#define GMX_FFT_GPU_3DFFT_CUFFT_HPP
 
 #include <memory>
 

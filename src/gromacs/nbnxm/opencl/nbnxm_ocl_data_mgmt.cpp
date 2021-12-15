@@ -82,7 +82,7 @@ namespace Nbnxm
  * kernel execution times
  *
  * This value is best for small systems on a single AMD Radeon R9 290X
- * (and about 5% faster than 40, which is the default for HIP
+ * (and about 5% faster than 40, which is the default for CUDA
  * devices). Larger simulation systems were quite insensitive to the
  * value of this parameter.
  */
@@ -142,7 +142,7 @@ void gpu_init_platform_specific(NbnxmGpu* nb)
                                || (nb->deviceContext_->deviceInfo().deviceVendor == DeviceVendor::Intel)
                                || (getenv("GMX_OCL_ENABLE_I_PREFETCH") != nullptr));
 
-    /* NOTE: in HIP we pick L1 cache configuration for the nbnxn kernels here,
+    /* NOTE: in CUDA we pick L1 cache configuration for the nbnxn kernels here,
      * but sadly this is not supported in OpenCL (yet?). Consider adding it if
      * it becomes supported.
      */

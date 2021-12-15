@@ -190,7 +190,7 @@ namespace gmx
  * issued.
  *
  * Note that some development features overrides are applied already here:
- * the GPU communication flags are set to false in non-tMPI and non-HIP builds.
+ * the GPU communication flags are set to false in non-tMPI and non-CUDA builds.
  *
  * \param[in]  mdlog                Logger object.
  * \param[in]  useGpuForNonbonded   True if the nonbonded task is offloaded in this run.
@@ -207,12 +207,12 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
 {
     DevelopmentFeatureFlags devFlags;
 
-    devFlags.enableGpuBufferOps = (GMX_GPU_HIP || GMX_GPU_SYCL) && useGpuForNonbonded
+    devFlags.enableGpuBufferOps = (GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_SYCL) && useGpuForNonbonded
                                   && (getenv("GMX_USE_GPU_BUFFER_OPS") != nullptr);
     devFlags.forceGpuUpdateDefault = (getenv("GMX_FORCE_UPDATE_DEFAULT_GPU") != nullptr) || GMX_FAHCORE;
 
     // Direct GPU communication for both halo and PP-PME is the default with thread-MPI
-    // GMX_ENABLE_DIRECT_GPU_COMM permits the same default for HIP-aware MPI.
+    // GMX_ENABLE_DIRECT_GPU_COMM permits the same default for CUDA-aware MPI.
     const bool enableDirectGpuComm = (getenv("GMX_ENABLE_DIRECT_GPU_COMM") != nullptr);
 
     // GMX_DISABLE_DIRECT_GPU_COMM is only checked for consistency reasons here,
@@ -225,66 +225,66 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
                                        "but these are mutually exclusive.\n"));
     }
 
-    // Flag use to enable HIP-aware MPI depenendent features such PME GPU decomposition
-    // HIP-aware MPI is marked available if it has been detected by GROMACS or detection fails but
+    // Flag use to enable CUDA-aware MPI depenendent features such PME GPU decomposition
+    // CUDA-aware MPI is marked available if it has been detected by GROMACS or detection fails but
     // user wants to force its use
-    devFlags.canUseHipAwareMpi = false;
+    devFlags.canUseCudaAwareMpi = false;
 
-    // Direct GPU comm path is being used with HIP_AWARE_MPI
-    // make sure underlying MPI implementation is HIP-aware
-    if (GMX_LIB_MPI && GMX_GPU_HIP)
+    // Direct GPU comm path is being used with CUDA_AWARE_MPI
+    // make sure underlying MPI implementation is CUDA-aware
+    if (GMX_LIB_MPI && GMX_GPU_CUDA)
     {
-        const bool haveDetectedHipAwareMpi =
-                (checkMpiHipAwareSupport() == HipAwareMpiStatus::Supported);
-        // allows overriding the HIP-aware MPI detection
-        const bool forceHipAwareMpi = (getenv("GMX_FORCE_HIP_AWARE_MPI") != nullptr);
+        const bool haveDetectedCudaAwareMpi =
+                (checkMpiCudaAwareSupport() == CudaAwareMpiStatus::Supported);
+        // allows overriding the CUDA-aware MPI detection
+        const bool forceCudaAwareMpi = (getenv("GMX_FORCE_CUDA_AWARE_MPI") != nullptr);
 
-        devFlags.canUseHipAwareMpi = haveDetectedHipAwareMpi || forceHipAwareMpi;
+        devFlags.canUseCudaAwareMpi = haveDetectedCudaAwareMpi || forceCudaAwareMpi;
         if (enableDirectGpuComm)
         {
-            if (!haveDetectedHipAwareMpi && forceHipAwareMpi)
+            if (!haveDetectedCudaAwareMpi && forceCudaAwareMpi)
             {
-                // HIP-aware support not detected in MPI library but, user has forced it's use
+                // CUDA-aware support not detected in MPI library but, user has forced it's use
                 GMX_LOG(mdlog.warning)
                         .asParagraph()
                         .appendTextFormatted(
-                                "This run has forced use of 'HIP-aware MPI'. "
+                                "This run has forced use of 'CUDA-aware MPI'. "
                                 "But, GROMACS cannot determine if underlying MPI "
-                                "is HIP-aware. GROMACS recommends use of latest openMPI version "
-                                "for HIP-aware support. "
+                                "is CUDA-aware. GROMACS recommends use of latest openMPI version "
+                                "for CUDA-aware support. "
                                 "If you observe failures at runtime, try unsetting "
-                                "GMX_FORCE_HIP_AWARE_MPI environment variable.");
+                                "GMX_FORCE_CUDA_AWARE_MPI environment variable.");
             }
 
-            if (devFlags.canUseHipAwareMpi)
+            if (devFlags.canUseCudaAwareMpi)
             {
                 GMX_LOG(mdlog.warning)
                         .asParagraph()
                         .appendTextFormatted(
                                 "GMX_ENABLE_DIRECT_GPU_COMM environment variable detected, enabling"
-                                "direct GPU communication using HIP-aware MPI. ");
+                                "direct GPU communication using CUDA-aware MPI. ");
             }
             else
             {
                 GMX_LOG(mdlog.warning)
                         .asParagraph()
                         .appendTextFormatted(
-                                "HIP-aware MPI was not detected, will not use direct GPU "
+                                "CUDA-aware MPI was not detected, will not use direct GPU "
                                 "communication. "
-                                "GROMACS recommends use of latest OpenMPI version for HIP-aware "
+                                "GROMACS recommends use of latest OpenMPI version for CUDA-aware "
                                 "support. "
-                                "If you are certain about HIP-aware support in your MPI library, "
-                                "you can force its use by setting the GMX_FORCE_HIP_AWARE_MPI "
+                                "If you are certain about CUDA-aware support in your MPI library, "
+                                "you can force its use by setting the GMX_FORCE_CUDA_AWARE_MPI "
                                 "environment variable.");
             }
         }
-        else if (haveDetectedHipAwareMpi)
+        else if (haveDetectedCudaAwareMpi)
         {
-            // HIP-aware MPI was detected, let the user know that using it may improve performance
+            // CUDA-aware MPI was detected, let the user know that using it may improve performance
             GMX_LOG(mdlog.warning)
                     .asParagraph()
                     .appendTextFormatted(
-                            "HIP-aware MPI detected, but by default GROMACS will not "
+                            "CUDA-aware MPI detected, but by default GROMACS will not "
                             "make use the direct GPU communication capabilities of MPI."
                             "For improved performance try enabling the feature by setting "
                             "the GMX_ENABLE_DIRECT_GPU_COMM environment variable.");
@@ -310,14 +310,14 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
                         "decomposition lacks substantial testing and should be used with caution.");
     }
 
-    // PME decomposition is supported only with HIP-backend in mixed mode
-    // HIP-backend also needs HIP-aware MPI support for decomposition to work
+    // PME decomposition is supported only with CUDA-backend in mixed mode
+    // CUDA-backend also needs CUDA-aware MPI support for decomposition to work
     const bool pmeGpuDecompositionRequested =
             (pmeRunMode == PmeRunMode::GPU || pmeRunMode == PmeRunMode::Mixed)
             && ((numRanksPerSimulation > 1 && numPmeRanksPerSimulation == 0)
                 || numPmeRanksPerSimulation > 1);
     const bool pmeGpuDecompositionSupported =
-            (devFlags.canUseHipAwareMpi && pmeRunMode == PmeRunMode::Mixed);
+            (devFlags.canUseCudaAwareMpi && pmeRunMode == PmeRunMode::Mixed);
 
     const bool forcePmeGpuDecomposition = getenv("GMX_GPU_PME_DECOMPOSITION") != nullptr;
 
@@ -2130,7 +2130,7 @@ int Mdrunner::mdrunner()
 
     // FIXME: this is only here to manually unpin mdAtoms->chargeA_ and state->x,
     // before we destroy the GPU context(s)
-    // Pinned buffers are associated with contexts in HIP.
+    // Pinned buffers are associated with contexts in CUDA.
     // As soon as we destroy GPU contexts after mdrunner() exits, these lines should go.
     mdAtoms.reset(nullptr);
     globalState.reset(nullptr);
@@ -2142,12 +2142,12 @@ int Mdrunner::mdrunner()
 
     if (!hwinfo_->deviceInfoList.empty())
     {
-        /* stop the GPU profiler (only HIP) */
+        /* stop the GPU profiler (only CUDA) */
         stopGpuProfiler();
     }
 
     /* With tMPI we need to wait for all ranks to finish deallocation before
-     * destroying the HIP context as some tMPI ranks may be sharing
+     * destroying the CUDA context as some tMPI ranks may be sharing
      * GPU and context.
      *
      * This is not a concern in OpenCL where we use one context per rank.
@@ -2166,10 +2166,10 @@ int Mdrunner::mdrunner()
         physicalNodeComm.barrier();
     }
 
-    if (!devFlags.canUseHipAwareMpi)
+    if (!devFlags.canUseCudaAwareMpi)
     {
-        // Don't reset GPU in case of HIP-AWARE MPI
-        // UCX creates HIP buffers which are cleaned-up as part of MPI_Finalize()
+        // Don't reset GPU in case of CUDA-AWARE MPI
+        // UCX creates CUDA buffers which are cleaned-up as part of MPI_Finalize()
         // resetting the device before MPI_Finalize() results in crashes inside UCX
         releaseDevice(deviceInfo);
     }

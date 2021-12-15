@@ -67,16 +67,16 @@ using Float2 = sycl::float2;
  * GPU kernels scheduling description.
  * One typically only needs to set non-1 work sizes.
  *
- * \note This struct uses HIP/OpenCL layout, with the first dimension being contiguous.
+ * \note This struct uses CUDA/OpenCL layout, with the first dimension being contiguous.
  *       It is different from the SYCL standard, where the last dimension is contiguous.
  *       The transpose is to be performed internally in ISyclKernelFunctor::launch.
  * \note \c sharedMemorySize is ignored in SYCL.
  */
 struct KernelLaunchConfig
 {
-    //! Work groups (HIP blocks) counts
+    //! Work groups (CUDA blocks) counts
     size_t gridSize[3] = { 1, 1, 1 };
-    //! Per work group (HIP block) thread counts
+    //! Per work group (CUDA block) thread counts
     size_t blockSize[3] = { 1, 1, 1 };
     //! Shared memory size in bytes
     size_t sharedMemorySize = 0;

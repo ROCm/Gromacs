@@ -52,7 +52,6 @@
 #include <cassert>
 
 #include "gromacs/math/math_constants.h"
-
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/typecasts.hpp"
 #include "gromacs/gpu_utils/vectype_ops.hpp"
@@ -728,7 +727,7 @@ namespace gmx
 {
 
 template<bool calcVir, bool calcEner>
-__global__ void exec_kernel_gpu(BondedHipKernelParameters kernelParams, float4* gm_xq, float3* gm_f, float3* gm_fShift)
+__global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams, float4* gm_xq, float3* gm_f, float3* gm_fShift)
 {
     assert(blockDim.y == 1 && blockDim.z == 1);
     const int tid          = blockIdx.x * blockDim.x + threadIdx.x;

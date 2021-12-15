@@ -36,7 +36,7 @@
 
 set(LIBGROMACS_SOURCES)
 
-if (GMX_GPU_CUDA AND GMX_CLANG_CUDA)
+if (GMX_CLANG_CUDA)
     include(gmxClangCudaUtils)
 endif()
 

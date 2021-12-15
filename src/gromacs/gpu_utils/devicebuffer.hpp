@@ -32,8 +32,8 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_GPU_UTILS_DEVICEBUFFER_CUH
-#define GMX_GPU_UTILS_DEVICEBUFFER_CUH
+#ifndef GMX_GPU_UTILS_DEVICEBUFFER_HPP
+#define GMX_GPU_UTILS_DEVICEBUFFER_HPP
 
 /*! \libinternal \file
  *  \brief Implements the DeviceBuffer type and routines for HIP.

@@ -40,8 +40,8 @@
  * \author Aleksei Iupinov <a.yupinov@gmail.com>
  */
 
-#ifndef GMX_EWALD_PME_CUH
-#define GMX_EWALD_PME_CUH
+#ifndef GMX_EWALD_PME_HPP
+#define GMX_EWALD_PME_HPP
 
 #include "gromacs/math/vectypes.h" // for DIM
 
@@ -53,7 +53,7 @@
  * An alias for PME parameters in HIP.
  * \todo Remove if we decide to unify HIP and OpenCL
  */
-struct PmeGpuHipKernelParams : PmeGpuKernelParamsBase
+struct PmeGpuCudaKernelParams : PmeGpuKernelParamsBase
 {
     // Place HIP-specific stuff here
 };

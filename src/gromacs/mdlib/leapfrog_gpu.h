@@ -46,7 +46,9 @@
 
 #include "config.h"
 
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA
+#    include "gromacs/gpu_utils/gputraits.cuh"
+#elif GMX_GPU_HIP
 #    include "gromacs/gpu_utils/gputraits.hpp"
 #endif
 #if GMX_GPU_SYCL
@@ -98,7 +100,7 @@ class LeapFrogGpu
 public:
     /*! \brief Constructor.
      *
-     * \param[in] deviceContext       Device context (dummy in HIP).
+     * \param[in] deviceContext       Device context (dummy in CUDA).
      * \param[in] deviceStream        Device stream to use.
      * \param[in] numTempScaleValues  Number of temperature scale groups.
      */

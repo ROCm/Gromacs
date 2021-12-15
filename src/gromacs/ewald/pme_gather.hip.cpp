@@ -346,7 +346,7 @@ __device__ __forceinline__ void calculateAndStoreGridForces(float3* __restrict__
  */
 template<int order, bool wrapX, bool wrapY, int numGrids, bool readGlobal, ThreadsPerAtom threadsPerAtom>
 __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
-        void pme_gather_kernel(const PmeGpuHipKernelParams kernelParams)
+        void pme_gather_kernel(const PmeGpuCudaKernelParams kernelParams)
 {
     assert(numGrids == 1 || numGrids == 2);
 
@@ -621,12 +621,12 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
 
 //! Kernel instantiations
 // clang-format off
-template __global__ void pme_gather_kernel<4, true, true, 1, true, ThreadsPerAtom::Order>        (const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 1, true, ThreadsPerAtom::OrderSquared> (const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 1, false, ThreadsPerAtom::Order>       (const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 1, false, ThreadsPerAtom::OrderSquared>(const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 2, true, ThreadsPerAtom::Order>        (const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 2, true, ThreadsPerAtom::OrderSquared> (const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 2, false, ThreadsPerAtom::Order>       (const PmeGpuHipKernelParams);
-template __global__ void pme_gather_kernel<4, true, true, 2, false, ThreadsPerAtom::OrderSquared>(const PmeGpuHipKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 1, true, ThreadsPerAtom::Order>        (const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 1, true, ThreadsPerAtom::OrderSquared> (const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 1, false, ThreadsPerAtom::Order>       (const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 1, false, ThreadsPerAtom::OrderSquared>(const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 2, true, ThreadsPerAtom::Order>        (const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 2, true, ThreadsPerAtom::OrderSquared> (const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 2, false, ThreadsPerAtom::Order>       (const PmeGpuCudaKernelParams);
+template __global__ void pme_gather_kernel<4, true, true, 2, false, ThreadsPerAtom::OrderSquared>(const PmeGpuCudaKernelParams);
 // clang-format on

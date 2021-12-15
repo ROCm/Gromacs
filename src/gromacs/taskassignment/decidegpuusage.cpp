@@ -90,7 +90,9 @@ const char* const g_specifyEverythingFormatString =
 #if GMX_GPU
         " If you simply want to restrict which GPUs are used, then it is "
         "better to use mdrun -gpu_id. Otherwise, setting the "
-#    if GMX_GPU_HIP
+#    if GMX_GPU_CUDA
+        "CUDA_VISIBLE_DEVICES"
+#    elif GMX_GPU_HIP
         "HIP_VISIBLE_DEVICES"
 #    elif GMX_GPU_OPENCL
         // Technically there is no portable way to do this offered by the
@@ -101,7 +103,7 @@ const char* const g_specifyEverythingFormatString =
         // https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md
         "SYCL_DEVICE_FILTER"
 #    elif GMX_GPU_SYCL && GMX_SYCL_HIPSYCL
-        // Not true if we use hipSYCL over HIP or IntelLLVM, but in that case the user probably
+        // Not true if we use hipSYCL over CUDA or IntelLLVM, but in that case the user probably
         // knows what they are doing.
         // https://rocmdocs.amd.com/en/latest/Other_Solutions/Other-Solutions.html#hip-environment-variables
         "HIP_VISIBLE_DEVICES"
@@ -648,9 +650,9 @@ bool decideWhetherToUseGpuForUpdate(const bool                     isDomainDecom
     {
         errorMessage += "Compatible GPUs must have been found.\n";
     }
-    if (!(GMX_GPU_HIP || GMX_GPU_SYCL))
+    if (!(GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_SYCL))
     {
-        errorMessage += "Only HIP and SYCL builds are supported.\n";
+        errorMessage += "Only CUDA, HIP and SYCL builds are supported.\n";
     }
     if (inputrec.eI != IntegrationAlgorithm::MD)
     {
@@ -713,7 +715,7 @@ bool decideWhetherToUseGpuForUpdate(const bool                     isDomainDecom
     }
 
     // TODO: F_CONSTRNC is only unsupported, because isNumCoupledConstraintsSupported()
-    // does not support it, the actual HIP LINCS code does support it
+    // does not support it, the actual CUDA LINCS code does support it
     if (gmx_mtop_ftype_count(mtop, F_CONSTRNC) > 0)
     {
         errorMessage += "Non-connecting constraints are not supported\n";
@@ -767,11 +769,11 @@ bool decideWhetherDirectGpuCommunicationCanBeUsed(const DevelopmentFeatureFlags&
     const bool gmx_unused disableDirectGpuComm = (getenv("GMX_DISABLE_DIRECT_GPU_COMM") != nullptr);
 
     // Direct GPU communication for both halo and PP-PME is the default with thread-MPI
-    // GMX_ENABLE_DIRECT_GPU_COMM permits the same default for HIP-aware MPI.
+    // GMX_ENABLE_DIRECT_GPU_COMM permits the same default for CUDA-aware MPI.
     const bool gmx_unused enableDirectGpuComm = (getenv("GMX_ENABLE_DIRECT_GPU_COMM") != nullptr);
 
     // issue warning note when env var disables the default
-    if (GMX_THREAD_MPI && GMX_GPU_HIP && disableDirectGpuComm)
+    if (GMX_THREAD_MPI && GMX_GPU_CUDA && disableDirectGpuComm)
     {
         GMX_LOG(mdlog.warning)
                 .asParagraph()
@@ -781,10 +783,10 @@ bool decideWhetherDirectGpuCommunicationCanBeUsed(const DevelopmentFeatureFlags&
     }
 
     // Thread-MPI case on by deafult, can be disabled with env var.
-    bool canUseDirectGpuCommWithThreadMpi = (GMX_THREAD_MPI && GMX_GPU_HIP && !disableDirectGpuComm);
+    bool canUseDirectGpuCommWithThreadMpi = (GMX_THREAD_MPI && GMX_GPU_CUDA && !disableDirectGpuComm);
     // GPU-aware MPI case off by default, can be enabled with dev flag
     // Note: GMX_DISABLE_DIRECT_GPU_COMM already taken into account in devFlags.enableDirectGpuCommWithMpi
-    bool canUseDirectGpuCommWithMpi = (GMX_LIB_MPI && GMX_GPU_HIP && devFlags.canUseHipAwareMpi
+    bool canUseDirectGpuCommWithMpi = (GMX_LIB_MPI && GMX_GPU_CUDA && devFlags.canUseCudaAwareMpi
                                        && enableDirectGpuComm && !disableDirectGpuComm);
 
     return canUseDirectGpuCommWithThreadMpi || canUseDirectGpuCommWithMpi;

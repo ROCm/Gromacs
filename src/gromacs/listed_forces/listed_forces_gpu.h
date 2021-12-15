@@ -115,7 +115,7 @@ public:
      * \param[in] ffparams                   Force-field parameters.
      * \param[in] electrostaticsScaleFactor  Scaling factor for the electrostatic potential
      *                                       (Coulomb constant, multiplied by the Fudge factor).
-     * \param[in] deviceContext              GPU device context (not used in HIP).
+     * \param[in] deviceContext              GPU device context (not used in CUDA).
      * \param[in] deviceStream               GPU device stream.
      * \param[in] wcycle                     The wallclock counter.
      *

@@ -39,8 +39,8 @@
  *
  *  \inlibraryapi
  */
-#ifndef GMX_GPU_UTILS_TYPECASTS_CUH
-#define GMX_GPU_UTILS_TYPECASTS_CUH
+#ifndef GMX_GPU_UTILS_TYPECASTS_HPP
+#define GMX_GPU_UTILS_TYPECASTS_HPP
 
 #include "gmxpre.h"
 
@@ -81,4 +81,4 @@ static inline __host__ __device__ const float3* const* asFloat3Pointer(const gmx
     return reinterpret_cast<const float3* const*>(in);
 }
 
-#endif // GMX_GPU_UTILS_TYPECASTS_CUH
+#endif // GMX_GPU_UTILS_TYPECASTS_HPP

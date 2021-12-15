@@ -68,7 +68,7 @@ struct PpCommManager
     std::tuple<int, int> atomRange = { 0, 0 };
 };
 
-/*! \internal \brief Class with interfaces and data for HIP version of PME coordinate receiving functionality */
+/*! \internal \brief Class with interfaces and data for CUDA version of PME coordinate receiving functionality */
 class PmeCoordinateReceiverGpu::Impl
 {
 
@@ -94,7 +94,7 @@ public:
      * Receive coordinate synchronizer pointer from the PP ranks.
      * \param[in] ppRank  PP rank to receive the synchronizer from.
      */
-    void receiveCoordinatesSynchronizerFromPpHipDirect(int ppRank);
+    void receiveCoordinatesSynchronizerFromPpCudaDirect(int ppRank);
 
     /*! \brief
      * Used for lib MPI, receives co-ordinates from PP ranks
@@ -104,7 +104,7 @@ public:
      * \param[in] ppRank       PP rank to send data
      * \param[in] senderIndex  Index of PP rank within those involved in communication with this PME rank
      */
-    void launchReceiveCoordinatesFromPpHipMpi(DeviceBuffer<RVec> recvbuf,
+    void launchReceiveCoordinatesFromPpCudaMpi(DeviceBuffer<RVec> recvbuf,
                                                int                numAtoms,
                                                int                numBytes,
                                                int                ppRank,
@@ -148,7 +148,7 @@ private:
     MPI_Comm comm_;
     //! MPI requests, one per PP rank
     std::vector<MPI_Request> requests_;
-    //! GPU context handle (not used in HIP)
+    //! GPU context handle (not used in CUDA)
     const DeviceContext& deviceContext_;
     //! Communication manager objects corresponding to multiple sending PP ranks
     std::vector<PpCommManager> ppCommManagers_;

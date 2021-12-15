@@ -176,7 +176,7 @@ static std::string selectCompilerOptions(DeviceVendor deviceVendor)
         compilerOptions += " -cl-fast-relaxed-math";
 
         // Hint to the compiler that it can flush denorms to zero.
-        // In HIP this is triggered by the -use_fast_math flag, equivalent with
+        // In CUDA this is triggered by the -use_fast_math flag, equivalent with
         // -cl-fast-relaxed-math, hence the inclusion on the conditional block.
         compilerOptions += " -cl-denorms-are-zero";
     }

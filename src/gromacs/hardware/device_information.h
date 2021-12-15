@@ -48,6 +48,10 @@
 
 #include "config.h"
 
+#if GMX_GPU_CUDA
+#    include <cuda_runtime.h>
+#endif
+
 #if GMX_GPU_HIP
 #    include <hip/hip_runtime.h>
 #endif
@@ -89,12 +93,12 @@ enum class DeviceStatus : int
      * That indicates malfunctioning of the device, driver, or incompatible driver/runtime.
      */
     NonFunctional,
-    /*! \brief HIP devices are busy or unavailable.
-     * typically due to use of \p hipComputeModeExclusive, \p hipComputeModeProhibited modes.
+    /*! \brief CUDA devices are busy or unavailable.
+     * typically due to use of \p cudaComputeModeExclusive, \p cudaComputeModeProhibited modes.
      */
     Unavailable,
     /*! \brief The device is outside the set of compilation targets.
-     * See \c GMX_HIP_TARGET_SM and \c GMX_HIP_TARGET_COMPUTE CMake variables.
+     * See \c GMX_CUDA_TARGET_SM and \c GMX_CUDA_TARGET_COMPUTE CMake variables.
      */
     DeviceNotTargeted,
     //! Enumeration size
@@ -118,7 +122,7 @@ static const gmx::EnumerationArray<DeviceStatus, const char*> c_deviceStateStrin
     // NOLINTNEXTLINE(bugprone-suspicious-missing-comma)
     "incompatible (please recompile with correct GMX" "_GPU_NB_CLUSTER_SIZE of 4)",
     // clang-format on
-    "incompatible (please use HIP build for NVIDIA Volta GPUs or newer)",
+    "incompatible (please use CUDA build for NVIDIA Volta GPUs or newer)",
     "not recommended (please use SYCL_DEVICE_FILTER to limit visibility to a single backend)",
     "non-functional",
     "unavailable",
@@ -155,7 +159,10 @@ struct DeviceInformation
     int id;
     //! Device vendor.
     DeviceVendor deviceVendor;
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA
+    //! CUDA device properties.
+    cudaDeviceProp prop;
+#elif GMX_GPU_HIP
     //! HIP device properties.
     hipDeviceProp_t prop;
 #elif GMX_GPU_OPENCL

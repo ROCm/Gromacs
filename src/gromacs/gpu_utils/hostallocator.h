@@ -37,7 +37,7 @@
  * gmx::HostVector and gmx::PaddedHostVector, which are used to make/be
  * standard library containers that can allocate memory suitable for transfers.
  * Currently the only supported transfers using pinned memory are
- * to HIP GPUs, but other possibilities exist in future.
+ * to CUDA GPUs, but other possibilities exist in future.
  *
  * \todo This should not be in the public API, but it needs to be
  * for the moment because state.h is in that API.
@@ -108,12 +108,12 @@ using PaddedHostVector = PaddedVector<T, HostAllocator<T>>;
  * This allocator has state, so is most useful in cases where it is
  * not known at compile time whether the allocated memory will be
  * transferred to some device. It will increase the size of containers
- * that use it. If the GROMACS build is configured with HIP support,
+ * that use it. If the GROMACS build is configured with CUDA support,
  * then memory will be allocated with PageAlignedAllocator, and that
  * page pinned to physical memory if the pinning mode has been
  * activated. If pinning mode is deactivated, or the GROMACS build
- * does not support HIP, then the memory will be allocated with
- * AlignedAllocator. The pin() and unpin() methods work with the HIP
+ * does not support CUDA, then the memory will be allocated with
+ * AlignedAllocator. The pin() and unpin() methods work with the CUDA
  * build, and silently do nothing otherwise. In future, we may modify
  * or generalize this to work differently in other cases.
  *

@@ -33,8 +33,8 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_GPU_UTILS_HIPUTILS_CUH
-#define GMX_GPU_UTILS_HIPUTILS_CUH
+#ifndef GMX_GPU_UTILS_HIPUTILS_HPP
+#define GMX_GPU_UTILS_HIPUTILS_HPP
 
 #include <stdio.h>
 

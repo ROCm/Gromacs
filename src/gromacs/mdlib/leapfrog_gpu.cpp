@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  *
- * \brief Implements Leap-Frog using HIP
+ * \brief Implements Leap-Frog using CUDA
  *
  * This file contains backend-agnostic code for Leap-Frog integrator class on GPU,
  * including class initialization, and data-structures management.

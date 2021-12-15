@@ -32,8 +32,8 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifndef GMX_GPU_UTILS_HIP_KERNEL_UTILS_CUH
-#define GMX_GPU_UTILS_HIP_KERNEL_UTILS_CUH
+#ifndef GMX_GPU_UTILS_HIP_KERNEL_UTILS_HPP
+#define GMX_GPU_UTILS_HIP_KERNEL_UTILS_HPP
 
 /*! \file
  *  \brief HIP device util functions (callable from GPU kernels).
@@ -101,4 +101,4 @@ static __forceinline__ __device__ T fetchFromParamLookupTable(const T*          
 }
 
 
-#endif /* GMX_GPU_UTILS_HIP_KERNEL_UTILS_CUH */
+#endif /* GMX_GPU_UTILS_HIP_KERNEL_UTILS_HPP */

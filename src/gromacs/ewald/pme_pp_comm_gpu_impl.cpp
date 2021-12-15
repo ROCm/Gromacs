@@ -37,7 +37,7 @@
  * \brief May be used to implement PME-PP GPU comm interfaces for non-GPU builds.
  *
  * Currently, reports and exits if any of the interfaces are called.
- * Needed to satisfy compiler on systems, where HIP is not available.
+ * Needed to satisfy compiler on systems, where CUDA is not available.
  *
  * \author Alan Gray <alang@nvidia.com>
  *
@@ -51,7 +51,7 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxmpi.h"
 
-#if !GMX_GPU_HIP
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP
 
 namespace gmx
 {
@@ -127,4 +127,4 @@ GpuEventSynchronizer* PmePpCommGpu::getForcesReadySynchronizer()
 
 } // namespace gmx
 
-#endif // !GMX_GPU_HIP
+#endif // !GMX_GPU_CUDA

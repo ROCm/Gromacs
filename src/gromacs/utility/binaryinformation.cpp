@@ -85,6 +85,7 @@
 #include "gromacs/utility/sysinfo.h"
 #include "gromacs/utility/textwriter.h"
 
+#include "cuda_version_information.h"
 #include "hip_version_information.h"
 #include "sycl_version_information.h"
 
@@ -236,9 +237,13 @@ const char* getGpuFftDescriptionString()
 {
     if (GMX_GPU)
     {
-        if (GMX_GPU_HIP)
+        if (GMX_GPU_CUDA)
         {
             return "cuFFT";
+        }
+        else if (GMX_GPU_HIP)
+        {
+        	return "hipFFT";
         }
         else if (GMX_GPU_OPENCL)
         {
@@ -285,8 +290,8 @@ void gmx_print_version_info(gmx::TextWriter* writer)
 #if GMX_THREAD_MPI
     writer->writeLine("MPI library:        thread_mpi");
 #elif GMX_MPI
-#    if HAVE_HIP_AWARE_MPI
-    writer->writeLine("MPI library:        MPI (HIP-aware)");
+#    if HAVE_CUDA_AWARE_MPI
+    writer->writeLine("MPI library:        MPI (CUDA-aware)");
 #    else
     writer->writeLine("MPI library:        MPI");
 #    endif
@@ -344,6 +349,13 @@ void gmx_print_version_info(gmx::TextWriter* writer)
     writer->writeLine(formatString("OpenCL include dir: %s", OPENCL_INCLUDE_DIR));
     writer->writeLine(formatString("OpenCL library:     %s", OPENCL_LIBRARY));
     writer->writeLine(formatString("OpenCL version:     %s", OPENCL_VERSION_STRING));
+#endif
+#if GMX_GPU_CUDA
+    writer->writeLine(formatString("CUDA compiler:      %s", CUDA_COMPILER_INFO));
+    writer->writeLine(formatString(
+            "CUDA compiler flags:%s %s", CUDA_COMPILER_FLAGS, CMAKE_BUILD_CONFIGURATION_CXX_FLAGS));
+    writer->writeLine("CUDA driver:        " + gmx::getCudaDriverVersionString());
+    writer->writeLine("CUDA runtime:       " + gmx::getCudaRuntimeVersionString());
 #endif
 #if GMX_GPU_HIP
     writer->writeLine(formatString("HIP compiler:      %s", HIP_COMPILER_INFO));

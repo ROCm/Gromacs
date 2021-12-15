@@ -43,6 +43,10 @@
  *  \author Szilárd Páll <pall.szilard@gmail.com>
  *  \ingroup module_nbnxm
  */
+
+#ifndef NBNXM_HIP_KERNEL_UTILS_HPP
+#define NBNXM_HIP_KERNEL_UTILS_HPP
+
 #include <assert.h>
 
 /* Note that floating-point constants in HIP code should be suffixed
@@ -55,9 +59,6 @@
 #include "gromacs/gpu_utils/vectype_ops.hpp"
 
 #include "nbnxm_hip_types.h"
-
-#ifndef NBNXM_HIP_KERNEL_UTILS_CUH
-#define NBNXM_HIP_KERNEL_UTILS_CUH
 
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
@@ -702,4 +703,4 @@ reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int ti
     }
 }
 
-#endif /* NBNXN_HIP_KERNEL_UTILS_CUH */
+#endif /* NBNXN_HIP_KERNEL_UTILS_HPP */

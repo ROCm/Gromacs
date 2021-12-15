@@ -114,7 +114,7 @@ public:
 
 private:
     hipEvent_t event_;
-    bool        isMarked_;
+    bool       isMarked_;
 };
 
 #endif

@@ -176,7 +176,7 @@ public:
     /*! \brief
      * Returns whether the constraints are supported by the GPU code.
      *
-     * Currently true for HIP, false for others.
+     * Currently true for CUDA, false for others.
      */
     static bool areConstraintsSupported();
 

@@ -42,7 +42,7 @@
 
 #include "config.h"
 
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 
 #    include <vector>
 
@@ -71,8 +71,8 @@ using PinnedMemoryCheckerTest = ::testing::Test;
 TEST_F(PinnedMemoryCheckerTest, DefaultContainerIsRecognized)
 {
     /* Note that this tests can be executed even on hosts with no GPUs.
-     * However, the checks for pending HIP errors run hipGetLastError(...),
-     * which itself returns hipErrorNoDevice in this case. This causes the
+     * However, the checks for pending CUDA errors run cudaGetLastError(...),
+     * which itself returns cudaErrorNoDevice in this case. This causes the
      * tests to crash. The conditionals in these tests should be removed
      * when a proper work-around for this problem is in place.
      */
@@ -134,4 +134,4 @@ TEST_F(PinnedMemoryCheckerTest, PinnedCBufferIsRecognized)
 } // namespace test
 } // namespace gmx
 
-#endif // GMX_GPU_HIP
+#endif // GMX_GPU_CUDA

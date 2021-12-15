@@ -70,10 +70,10 @@ struct PmeGpuSpecific;
 typedef int PmeGpuSpecific;
 #endif
 
-#if GMX_GPU_HIP
-struct PmeGpuHipKernelParams;
+#if GMX_GPU_CUDA || GMX_GPU_HIP
+struct PmeGpuCudaKernelParams;
 /*! \brief A typedef for including the GPU kernel arguments data by pointer */
-typedef PmeGpuHipKernelParams PmeGpuKernelParams;
+typedef PmeGpuCudaKernelParams PmeGpuKernelParams;
 #elif GMX_GPU_OPENCL || GMX_GPU_SYCL
 struct PmeGpuKernelParamsBase;
 /*! \brief A typedef for including the GPU kernel arguments data by pointer */
@@ -185,7 +185,7 @@ struct PmeGpu
      */
     int nAtomsAlloc;
 
-    /*! \brief Kernel scheduling grid width limit in X - derived from deviceinfo compute capability in HIP.
+    /*! \brief Kernel scheduling grid width limit in X - derived from deviceinfo compute capability in CUDA.
      * Declared as very large int to make it useful in computations with type promotion, to avoid overflows.
      * OpenCL seems to not have readily available global work size limit, so we just assign a large arbitrary constant to this instead.
      * TODO: this should be in PmeGpuProgram(Impl)
@@ -199,7 +199,7 @@ struct PmeGpu
      */
     std::shared_ptr<PmeGpuKernelParams> kernelParams;
 
-    /*! \brief The pointer to GPU-framework specific host-side data, such as HIP streams and events. */
+    /*! \brief The pointer to GPU-framework specific host-side data, such as CUDA streams and events. */
     std::shared_ptr<PmeGpuSpecific> archSpecific; /* FIXME: make it an unique_ptr */
 };
 

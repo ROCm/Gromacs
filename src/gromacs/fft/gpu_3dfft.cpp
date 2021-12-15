@@ -78,7 +78,7 @@ namespace gmx
 #    pragma clang diagnostic ignored "-Wmissing-noreturn"
 #endif
 
-#if (GMX_GPU_HIP || GMX_GPU_OPENCL || GMX_GPU_SYCL)
+#if (GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_OPENCL || GMX_GPU_SYCL)
 
 Gpu3dFft::Gpu3dFft(FftBackend           backend,
                    bool                 allocateGrids,
@@ -95,7 +95,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                    DeviceBuffer<float>* realGrid,
                    DeviceBuffer<float>* complexGrid)
 {
-#    if GMX_GPU_HIP
+#    if GMX_GPU_CUDA || GMX_GPU_HIP
     switch (backend)
     {
         case FftBackend::Cufft:
@@ -114,7 +114,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                                                           complexGrid);
             break;
         default:
-            GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_HIP,
+            GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_CUDA,
                                "Unsupported FFT backend requested");
     }
 #    elif GMX_GPU_OPENCL
@@ -196,12 +196,12 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
 #    if Heffte_FOUND
     switch (backend)
     {
-        case FftBackend::HeFFTe_HIP:
+        case FftBackend::HeFFTe_CUDA:
             GMX_RELEASE_ASSERT(
-                    GMX_GPU_HIP,
-                    "HeFFTe_HIP FFT backend is supported only with GROMACS compiled with HIP");
+                    GMX_GPU_CUDA,
+                    "HeFFTe_CUDA FFT backend is supported only with GROMACS compiled with CUDA");
             GMX_RELEASE_ASSERT(heffte::backend::is_enabled<heffte::backend::cufft>::value,
-                               "HeFFTe not compiled with HIP support");
+                               "HeFFTe not compiled with CUDA support");
             impl_ = std::make_unique<Gpu3dFft::ImplHeFfte<heffte::backend::cufft>>(
                     allocateGrids,
                     comm,

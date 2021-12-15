@@ -95,7 +95,7 @@ void gmx_is_single_precision();
 
 /*! \brief Return a string describing what kind of GPU suport was configured in the build.
  *
- * Currently returns correctly for HIP, OpenCL and SYCL.
+ * Currently returns correctly for CUDA, OpenCL and SYCL.
  * Needs to be updated when adding new acceleration options.
  */
 const char* getGpuImplementationString();

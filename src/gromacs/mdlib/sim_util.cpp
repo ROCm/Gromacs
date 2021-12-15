@@ -1235,7 +1235,7 @@ static void setupLocalGpuForceReduction(const gmx::MdrunScheduleWorkload* runSch
         gpuForceReduction->registerRvecForce(pmeForcePtr);
         if (!runScheduleWork->simulationWork.useGpuPmePpCommunication || GMX_THREAD_MPI)
         {
-            GMX_ASSERT(pmeSynchronizer != nullptr, "PME force ready hip event should not be NULL");
+            GMX_ASSERT(pmeSynchronizer != nullptr, "PME force ready cuda event should not be NULL");
             gpuForceReduction->addDependency(pmeSynchronizer);
         }
     }
@@ -2308,7 +2308,7 @@ void do_force(FILE*                               fplog,
     /* Wait for local GPU NB outputs on the non-alternating wait path */
     if (!alternateGpuWait && stepWork.computeNonbondedForces && simulationWork.useGpuNonbonded)
     {
-        /* Measured overhead on HIP and OpenCL with(out) GPU sharing
+        /* Measured overhead on CUDA and OpenCL with(out) GPU sharing
          * is between 0.5 and 1.5 Mcycles. So 2 MCycles is an overestimate,
          * but even with a step of 0.1 ms the difference is less than 1%
          * of the step time.

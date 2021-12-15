@@ -37,7 +37,7 @@
  * Check if GPUs are available when they should be.
  *
  * This is to test that CI can detect and use GPUs, when they are available.
- * Driver and HIP mismatch can lead to the tests falling back to the CPU
+ * Driver and CUDA mismatch can lead to the tests falling back to the CPU
  * code path quietly, leaving the GPU path untested. This is designed to
  * fail when GPUs should be available, indicated by setting the environment
  * variable \c GMX_TEST_REQUIRED_NUMBER_OF_DEVICES to 1 or greater.

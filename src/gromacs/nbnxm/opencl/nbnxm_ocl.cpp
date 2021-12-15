@@ -52,7 +52,7 @@
  *    dependencies on the kernel launched: e.g. the non-local nb kernel's dependency
  *    on the misc_ops_and_local_H2D_done event could be better expressed this way.
  *
- *  - Consider extracting common sections of the OpenCL and HIP nbnxn logic, e.g:
+ *  - Consider extracting common sections of the OpenCL and CUDA nbnxn logic, e.g:
  *    - in nbnxn_gpu_launch_kernel_pruneonly() the pre- and post-kernel launch logic
  *      is identical in the two implementations, so a 3-way split might allow sharing
  *      code;
@@ -650,7 +650,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const Nb
 
 /*! \brief Calculates the amount of shared memory required by the prune kernel.
  *
- *  Note that for the sake of simplicity we use the HIP terminology "shared memory"
+ *  Note that for the sake of simplicity we use the CUDA terminology "shared memory"
  *  for OpenCL local memory.
  *
  * \param[in] num_threads_z cj4 concurrency equal to the number of threads/work items in the 3-rd

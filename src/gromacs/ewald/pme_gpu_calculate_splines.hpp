@@ -190,7 +190,7 @@ static __device__ __forceinline__ void pme_gpu_stage_atom_data(T* __restrict__ s
  */
 
 template<int order, int atomsPerBlock, int atomsPerWarp, bool writeSmDtheta, bool writeGlobal, int numGrids>
-static __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams kernelParams,
+static __device__ __forceinline__ void calculate_splines(const PmeGpuCudaKernelParams kernelParams,
                                                          const int    atomIndexOffset,
                                                          const float3 atomX,
                                                          const float  atomCharge,

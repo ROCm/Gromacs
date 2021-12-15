@@ -424,15 +424,15 @@ void GpuHaloExchange::Impl::communicateHaloData(float3* sendPtr,
     {
         // no need to explicitly sync with GMX_THREAD_MPI as all operations are
         // anyway launched in correct stream
-        communicateHaloDataWithHipDirect(sendPtr, sendSize, sendRank, recvPtr, recvRank);
+        communicateHaloDataWithCudaDirect(sendPtr, sendSize, sendRank, recvPtr, recvRank);
     }
     else
     {
-        communicateHaloDataWithHipMPI(sendPtr, sendSize, sendRank, recvPtr, recvSize, recvRank);
+        communicateHaloDataWithCudaMPI(sendPtr, sendSize, sendRank, recvPtr, recvSize, recvRank);
     }
 }
 
-void GpuHaloExchange::Impl::communicateHaloDataWithHipMPI(float3* sendPtr,
+void GpuHaloExchange::Impl::communicateHaloDataWithCudaMPI(float3* sendPtr,
                                                            int     sendSize,
                                                            int     sendRank,
                                                            float3* recvPtr,
@@ -464,7 +464,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithHipMPI(float3* sendPtr,
 #endif
 }
 
-void GpuHaloExchange::Impl::communicateHaloDataWithHipDirect(float3* sendPtr,
+void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
                                                               int     sendSize,
                                                               int     sendRank,
                                                               float3* remotePtr,

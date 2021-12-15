@@ -41,8 +41,8 @@
  * \ingroup module_mdlib
  * \inlibraryapi
  */
-#ifndef GMX_MDLIB_LINCS_GPU_CUH
-#define GMX_MDLIB_LINCS_GPU_CUH
+#ifndef GMX_MDLIB_LINCS_GPU_H
+#define GMX_MDLIB_LINCS_GPU_H
 
 #include <memory>
 
@@ -122,7 +122,7 @@ public:
      *
      * \param[in] numIterations    Number of iteration for the correction of the projection.
      * \param[in] expansionOrder   Order of the matrix inversion algorithm.
-     * \param[in] deviceContext    Device context (dummy in HIP).
+     * \param[in] deviceContext    Device context (dummy in CUDA).
      * \param[in] deviceStream     Device command stream.
      */
     LincsGpu(int                  numIterations,

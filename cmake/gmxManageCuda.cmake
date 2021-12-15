@@ -95,7 +95,7 @@ macro(get_cuda_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_F
 endmacro ()
 
 if(GMX_CLANG_CUDA)
-    include(gmxManageClangHipConfig)
+    include(gmxManageClangCudaConfig)
     list(APPEND GMX_EXTRA_LIBRARIES ${GMX_CUDA_CLANG_LINK_LIBS})
     link_directories("${GMX_CUDA_CLANG_LINK_DIRS}")
 else()

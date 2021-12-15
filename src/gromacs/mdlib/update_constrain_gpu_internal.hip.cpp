@@ -54,7 +54,7 @@ namespace gmx
  *
  * \todo Check if using smaller block size will lead to better performance.
  */
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 1024;
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
 

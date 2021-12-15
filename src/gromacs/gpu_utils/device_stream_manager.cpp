@@ -98,7 +98,7 @@ DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
         if (simulationWork.useGpuPme)
         {
             /* Creating a PME GPU stream:
-             * - default high priority with HIP
+             * - default high priority with CUDA
              * - no priorities implemented yet with OpenCL; see #2532
              */
             streams_[DeviceStreamType::Pme] =

@@ -32,16 +32,16 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# - Define function to check if underlying MPI is HIP-aware
+# - Define function to check if underlying MPI is CUDA-aware
 #
-#  GMX_TEST_HIP_AWARE_MPI()
+#  GMX_TEST_CUDA_AWARE_MPI()
 #
-#  GMX_TEST_HIP_AWARE_MPI puts HAVE_HIP_AWARE_MPI variable in cache
+#  GMX_TEST_CUDA_AWARE_MPI puts HAVE_CUDA_AWARE_MPI variable in cache
 #
 include(CheckCXXSourceCompiles)
-function(GMX_TEST_HIP_AWARE_MPI)
-  if (NOT DEFINED HAVE_HIP_AWARE_MPI)
-    MESSAGE(STATUS "Checking for HIP_AWARE_MPI")
+function(GMX_TEST_CUDA_AWARE_MPI)
+  if (NOT DEFINED HAVE_CUDA_AWARE_MPI)
+    MESSAGE(STATUS "Checking for CUDA_AWARE_MPI")
     list(JOIN MPI_COMPILE_FLAGS " " CMAKE_REQUIRED_FLAGS)
     set(CMAKE_REQUIRED_INCLUDES ${MPI_INCLUDE_PATH})
     set(CMAKE_REQUIRED_LIBRARIES ${MPI_LIBRARIES})
@@ -53,25 +53,25 @@ function(GMX_TEST_HIP_AWARE_MPI)
       #include <mpi-ext.h>
       int main(void) 
       {
-      #if defined(MPIX_HIP_AWARE_SUPPORT) && (MPIX_HIP_AWARE_SUPPORT==1)
+      #if defined(MPIX_CUDA_AWARE_SUPPORT) && (MPIX_CUDA_AWARE_SUPPORT==1)
         return 0;
       #else
-      #error MPI implementation is not HIP-aware
+      #error MPI implementation is not CUDA-aware
       #endif
-      }" HAVE_HIP_AWARE_MPI)
+      }" HAVE_CUDA_AWARE_MPI)
 
-    if(HAVE_HIP_AWARE_MPI)
-      MESSAGE(STATUS "Checking for HIP_AWARE_MPI - yes")
+    if(HAVE_CUDA_AWARE_MPI)
+      MESSAGE(STATUS "Checking for CUDA_AWARE_MPI - yes")
     else()
-      MESSAGE(STATUS "Checking for HIP_AWARE_MPI - no")
-      MESSAGE(WARNING "GROMACS cannot determine if underlying MPI is HIP-aware, " 
-      "for better multi-GPU performance consider using a more recent HIP-aware MPI.")
+      MESSAGE(STATUS "Checking for CUDA_AWARE_MPI - no")
+      MESSAGE(WARNING "GROMACS cannot determine if underlying MPI is CUDA-aware, " 
+      "for better multi-GPU performance consider using a more recent CUDA-aware MPI.")
     endif()
   endif()
 endfunction()
 
-# Test if HIP-aware MPI is supported
-gmx_test_hip_aware_mpi()
+# Test if CUDA-aware MPI is supported
+gmx_test_cuda_aware_mpi()
 
 
 

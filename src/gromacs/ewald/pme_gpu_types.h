@@ -90,8 +90,8 @@ static_assert(sizeof(DeviceBuffer<int>) == 8,
 /* What follows is all the PME GPU function arguments,
  * sorted into several device-side structures depending on the update rate.
  * This is GPU agnostic (float3 replaced by float[3], etc.).
- * The GPU-framework specifics (e.g. hipTextureObject_t handles) are described
- * in the larger structure PmeGpuHipKernelParams in the pme.hpp.
+ * The GPU-framework specifics (e.g. cudaTextureObject_t handles) are described
+ * in the larger structure PmeGpuCudaKernelParams in the pme.cuh.
  */
 
 /*! \internal \brief
@@ -233,7 +233,7 @@ struct PmeGpuKernelParamsBase
     /*! \brief End atom for this stage of pipeline */
     int pipelineAtomEnd;
 
-    /* These texture objects are only used in HIP and are related to the grid size. */
+    /* These texture objects are only used in CUDA and are related to the grid size. */
     /*! \brief Texture object for accessing grid.d_fractShiftsTable */
     HIDE_FROM_OPENCL_COMPILER(DeviceTexture) fractShiftsTableTexture;
     /*! \brief Texture object for accessing grid.d_gridlineIndicesTable */

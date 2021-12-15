@@ -632,7 +632,7 @@ sycl::event PmeGatherKernel<order, wrapX, wrapY, numGrids, readGlobal, threadsPe
     using kernelNameType =
             PmeGatherKernel<order, wrapX, wrapY, numGrids, readGlobal, threadsPerAtom, subGroupSize>;
 
-    // SYCL has different multidimensional layout than OpenCL/HIP.
+    // SYCL has different multidimensional layout than OpenCL/CUDA.
     const sycl::range<3> localSize{ config.blockSize[2], config.blockSize[1], config.blockSize[0] };
     const sycl::range<3> groupRange{ config.gridSize[2], config.gridSize[1], config.gridSize[0] };
     const sycl::nd_range<3> range{ groupRange * localSize, localSize };

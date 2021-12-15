@@ -50,8 +50,8 @@
  * \inlibraryapi
  * \ingroup module_pbcutil
  */
-#ifndef GMX_PBCUTIL_PBC_AIUC_HIP_CUH
-#define GMX_PBCUTIL_PBC_AIUC_HIP_CUH
+#ifndef GMX_PBCUTIL_PBC_AIUC_HIP_HPP
+#define GMX_PBCUTIL_PBC_AIUC_HIP_HPP
 
 #include "gromacs/gpu_utils/vectype_ops.hpp"
 #include "gromacs/pbcutil/ishift.h"
@@ -169,4 +169,4 @@ static __forceinline__ __host__ __device__ float3 pbcDxAiuc(const PbcAiuc& pbcAi
     return dr;
 }
 
-#endif // GMX_PBCUTIL_PBC_AIUC_HIP_CUH
+#endif // GMX_PBCUTIL_PBC_AIUC_HIP_HPP

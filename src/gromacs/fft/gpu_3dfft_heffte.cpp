@@ -191,7 +191,7 @@ void Gpu3dFft::ImplHeFfte<backend_tag>::perform3dFft(gmx_fft_direction dir, Comm
 }
 
 // instantiate relevant HeFFTe backend
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA
 template class Gpu3dFft::ImplHeFfte<heffte::backend::cufft>;
 #endif
 

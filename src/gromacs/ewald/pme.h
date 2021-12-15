@@ -365,7 +365,7 @@ GPU_FUNC_QUALIFIER int pme_gpu_get_block_size(const gmx_pme_t* GPU_FUNC_ARGUMENT
         GPU_FUNC_TERM_WITH_RETURN(0);
 
 // The following functions are all the PME GPU entry points,
-// currently inlining to nothing on non-HIP builds.
+// currently inlining to nothing on non-CUDA builds.
 
 /*! \brief
  * Resets the PME GPU timings. To be called at the reset step.

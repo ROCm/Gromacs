@@ -134,10 +134,10 @@ DeviceVendor getDeviceVendor(const char* vendorName);
  *  properties, status.
  *
  *  Note that this function leaves the GPU runtime API error state clean;
- *  this is implemented ATM in the HIP flavor. This invalidates any existing
- *  HIP streams, allocated memory on GPU, etc.
+ *  this is implemented ATM in the CUDA flavor. This invalidates any existing
+ *  CUDA streams, allocated memory on GPU, etc.
  *
- *  \todo:  Check if errors do propagate in OpenCL as they do in HIP and
+ *  \todo:  Check if errors do propagate in OpenCL as they do in CUDA and
  *          whether there is a mechanism to "clear" them.
  *
  * \return  Standard vector with the list of devices found
@@ -187,7 +187,7 @@ bool deviceIdIsCompatible(gmx::ArrayRef<const std::unique_ptr<DeviceInformation>
 
 /*! \brief Set the active GPU.
  *
- * This sets the device for which the device information is passed active. Essential in HIP, where
+ * This sets the device for which the device information is passed active. Essential in CUDA, where
  * the device buffers and kernel launches are not connected to the device context. In OpenCL, checks
  * the device vendor and makes vendor-specific performance adjustments.
  *
@@ -198,7 +198,7 @@ bool deviceIdIsCompatible(gmx::ArrayRef<const std::unique_ptr<DeviceInformation>
  */
 void setActiveDevice(const DeviceInformation& deviceInfo);
 
-/*! \brief Releases the GPU device used by the active context at the time of calling (HIP only).
+/*! \brief Releases the GPU device used by the active context at the time of calling (CUDA only).
  *
  * If \c deviceInfo is nullptr, then it is understood that no device
  * was selected so no context is active to be freed. Otherwise, the
@@ -210,7 +210,7 @@ void setActiveDevice(const DeviceInformation& deviceInfo);
  * Calls \c gmx_warning upon errors.
  *
  * \todo This should go through all the devices, not only the one currently active.
- *       Reseting only one device will not work, e.g. in HIP tests.
+ *       Reseting only one device will not work, e.g. in CUDA tests.
  *
  * \param[in] deviceInfo Information on the device to be released.
  */

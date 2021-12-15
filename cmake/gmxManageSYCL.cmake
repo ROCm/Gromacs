@@ -75,9 +75,9 @@ endfunction()
 
 if(GMX_SYCL_HIPSYCL)
     set(HIPSYCL_CLANG "${CMAKE_CXX_COMPILER}")
-    # -Wno-unknown-hip-version because Clang-11 complains about HIP 11.0-11.2, despite working fine with them.
+    # -Wno-unknown-cuda-version because Clang-11 complains about CUDA 11.0-11.2, despite working fine with them.
     # -Wno-unknown-attributes because hipSYCL does not support reqd_sub_group_size (because it can only do some sub group sizes).
-    set(HIPSYCL_SYCLCC_EXTRA_ARGS "-Wno-unknown-hip-version -Wno-unknown-attributes")
+    set(HIPSYCL_SYCLCC_EXTRA_ARGS "-Wno-unknown-cuda-version -Wno-unknown-attributes")
 
     # Must be called before find_package to capture all user-set CMake variables, but not those set automatically
     _getHipSyclCmakeFlags(_ALL_HIPSYCL_CMAKE_FLAGS)
@@ -114,18 +114,18 @@ if(GMX_SYCL_HIPSYCL)
         message(FATAL_ERROR "hipSYCL compiler not working:\n${_HIPSYCL_COMPILATION_OUTPUT}")
     endif()
 
-    # Does hipSYCL compilation target HIP devices?
-    if(NOT DEFINED GMX_HIPSYCL_HAVE_HIP_TARGET OR _rerun_hipsycl_try_compile_tests)
-        message(STATUS "Checking for hipSYCL HIP target")
-        try_compile(GMX_HIPSYCL_HAVE_HIP_TARGET "${CMAKE_BINARY_DIR}/CMakeTmpHipSyclTest" "${CMAKE_SOURCE_DIR}/cmake/HipSyclTest/" "HipSyclTest"
+    # Does hipSYCL compilation target CUDA devices?
+    if(NOT DEFINED GMX_HIPSYCL_HAVE_CUDA_TARGET OR _rerun_hipsycl_try_compile_tests)
+        message(STATUS "Checking for hipSYCL CUDA target")
+        try_compile(GMX_HIPSYCL_HAVE_CUDA_TARGET "${CMAKE_BINARY_DIR}/CMakeTmpHipSyclTest" "${CMAKE_SOURCE_DIR}/cmake/HipSyclTest/" "HipSyclTest"
           CMAKE_FLAGS
-            -DCHECK_HIP_TARGET=ON
+            -DCHECK_CUDA_TARGET=ON
             ${_ALL_HIPSYCL_CMAKE_FLAGS})
         file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/CMakeTmpHipSyclTest")
-        if(GMX_HIPSYCL_HAVE_HIP_TARGET)
-            message(STATUS "Checking for hipSYCL HIP target - Success")
+        if(GMX_HIPSYCL_HAVE_CUDA_TARGET)
+            message(STATUS "Checking for hipSYCL CUDA target - Success")
         else()
-            message(STATUS "Checking for hipSYCL HIP target - Failed")
+            message(STATUS "Checking for hipSYCL CUDA target - Failed")
         endif()
     endif()
 
@@ -160,11 +160,11 @@ if(GMX_SYCL_HIPSYCL)
         endif()
     endif()
 
-    if(NOT GMX_HIPSYCL_HAVE_HIP_TARGET AND NOT GMX_HIPSYCL_HAVE_HIP_TARGET)
+    if(NOT GMX_HIPSYCL_HAVE_CUDA_TARGET AND NOT GMX_HIPSYCL_HAVE_HIP_TARGET)
         message(WARNING "hipSYCL has no GPU targets set! Please, specify target hardware with -DHIPSYCL_TARGETS CMake option")
     endif()
-    if(GMX_HIPSYCL_HAVE_HIP_TARGET AND GMX_HIPSYCL_HAVE_HIP_TARGET)
-        message(FATAL_ERROR "hipSYCL cannot have both HIP and HIP targets active! This would require explicit multipass mode which both decreases performance on NVIDIA devices and has been removed in clang 12. Compile only for either HIP or HIP targets.")
+    if(GMX_HIPSYCL_HAVE_CUDA_TARGET AND GMX_HIPSYCL_HAVE_HIP_TARGET)
+        message(FATAL_ERROR "hipSYCL cannot have both CUDA and HIP targets active! This would require explicit multipass mode which both decreases performance on NVIDIA devices and has been removed in clang 12. Compile only for either CUDA or HIP targets.")
     endif()
     unset(_rerun_hipsycl_try_compile_tests)
 

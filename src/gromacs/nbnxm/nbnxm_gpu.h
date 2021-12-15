@@ -132,7 +132,7 @@ void gpu_launch_kernel(NbnxmGpu gmx_unused*    nb,
  *  In the most general case, the former would require scheduling pruning in a separate
  *  stream and adding additional event sync points to ensure that force kernels read
  *  consistent pair list data. This would lead to some overhead (due to extra
- *  hipStreamWaitEvent calls, 3-5 us/call) which we might be able to live with.
+ *  cudaStreamWaitEvent calls, 3-5 us/call) which we might be able to live with.
  *  The gains from additional overlap might not be significant as long as
  *  update+constraints anyway takes longer than pruning, but there will still
  *  be use-cases where more overlap may help (e.g. multiple ranks per GPU,

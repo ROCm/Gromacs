@@ -80,7 +80,6 @@ endif()
 
 if (GMX_GPU_HIP)
     find_package(HIP)
-    message(STATUS "HIP_INCLUDE_DIRS: " ${HIP_INCLUDE_DIRS})
     target_include_directories(nblib PRIVATE "${HIP_INCLUDE_DIRS}")
 endif()
 

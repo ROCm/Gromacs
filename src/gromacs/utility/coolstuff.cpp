@@ -825,7 +825,7 @@ std::string getCoolQuote()
           "had nothing to do with Apple!",
           "Adam Cadien" },
         { "When doing HPC, don't communica", "Jim Demmel" },
-        { "Today we're not going to optimize our HIP code, cause that's just a rabbit hole of "
+        { "Today we're not going to optimize our CUDA code, cause that's just a rabbit hole of "
           "misery!",
           "Tim Warburton" },
         { "Big Data is like teenage sex: everyone talks about it, nobody really knows how to do "

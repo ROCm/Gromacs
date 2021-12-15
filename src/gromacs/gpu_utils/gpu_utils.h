@@ -86,10 +86,10 @@ enum class GpuTaskCompletion
  *  env. var.), the profiler is started to begin collecting data during the
  *  rest of the run (or until stopGpuProfiler is called).
  *
- *  Note that this is implemented only for the HIP API.
+ *  Note that this is implemented only for the CUDA API.
  */
-HIP_FUNC_QUALIFIER
-void startGpuProfiler() HIP_FUNC_TERM;
+CUDA_FUNC_QUALIFIER
+void startGpuProfiler() CUDA_FUNC_TERM;
 
 
 /*! \brief Resets the GPU profiler if mdrun is being profiled.
@@ -100,39 +100,39 @@ void startGpuProfiler() HIP_FUNC_TERM;
  *
  * This function should typically be called at the mdrun counter reset time.
  *
- * Note that this is implemented only for the HIP API.
+ * Note that this is implemented only for the CUDA API.
  */
-HIP_FUNC_QUALIFIER
-void resetGpuProfiler() HIP_FUNC_TERM;
+CUDA_FUNC_QUALIFIER
+void resetGpuProfiler() CUDA_FUNC_TERM;
 
 
-/*! \brief Stops the HIP profiler if mdrun is being profiled.
+/*! \brief Stops the CUDA profiler if mdrun is being profiled.
  *
  *  This function can be called at cleanup when skipping recording
  *  recording subsequent API calls from being traces/profiled is desired,
  *  e.g. before uninitialization.
  *
- *  Note that this is implemented only for the HIP API.
+ *  Note that this is implemented only for the CUDA API.
  */
-HIP_FUNC_QUALIFIER
-void stopGpuProfiler() HIP_FUNC_TERM;
+CUDA_FUNC_QUALIFIER
+void stopGpuProfiler() CUDA_FUNC_TERM;
 
-//! Tells whether the host buffer was pinned for non-blocking transfers. Only implemented for HIP.
-HIP_FUNC_QUALIFIER
-bool isHostMemoryPinned(const void* HIP_FUNC_ARGUMENT(h_ptr)) HIP_FUNC_TERM_WITH_RETURN(false);
+//! Tells whether the host buffer was pinned for non-blocking transfers. Only implemented for CUDA.
+CUDA_FUNC_QUALIFIER
+bool isHostMemoryPinned(const void* CUDA_FUNC_ARGUMENT(h_ptr)) CUDA_FUNC_TERM_WITH_RETURN(false);
 
 /*! \brief Enable peer access between GPUs where supported
  * \param[in] gpuIdsToUse   List of GPU IDs in use
  * \param[in] mdlog         Logger object
  */
-HIP_FUNC_QUALIFIER
-void setupGpuDevicePeerAccess(const std::vector<int>& HIP_FUNC_ARGUMENT(gpuIdsToUse),
-                              const gmx::MDLogger&    HIP_FUNC_ARGUMENT(mdlog)) HIP_FUNC_TERM;
+CUDA_FUNC_QUALIFIER
+void setupGpuDevicePeerAccess(const std::vector<int>& CUDA_FUNC_ARGUMENT(gpuIdsToUse),
+                              const gmx::MDLogger&    CUDA_FUNC_ARGUMENT(mdlog)) CUDA_FUNC_TERM;
 
 /*! \brief Check the platform-defaults and environment variable to decide whether GPU timings
  * should be enabled.
  *
- * Currently, timings are enabled for OpenCL, but disabled for HIP and SYCL. This can be overridden
+ * Currently, timings are enabled for OpenCL, but disabled for CUDA and SYCL. This can be overridden
  * by \c GMX_ENABLE_GPU_TIMING and \c GMX_DISABLE_GPU_TIMING environment variables.
  */
 bool decideGpuTimingsUsage();

@@ -258,7 +258,7 @@ public:
 
     /*! \brief Returns a pointer to the value for the given key or nullptr when not present
      *
-     * \todo Use std::as_const when HIP 11 is a requirement.
+     * \todo Use std::as_const when CUDA 11 is a requirement.
      *
      * \param[in] key  The key
      * \return a pointer to value for the given key or nullptr when not present

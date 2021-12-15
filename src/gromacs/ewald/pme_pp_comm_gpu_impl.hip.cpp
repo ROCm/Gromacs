@@ -100,7 +100,7 @@ void PmePpCommGpu::Impl::reinit(int size)
 #endif
 }
 
-void PmePpCommGpu::Impl::receiveForceFromPmeHipDirect(bool receivePmeForceToGpu)
+void PmePpCommGpu::Impl::receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu)
 {
 #if GMX_MPI
     // Wait until remote PME task has pushed data, and then enqueue remote event to local stream.
@@ -130,7 +130,7 @@ void PmePpCommGpu::Impl::receiveForceFromPmeHipDirect(bool receivePmeForceToGpu)
 #endif
 }
 
-void PmePpCommGpu::Impl::receiveForceFromPmeHipMpi(float3* pmeForcePtr, int recvSize)
+void PmePpCommGpu::Impl::receiveForceFromPmeCudaMpi(float3* pmeForcePtr, int recvSize)
 {
 #if GMX_MPI
     MPI_Recv(pmeForcePtr, recvSize * DIM, MPI_FLOAT, pmeRank_, 0, comm_, MPI_STATUS_IGNORE);
@@ -145,15 +145,15 @@ void PmePpCommGpu::Impl::receiveForceFromPme(float3* recvPtr, int recvSize, bool
     float3* pmeForcePtr = receivePmeForceToGpu ? asFloat3(d_pmeForces_) : recvPtr;
     if (GMX_THREAD_MPI)
     {
-        receiveForceFromPmeHipDirect(receivePmeForceToGpu);
+        receiveForceFromPmeCudaDirect(receivePmeForceToGpu);
     }
     else
     {
-        receiveForceFromPmeHipMpi(pmeForcePtr, recvSize);
+        receiveForceFromPmeCudaMpi(pmeForcePtr, recvSize);
     }
 }
 
-void PmePpCommGpu::Impl::sendCoordinatesToPmeHipDirect(float3*               sendPtr,
+void PmePpCommGpu::Impl::sendCoordinatesToPmeCudaDirect(float3*               sendPtr,
                                                         int                   sendSize,
                                                         GpuEventSynchronizer* coordinatesReadyOnDeviceEvent)
 {
@@ -176,7 +176,7 @@ void PmePpCommGpu::Impl::sendCoordinatesToPmeHipDirect(float3*               sen
 #endif
 }
 
-void PmePpCommGpu::Impl::sendCoordinatesToPmeHipMpi(float3*               sendPtr,
+void PmePpCommGpu::Impl::sendCoordinatesToPmeCudaMpi(float3*               sendPtr,
                                                      int                   sendSize,
                                                      GpuEventSynchronizer* coordinatesReadyOnDeviceEvent)
 {
@@ -199,11 +199,11 @@ void PmePpCommGpu::Impl::sendCoordinatesToPme(float3*               sendPtr,
 {
     if (GMX_THREAD_MPI)
     {
-        sendCoordinatesToPmeHipDirect(sendPtr, sendSize, coordinatesReadyOnDeviceEvent);
+        sendCoordinatesToPmeCudaDirect(sendPtr, sendSize, coordinatesReadyOnDeviceEvent);
     }
     else
     {
-        sendCoordinatesToPmeHipMpi(sendPtr, sendSize, coordinatesReadyOnDeviceEvent);
+        sendCoordinatesToPmeCudaMpi(sendPtr, sendSize, coordinatesReadyOnDeviceEvent);
     }
 }
 DeviceBuffer<Float3> PmePpCommGpu::Impl::getGpuForceStagingPtr()

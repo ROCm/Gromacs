@@ -64,7 +64,7 @@ void pmalloc(void** h_ptr, size_t nbytes)
      * because it uses four-wide SIMD for bounding-box calculation.
      * However, when we organize using page-locked memory for
      * device-host transfers, it will probably need to be aligned to a
-     * 4kb page, like HIP does. */
+     * 4kb page, like CUDA does. */
     snew_aligned(*temporary, nbytes, 16);
 }
 

@@ -51,6 +51,8 @@
 #include <set>
 #include <vector>
 
+#if GMX_GPU_CUDA
+#    include "gromacs/gpu_utils/gpuregiontimer.cuh"
 #if GMX_GPU_HIP
 #    include "gromacs/gpu_utils/gpuregiontimer.hpp"
 #elif GMX_GPU_OPENCL
@@ -75,7 +77,7 @@ class Gpu3dFft;
 } // namespace gmx
 
 /*! \internal \brief
- * The main PME HIP/OpenCL-specific host data structure, included in the PME GPU structure by the archSpecific pointer.
+ * The main PME CUDA/OpenCL-specific host data structure, included in the PME GPU structure by the archSpecific pointer.
  */
 struct PmeGpuSpecific
 {
@@ -116,7 +118,7 @@ struct PmeGpuSpecific
     /*! \brief A boolean which tells if the GPU timing events are enabled.
      *  False by default, can be enabled by setting the environment variable GMX_ENABLE_GPU_TIMING.
      *  Note: will not be reliable when multiple GPU tasks are running concurrently on the same
-     * device context, as HIP events on multiple streams are untrustworthy.
+     * device context, as CUDA events on multiple streams are untrustworthy.
      */
     bool useTiming = false;
 
@@ -135,7 +137,7 @@ struct PmeGpuSpecific
      * These integer pairs are mostly meaningful for the reallocateDeviceBuffer calls.
      * As such, if DeviceBuffer is refactored into a class, they can be freely changed, too.
      * The only exceptions are realGridSize and complexGridSize which are also used for grid clearing/copying.
-     * TODO: these should live in a clean buffered container type, and be refactored in the NB/hiputils as well.
+     * TODO: these should live in a clean buffered container type, and be refactored in the NB/cudautils as well.
      */
     /*! \brief The kernelParams.atoms.coordinates float element count (actual)*/
     int coordinatesSize = 0;

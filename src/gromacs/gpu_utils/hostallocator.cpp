@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  * \brief Implements gmx::HostAllocationPolicy for allocating memory
- * suitable for e.g. GPU transfers on HIP.
+ * suitable for e.g. GPU transfers on CUDA.
  *
  * \author Mark Abraham <mark.j.abraham@gmail.com>
  */

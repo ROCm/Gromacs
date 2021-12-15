@@ -380,7 +380,7 @@ public:
     }
     /*! \brief Returns an rvec * pointer for containers of RVec, for use with legacy code.
      *
-     * \todo Use std::is_same_v when HIP 11 is a requirement.
+     * \todo Use std::is_same_v when CUDA 11 is a requirement.
      */
     template<typename AlsoT = T, typename = typename std::enable_if<std::is_same<AlsoT, RVec>::value>>
     rvec* rvec_array()
@@ -389,7 +389,7 @@ public:
     }
     /*! \brief Returns a const rvec * pointer for containers of RVec, for use with legacy code.
      *
-     * \todo Use std::is_same_v when HIP 11 is a requirement.
+     * \todo Use std::is_same_v when CUDA 11 is a requirement.
      */
     template<typename AlsoT = T, typename = typename std::enable_if<std::is_same<AlsoT, RVec>::value>>
     const rvec* rvec_array() const

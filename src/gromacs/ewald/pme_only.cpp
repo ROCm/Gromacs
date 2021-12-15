@@ -467,12 +467,12 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
                     {
                         if (GMX_THREAD_MPI)
                         {
-                            pme_pp->pmeCoordinateReceiverGpu->receiveCoordinatesSynchronizerFromPpHipDirect(
+                            pme_pp->pmeCoordinateReceiverGpu->receiveCoordinatesSynchronizerFromPpCudaDirect(
                                     sender.rankId);
                         }
                         else
                         {
-                            pme_pp->pmeCoordinateReceiverGpu->launchReceiveCoordinatesFromPpHipMpi(
+                            pme_pp->pmeCoordinateReceiverGpu->launchReceiveCoordinatesFromPpCudaMpi(
                                     stateGpu->getCoordinates(),
                                     nat,
                                     sender.numAtoms * sizeof(rvec),
@@ -568,7 +568,7 @@ static void gmx_pme_send_force_vir_ener(const gmx_pme_t& pme,
         for (int i = 0; i < numPpRanks; i++)
         {
             auto& receiver = pme_pp->ppRanks[i];
-            pme_pp->pmeForceSenderGpu->sendFToPpHipDirect(
+            pme_pp->pmeForceSenderGpu->sendFToPpCudaDirect(
                     receiver.rankId, receiver.numAtoms, pme_pp->sendForcesDirectToPpGpu);
         }
     }
@@ -580,7 +580,7 @@ static void gmx_pme_send_force_vir_ener(const gmx_pme_t& pme,
             ind_end   = ind_start + receiver.numAtoms;
             if (pme_pp->useGpuDirectComm)
             {
-                pme_pp->pmeForceSenderGpu->sendFToPpHipMpi(pme_gpu_get_device_f(&pme),
+                pme_pp->pmeForceSenderGpu->sendFToPpCudaMpi(pme_gpu_get_device_f(&pme),
                                                             ind_start,
                                                             receiver.numAtoms * sizeof(rvec),
                                                             receiver.rankId,

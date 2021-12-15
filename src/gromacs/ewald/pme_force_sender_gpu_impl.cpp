@@ -37,7 +37,7 @@
  * \brief May be used to implement PME-PP GPU comm interfaces for non-GPU builds.
  *
  * Currently, reports and exits if any of the interfaces are called.
- * Needed to satisfy compiler on systems, where HIP is not available.
+ * Needed to satisfy compiler on systems, where CUDA is not available.
  *
  * \author Alan Gray <alang@nvidia.com>
  *
@@ -52,7 +52,7 @@
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/gmxassert.h"
 
-#if !GMX_GPU_HIP
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP
 
 namespace gmx
 {
@@ -84,7 +84,7 @@ void PmeForceSenderGpu::setForceSendBuffer(DeviceBuffer<RVec> /* d_f */)
                "correct implementation.");
 }
 
-void PmeForceSenderGpu::sendFToPpHipDirect(int /* ppRank */,
+void PmeForceSenderGpu::sendFToPpCudaDirect(int /* ppRank */,
                                             int /* numAtoms */,
                                             bool /* sendForcesDirectToPpGpu */)
 {
@@ -93,7 +93,7 @@ void PmeForceSenderGpu::sendFToPpHipDirect(int /* ppRank */,
                "implementation.");
 }
 
-void PmeForceSenderGpu::sendFToPpHipMpi(DeviceBuffer<RVec> /* sendbuf */,
+void PmeForceSenderGpu::sendFToPpCudaMpi(DeviceBuffer<RVec> /* sendbuf */,
                                          int /* offset */,
                                          int /* numBytes */,
                                          int /* ppRank */,
@@ -106,4 +106,4 @@ void PmeForceSenderGpu::sendFToPpHipMpi(DeviceBuffer<RVec> /* sendbuf */,
 
 } // namespace gmx
 
-#endif // !GMX_GPU_HIP
+#endif // !GMX_GPU_CUDA

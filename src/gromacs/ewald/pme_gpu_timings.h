@@ -67,7 +67,7 @@ void pme_gpu_start_timing(const PmeGpu* pmeGpu, PmeStage pmeStageId);
 void pme_gpu_stop_timing(const PmeGpu* pmeGpu, PmeStage pmeStageId);
 
 /*! \brief
- * Tells if HIP-based performance tracking is enabled for PME.
+ * Tells if CUDA-based performance tracking is enabled for PME.
  *
  * \param[in] pmeGpu         The PME GPU data structure.
  * \returns                  True if timings are enabled, false otherwise.

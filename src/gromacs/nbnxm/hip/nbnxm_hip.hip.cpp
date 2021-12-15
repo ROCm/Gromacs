@@ -106,11 +106,11 @@
 
 /* Now generate the function definitions if we are using a single compilation unit. */
 #if GMX_HIP_NB_SINGLE_COMPILATION_UNIT
-#    include "nbnxm_hip_kernel_F_noprune.cu"
-#    include "nbnxm_hip_kernel_F_prune.cu"
-#    include "nbnxm_hip_kernel_VF_noprune.cu"
-#    include "nbnxm_hip_kernel_VF_prune.cu"
-#    include "nbnxm_hip_kernel_pruneonly.cu"
+#    include "nbnxm_hip_kernel_F_noprune.hip.cpp"
+#    include "nbnxm_hip_kernel_F_prune.hip.cpp"
+#    include "nbnxm_hip_kernel_VF_noprune.hip.cpp"
+#    include "nbnxm_hip_kernel_VF_prune.hip.cpp"
+#    include "nbnxm_hip_kernel_pruneonly.hip.cpp"
 #endif /* GMX_HIP_NB_SINGLE_COMPILATION_UNIT */
 
 namespace Nbnxm

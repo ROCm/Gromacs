@@ -32,11 +32,11 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-function (gmx_test_clang_hip_support)
+function (gmx_test_clang_cuda_support)
 
     if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") OR
         (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6))
-        message(FATAL_ERROR "clang 6 or later required with GMX_CLANG_HIP=ON!")
+        message(FATAL_ERROR "clang 6 or later required with GMX_CLANG_CUDA=ON!")
     endif()
 
     # NOTE: we'd ideally like to use a compile check here, but the link-stage
@@ -44,93 +44,93 @@ function (gmx_test_clang_hip_support)
     # (GPU code) in the object file generated during compilation.
     # SET(CMAKE_REQUIRED_FLAGS ${FLAGS})
     # SET(CMAKE_REQUIRED_LIBRARIES ${LIBS})
-    # CHECK_CXX_SOURCE_COMPILES("int main() { int c; hipGetDeviceCount(&c); return 0; }" _CLANG_HIP_COMPILES)
+    # CHECK_CXX_SOURCE_COMPILES("int main() { int c; cudaGetDeviceCount(&c); return 0; }" _CLANG_CUDA_COMPILES)
 endfunction ()
 
-if (GMX_HIP_TARGET_COMPUTE)
-    message(WARNING "Values passed in GMX_HIP_TARGET_COMPUTE will be ignored; clang will by default include PTX in the binary.")
+if (GMX_CUDA_TARGET_COMPUTE)
+    message(WARNING "Values passed in GMX_CUDA_TARGET_COMPUTE will be ignored; clang will by default include PTX in the binary.")
 endif()
 
-if (HIP_VERSION VERSION_GREATER 10.1)
-    # At the time of writing, the latest versions are Clang 11 and HIP 11.2.
+if (CUDA_VERSION VERSION_GREATER 10.1)
+    # At the time of writing, the latest versions are Clang 11 and CUDA 11.2.
     if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 11.0)
-        # We don't know about the future Clang versions, but so far Clang 12 docs state that only HIP versions 7.0-10.1 are supported.
+        # We don't know about the future Clang versions, but so far Clang 12 docs state that only CUDA versions 7.0-10.1 are supported.
         set(_support_status "likely incompatible")
     else()
-        if (HIP_VERSION VERSION_GREATER 11.2)
-            # No idea about future HIP versions.
+        if (CUDA_VERSION VERSION_GREATER 11.2)
+            # No idea about future CUDA versions.
             set(_support_status "officially incompatible")
         else()
             # Our experience and multiple reports on the internet indicate that it works just fine.
             set(_support_status "officially incompatible (but generally working)")
         endif()
     endif()
-    message(NOTICE "Using ${_support_status} version of HIP with Clang.")
-    message(NOTICE "If Clang fails to recognize HIP version, consider creating doing "
-      "`echo \"HIP Version ${HIP_VERSION}\" | sudo tee \"${HIP_TOOLKIT_ROOT_DIR}/version.txt\"`")
-    list(APPEND _HIP_CLANG_FLAGS "-Wno-unknown-hip-version")
+    message(NOTICE "Using ${_support_status} version of CUDA with Clang.")
+    message(NOTICE "If Clang fails to recognize CUDA version, consider creating doing "
+      "`echo \"CUDA Version ${CUDA_VERSION}\" | sudo tee \"${CUDA_TOOLKIT_ROOT_DIR}/version.txt\"`")
+    list(APPEND _CUDA_CLANG_FLAGS "-Wno-unknown-cuda-version")
 
 endif()
 
-if (GMX_HIP_TARGET_SM)
-    set(_HIP_CLANG_GENCODE_FLAGS)
-    set(_target_sm_list ${GMX_HIP_TARGET_SM})
+if (GMX_CUDA_TARGET_SM)
+    set(_CUDA_CLANG_GENCODE_FLAGS)
+    set(_target_sm_list ${GMX_CUDA_TARGET_SM})
     foreach(_target ${_target_sm_list})
-        list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_${_target}")
+        list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_${_target}")
     endforeach()
 else()
-    if (HIP_VERSION VERSION_LESS 11.0)
-        list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_30")
+    if (CUDA_VERSION VERSION_LESS 11.0)
+        list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_30")
     endif()
-    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_35")
-    # clang 6.0 + HIP 9.0 seems to have issues generating code for sm_37
+    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_35")
+    # clang 6.0 + CUDA 9.0 seems to have issues generating code for sm_37
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0 OR CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0.999)
-        list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_37")
+        list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_37")
     endif()
-    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_50")
-    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_52")
-    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_60")
-    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_61")
-    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_70")
-    if (NOT HIP_VERSION VERSION_LESS 10.0)
-        list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_75")
+    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_50")
+    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_52")
+    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_60")
+    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_61")
+    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_70")
+    if (NOT CUDA_VERSION VERSION_LESS 10.0)
+        list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_75")
     endif()
-    # Enable this when clang (12.0 ?) properly recognizes HIP 11.0
-    #if(NOT HIP_VERSION VERSION_LESS 11.0)
-    #    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_80")
+    # Enable this when clang (12.0 ?) properly recognizes CUDA 11.0
+    #if(NOT CUDA_VERSION VERSION_LESS 11.0)
+    #    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_80")
     #endif()
     # Enable this when clang (12.0 ?) introduces sm_86 support
-    #if(NOT HIP_VERSION VERSION_LESS 11.1)
-    #    list(APPEND _HIP_CLANG_GENCODE_FLAGS "--hip-gpu-arch=sm_86")
+    #if(NOT CUDA_VERSION VERSION_LESS 11.1)
+    #    list(APPEND _CUDA_CLANG_GENCODE_FLAGS "--cuda-gpu-arch=sm_86")
     #endif()
 endif()
-if (GMX_HIP_TARGET_SM)
-    set_property(CACHE GMX_HIP_TARGET_SM PROPERTY HELPSTRING "List of HIP GPU architecture codes to compile for (without the sm_ prefix)")
-    set_property(CACHE GMX_HIP_TARGET_SM PROPERTY TYPE STRING)
+if (GMX_CUDA_TARGET_SM)
+    set_property(CACHE GMX_CUDA_TARGET_SM PROPERTY HELPSTRING "List of CUDA GPU architecture codes to compile for (without the sm_ prefix)")
+    set_property(CACHE GMX_CUDA_TARGET_SM PROPERTY TYPE STRING)
 endif()
 
 # default flags
-list(APPEND _HIP_CLANG_FLAGS "-x hip" "-ffast-math" "-fhip-flush-denormals-to-zero")
-# Workaround for clang>=9 (Bug 45533). No HIP file uses OpenMP.
-list(APPEND _HIP_CLANG_FLAGS "-fno-openmp")
-# HIP toolkit
-list(APPEND _HIP_CLANG_FLAGS "--hip-path=${HIP_TOOLKIT_ROOT_DIR}")
+list(APPEND _CUDA_CLANG_FLAGS "-x cuda" "-ffast-math" "-fcuda-flush-denormals-to-zero")
+# Workaround for clang>=9 (Bug 45533). No CUDA file uses OpenMP.
+list(APPEND _CUDA_CLANG_FLAGS "-fno-openmp")
+# CUDA toolkit
+list(APPEND _CUDA_CLANG_FLAGS "--cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
 # codegen flags
-list(APPEND _HIP_CLANG_FLAGS "${_HIP_CLANG_GENCODE_FLAGS}")
-foreach(_flag ${_HIP_CLANG_FLAGS})
-    set(GMX_HIP_CLANG_FLAGS "${GMX_HIP_CLANG_FLAGS} ${_flag}")
+list(APPEND _CUDA_CLANG_FLAGS "${_CUDA_CLANG_GENCODE_FLAGS}")
+foreach(_flag ${_CUDA_CLANG_FLAGS})
+    set(GMX_CUDA_CLANG_FLAGS "${GMX_CUDA_CLANG_FLAGS} ${_flag}")
 endforeach()
 
-if (HIP_USE_STATIC_HIP_RUNTIME)
-    set(GMX_HIP_CLANG_LINK_LIBS "hiprt_static")
+if (CUDA_USE_STATIC_CUDA_RUNTIME)
+    set(GMX_CUDA_CLANG_LINK_LIBS "cudart_static")
 else()
-    set(GMX_HIP_CLANG_LINK_LIBS "hiprt")
+    set(GMX_CUDA_CLANG_LINK_LIBS "cudart")
 endif()
-set(GMX_HIP_CLANG_LINK_LIBS "${GMX_HIP_CLANG_LINK_LIBS}" "dl" "rt")
-if (HIP_64_BIT_DEVICE_CODE)
-    set(GMX_HIP_CLANG_LINK_DIRS "${HIP_TOOLKIT_ROOT_DIR}/lib64")
+set(GMX_CUDA_CLANG_LINK_LIBS "${GMX_CUDA_CLANG_LINK_LIBS}" "dl" "rt")
+if (CUDA_64_BIT_DEVICE_CODE)
+    set(GMX_CUDA_CLANG_LINK_DIRS "${CUDA_TOOLKIT_ROOT_DIR}/lib64")
 else()
-    set(GMX_HIP_CLANG_LINK_DIRS "${HIP_TOOLKIT_ROOT_DIR}/lib")
+    set(GMX_CUDA_CLANG_LINK_DIRS "${CUDA_TOOLKIT_ROOT_DIR}/lib")
 endif()
 
-gmx_test_clang_hip_support()
+gmx_test_clang_cuda_support()

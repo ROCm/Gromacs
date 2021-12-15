@@ -303,7 +303,7 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*        nbl,
                             fshift[ish3 + 2] = fshift[ish3 + 2] + fiz;
 
                             /* Count in half work-units.
-                             * In HIP one work-unit is 2 warps.
+                             * In CUDA one work-unit is 2 warps.
                              */
                             if ((ic + 1) % (c_clSize / c_nbnxnGpuClusterpairSplit) == 0)
                             {

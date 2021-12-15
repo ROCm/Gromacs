@@ -1931,7 +1931,7 @@ static void setExclusionsForIEntry(const Nbnxm::GridSet&   gridSet,
                             const int innerI = (i & (c_clusterSize - 1));
                             const int innerJ = (jIndex & (c_clusterSize - 1));
 
-                            /* Determine which j-half (HIP warp) we are in */
+                            /* Determine which j-half (CUDA warp) we are in */
                             const int jHalf = innerJ / (c_clusterSize / c_nbnxnGpuClusterpairSplit);
 
                             nbnxn_excl_t& interactionMask =

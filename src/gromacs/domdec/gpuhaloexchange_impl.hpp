@@ -132,7 +132,7 @@ private:
      * \param [in] remotePtr     remote address to recv data
      * \param [in] recvRank      rank to recv data from
      */
-    void communicateHaloDataWithHipDirect(float3* sendPtr, int sendSize, int sendRank, float3* remotePtr, int recvRank);
+    void communicateHaloDataWithCudaDirect(float3* sendPtr, int sendSize, int sendRank, float3* remotePtr, int recvRank);
 
     /*! \brief Data transfer wrapper for GPU halo exchange using MPI_send and MPI_Recv
      * \param [in] sendPtr      send buffer address
@@ -142,7 +142,7 @@ private:
      * \param [in] recvSize     number of elements to receive
      * \param [in] recvRank     rank of source
      */
-    void communicateHaloDataWithHipMPI(float3* sendPtr,
+    void communicateHaloDataWithCudaMPI(float3* sendPtr,
                                         int     sendSize,
                                         int     sendRank,
                                         float3* recvPtr,

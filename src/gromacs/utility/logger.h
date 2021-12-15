@@ -119,7 +119,7 @@ public:
     //! Initializes a helper for writing to the given target.
     explicit LogWriteHelper(ILogTarget* target) : target_(target) {}
 
-    // Should be explicit, once that works in HIP.
+    // Should be explicit, once that works in CUDA.
     /*! \brief
      * Returns whether anything needs to be written.
      *
@@ -160,7 +160,7 @@ public:
     //! Initializes a helper for writing to the given target.
     explicit LogLevelHelper(ILogTarget* target) : target_(target) {}
 
-    // Both of the below should be explicit, once that works in HIP.
+    // Both of the below should be explicit, once that works in CUDA.
     //! Returns whether the output for this log level goes anywhere.
     operator bool() const { return target_ != nullptr; }
 

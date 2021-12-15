@@ -47,7 +47,11 @@
 
 #include "config.h"
 
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA
+
+#    include "gromacs/gpu_utils/gputraits.cuh"
+
+#elif GMX_GPU_HIP
 
 #    include "gromacs/gpu_utils/gputraits.hpp"
 

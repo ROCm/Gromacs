@@ -50,6 +50,8 @@
 
 #include <memory>
 
+#if GMX_GPU_CUDA
+#    include <cuda_runtime.h>
 #if GMX_GPU_HIP
 #    include "hip/hip_runtime.h"
 #elif GMX_GPU_OPENCL
@@ -79,7 +81,7 @@ enum class DeviceStreamPriority : int
  * The command stream (or command queue) is a sequence of operations that are executed
  * in they order they were issued. Several streams may co-exist to represent concurrency.
  * This class declares the interfaces, that are exposed to platform-agnostic code and
- * it should be implemented for each compute architecture (e.g. HIP and OpenCL).
+ * it should be implemented for each compute architecture (e.g. CUDA and OpenCL).
  *
  * Destruction of the \p DeviceStream calls the destructor of the underlying low-level
  * stream/queue, hence should only be called when the stream is no longer needed. To
@@ -94,7 +96,7 @@ public:
     /*! \brief Construct and init.
      *
      * \param[in] deviceContext  Device context (only used in OpenCL and SYCL).
-     * \param[in] priority       Stream priority: high or normal (only used in HIP).
+     * \param[in] priority       Stream priority: high or normal (only used in CUDA).
      * \param[in] useTiming      If the timing should be enabled (only used in OpenCL and SYCL).
      */
     DeviceStream(const DeviceContext& deviceContext, DeviceStreamPriority priority, bool useTiming);
@@ -112,7 +114,14 @@ public:
     //! Synchronize the stream
     void synchronize() const;
 
-#if GMX_GPU_HIP
+#if GMX_GPU_CUDA
+
+    //! Getter
+    cudaStream_t stream() const;
+
+private:
+    cudaStream_t stream_ = nullptr;
+#elif GMX_GPU_HIP
 
     //! Getter
     hipStream_t stream() const;

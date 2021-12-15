@@ -47,7 +47,7 @@
 #include "gromacs/mdlib/update_constrain_gpu.h"
 #include "gromacs/utility/gmxassert.h"
 
-#if !GMX_GPU_HIP && !GMX_GPU_SYCL
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP && !GMX_GPU_SYCL
 
 namespace gmx
 {
@@ -133,4 +133,4 @@ bool UpdateConstrainGpu::areConstraintsSupported()
 
 } // namespace gmx
 
-#endif /* !GMX_GPU_HIP && !GMX_GPU_SYCL */
+#endif /* !GMX_GPU_CUDA && !GMX_GPU_SYCL */

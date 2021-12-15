@@ -69,7 +69,7 @@ enum class FftBackend
 {
     Cufft, // supports only single-GPU
     Ocl,   // supports only single-GPU
-    HeFFTe_HIP,
+    HeFFTe_CUDA,
     SyclMkl,    // supports only single-GPU
     SyclRocfft, // supports only single-GPU
     Sycl,       // stubs for not supported configurations

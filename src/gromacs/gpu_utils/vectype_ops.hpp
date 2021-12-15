@@ -33,8 +33,8 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#ifndef VECTYPE_OPS_CUH
-#define VECTYPE_OPS_CUH
+#ifndef VECTYPE_OPS_HPP
+#define VECTYPE_OPS_HPP
 
 /**** float3 ****/
 static __forceinline__ __host__ __device__ float3 make_float3(float s)
@@ -283,4 +283,4 @@ static __forceinline__ __device__ void atomicAdd(float3& a, const float3 b)
     atomicAdd(&a.z, b.z);
 }
 
-#endif /* VECTYPE_OPS_CUH */
+#endif /* VECTYPE_OPS_HPP */

@@ -218,6 +218,9 @@
 /* Define if any type of GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU
 
+/* Define if CUDA GPU acceleration is compiled */
+#cmakedefine01 GMX_GPU_CUDA
+
 /* Define if HIP GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU_HIP
 
@@ -233,8 +236,8 @@
 // Define if hipSYCL has HIP target(s)
 #cmakedefine01 GMX_HIPSYCL_HAVE_HIP_TARGET
 
-// Define if hipSYCL has HIP target(s)
-#cmakedefine01 GMX_HIPSYCL_HAVE_HIP_TARGET
+// Define if hipSYCL has CUDA target(s)
+#cmakedefine01 GMX_HIPSYCL_HAVE_CUDA_TARGET
 
 /* Define if Intel's DPC++ is used (default unless hipSYCL is chosen) */
 #define GMX_SYCL_DPCPP (!GMX_SYCL_HIPSYCL && GMX_GPU_SYCL)

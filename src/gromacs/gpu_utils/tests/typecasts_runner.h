@@ -34,7 +34,7 @@
  */
 /*! \internal \file
  * \brief
- * Header for runner for HIP float3 type layout tests.
+ * Header for runner for CUDA float3 type layout tests.
  *
  * \author Artem Zhmurov <zhmurov@gmail.com>
  */

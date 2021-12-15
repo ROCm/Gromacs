@@ -35,12 +35,15 @@
 # Set up the module library
 add_library(domdec INTERFACE)
 file(GLOB DOMDEC_SOURCES *.cpp)
+list(FILTER DOMDEC_SOURCES EXCLUDE REGEX "\\.hip.cpp$")
 
-if(GMX_GPU_HIP)
-  file(GLOB DOMDEC_HIP_SOURCES gpuhaloexchange_impl.cu)
+if(GMX_GPU_CUDA)
+    file(GLOB DOMDEC_CUDA_SOURCES gpuhaloexchange_impl.cu)
+elseif(GMX_GPU_HIP)
+    file(GLOB DOMDEC_HIP_SOURCES gpuhaloexchange_impl.hip.cpp)
 endif()
 
-set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${DOMDEC_SOURCES} ${DOMDEC_HIP_SOURCES} PARENT_SCOPE)
+set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${DOMDEC_SOURCES} ${DOMDEC_CUDA_SOURCES} ${DOMDEC_HIP_SOURCES} PARENT_SCOPE)
 
 # Source files have the following dependencies on library infrastructure.
 #target_link_libraries(domdec PRIVATE

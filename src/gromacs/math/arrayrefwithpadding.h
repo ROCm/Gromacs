@@ -116,7 +116,7 @@ public:
     }
     /*! \brief Convenience overload constructor to make an ArrayRefWithPadding<const T> from a non-const one.
      *
-     * \todo Use std::is_same_v when HIP 11 is a requirement.
+     * \todo Use std::is_same_v when CUDA 11 is a requirement.
      */
     template<typename U, typename = std::enable_if_t<std::is_same<value_type, const typename std::remove_reference_t<U>::value_type>::value>>
     ArrayRefWithPadding(U&& o)

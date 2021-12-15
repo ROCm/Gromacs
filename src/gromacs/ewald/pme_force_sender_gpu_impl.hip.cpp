@@ -133,10 +133,10 @@ void PmeForceSenderGpu::Impl::setForceSendBuffer(DeviceBuffer<Float3> d_f)
 
 
 /*! \brief Send PME synchronizer directly using HIP memory copy */
-void PmeForceSenderGpu::Impl::sendFToPpHipDirect(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu)
+void PmeForceSenderGpu::Impl::sendFToPpCudaDirect(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu)
 {
 
-    GMX_ASSERT(GMX_THREAD_MPI, "sendFToPpHipDirect is expected to be called only for Thread-MPI");
+    GMX_ASSERT(GMX_THREAD_MPI, "sendFToPpCudaDirect is expected to be called only for Thread-MPI");
 
 
 #if GMX_MPI
@@ -161,17 +161,17 @@ void PmeForceSenderGpu::Impl::sendFToPpHipDirect(int ppRank, int numAtoms, bool 
 #endif
 }
 
-/*! \brief Send PME data directly using HIP-aware MPI */
-void PmeForceSenderGpu::Impl::sendFToPpHipMpi(DeviceBuffer<RVec> sendbuf,
+/*! \brief Send PME data directly using CUDA-aware MPI */
+void PmeForceSenderGpu::Impl::sendFToPpCudaMpi(DeviceBuffer<RVec> sendbuf,
                                                int                offset,
                                                int                numBytes,
                                                int                ppRank,
                                                MPI_Request*       request)
 {
-    GMX_ASSERT(GMX_LIB_MPI, "sendFToPpHipMpi is expected to be called only for Lib-MPI");
+    GMX_ASSERT(GMX_LIB_MPI, "sendFToPpCudaMpi is expected to be called only for Lib-MPI");
 
 #if GMX_MPI
-    // if using GPU direct comm with HIP-aware MPI, make sure forces are ready on device
+    // if using GPU direct comm with CUDA-aware MPI, make sure forces are ready on device
     // before sending it to PP ranks
     pmeForcesReady_->waitForEvent();
 
@@ -202,18 +202,18 @@ void PmeForceSenderGpu::setForceSendBuffer(DeviceBuffer<RVec> d_f)
     impl_->setForceSendBuffer(d_f);
 }
 
-void PmeForceSenderGpu::sendFToPpHipMpi(DeviceBuffer<RVec> sendbuf,
+void PmeForceSenderGpu::sendFToPpCudaMpi(DeviceBuffer<RVec> sendbuf,
                                          int                offset,
                                          int                numBytes,
                                          int                ppRank,
                                          MPI_Request*       request)
 {
-    impl_->sendFToPpHipMpi(sendbuf, offset, numBytes, ppRank, request);
+    impl_->sendFToPpCudaMpi(sendbuf, offset, numBytes, ppRank, request);
 }
 
-void PmeForceSenderGpu::sendFToPpHipDirect(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu)
+void PmeForceSenderGpu::sendFToPpCudaDirect(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu)
 {
-    impl_->sendFToPpHipDirect(ppRank, numAtoms, sendForcesDirectToPpGpu);
+    impl_->sendFToPpCudaDirect(ppRank, numAtoms, sendForcesDirectToPpGpu);
 }
 
 

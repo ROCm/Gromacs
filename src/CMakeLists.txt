@@ -61,6 +61,8 @@ file(GENERATE
     CONDITION $<CONFIG:${CMAKE_BUILD_TYPE}>
     )
 
+####
+
 option(GMX_CLANG_TIDY "Use clang-tidy" OFF)
 if (GMX_CLANG_TIDY)
    if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
