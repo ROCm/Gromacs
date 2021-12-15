@@ -52,7 +52,7 @@
 
 #if GMX_GPU_CUDA
 #    include <cuda_runtime.h>
-#if GMX_GPU_HIP
+#elif GMX_GPU_HIP
 #    include "hip/hip_runtime.h"
 #elif GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gmxopencl.h"

@@ -53,7 +53,7 @@
 
 #if GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/gpuregiontimer.cuh"
-#if GMX_GPU_HIP
+#elif GMX_GPU_HIP
 #    include "gromacs/gpu_utils/gpuregiontimer.hpp"
 #elif GMX_GPU_OPENCL
 #    include "gromacs/gpu_utils/gpuregiontimer_ocl.h"

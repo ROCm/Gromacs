@@ -52,7 +52,7 @@
 
 #if GMX_GPU_CUDA
 #include "gromacs/gpu_utils/gputraits.cuh"
-#elif
+#elif GMX_GPU_HIP
 #include "gromacs/gpu_utils/gputraits.hpp"
 #endif
 
