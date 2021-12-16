@@ -143,7 +143,7 @@
 /**@}*/
 __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #else
-__launch_bounds__(THREADS_PER_BLOCK)
+__launch_bounds__(c_clSize * c_clSize * 4)
 #endif /* GMX_PTX_ARCH >= 350 */
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
@@ -267,7 +267,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
     int* cjs = (int*)(sm_nextSlotPtr);
     /* the cjs buffer's use expects a base pointer offset for pairs of warps in the j-concurrent execution */
     cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-    sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
+    sm_nextSlotPtr += (blockDim.z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
 
 #    ifndef LJ_COMB
     /* shmem buffer for i atom-type pre-loading */
@@ -348,13 +348,13 @@ __launch_bounds__(THREADS_PER_BLOCK)
 
         /* divide the self term(s) equally over the j-threads, then multiply with the coefficients. */
 #            ifdef LJ_EWALD
-        E_lj /= c_clSize * NTHREAD_Z;
+        E_lj /= c_clSize * blockDim.z;
         E_lj *= 0.5f * c_oneSixth * lje_coeff6_6;
 #            endif
 
 #            if defined EL_EWALD_ANY || defined EL_RF || defined EL_CUTOFF
         /* Correct for epsfac^2 due to adding qi^2 */
-        E_el /= nbparam.epsfac * c_clSize * NTHREAD_Z;
+        E_el /= nbparam.epsfac * c_clSize * blockDim.z;
 #                if defined EL_RF || defined EL_CUTOFF
         E_el *= -0.5f * c_rf;
 #                else
@@ -374,7 +374,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
      */
-    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
+    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += blockDim.z)
     {
         wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
         imask     = pl_cj4[j4].imei[0].imask;
