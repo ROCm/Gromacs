@@ -237,7 +237,7 @@ TYPED_TEST(DeviceBufferTest, CanCopyToAndFromDeviceWithOffset)
     }
 }
 
-#    if GMX_GPU_CUDA || GMX_GPU_HIP
+#    if (GMX_GPU_CUDA || GMX_GPU_HIP)
 
 TYPED_TEST(DeviceBufferTest, CanCopyBetweenDeviceBuffers)
 {
