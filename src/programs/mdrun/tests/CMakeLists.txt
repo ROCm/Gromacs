@@ -188,7 +188,7 @@ set(exename "mdrun-multisim-replex-test")
 gmx_add_gtest_executable(${exename} MPI
     CPP_SOURCE_FILES
         # files with code for tests
-	multisimtest.cpp
+        multisimtest.cpp
         replicaexchange.cpp
         # pseudo-library for code for mdrun
         $<TARGET_OBJECTS:mdrun_objlib>

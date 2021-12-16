@@ -43,9 +43,7 @@ if (GMX_GPU_CUDA)
     gmx_add_libgromacs_sources(cuda_version_information.cu)
 endif ()
 if (GMX_GPU_HIP)
-    _gmx_add_files_to_property(HIP_SOURCES
-                               hip_version_information.hip.cpp
-                               )
+    gmx_add_libgromacs_sources(hip_version_information.hip.cpp)
 endif ()
 if (GMX_GPU_SYCL)
     _gmx_add_files_to_property(SYCL_SOURCES
