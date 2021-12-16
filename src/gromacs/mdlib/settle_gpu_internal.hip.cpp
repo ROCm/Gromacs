@@ -68,7 +68,7 @@ namespace gmx
 {
 
 //! Number of HIP threads in a block
-constexpr static int sc_threadsPerBlock = 1024;
+constexpr static int sc_threadsPerBlock = 256;
 
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int sc_maxThreadsPerBlock = sc_threadsPerBlock;
