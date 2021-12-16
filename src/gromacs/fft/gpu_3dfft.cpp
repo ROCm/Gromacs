@@ -95,7 +95,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                    DeviceBuffer<float>* realGrid,
                    DeviceBuffer<float>* complexGrid)
 {
-#    if GMX_GPU_CUDA || GMX_GPU_HIP
+#    if (GMX_GPU_CUDA || GMX_GPU_HIP)
     switch (backend)
     {
         case FftBackend::Cufft:

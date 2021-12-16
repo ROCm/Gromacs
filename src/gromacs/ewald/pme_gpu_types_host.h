@@ -70,11 +70,11 @@ struct PmeGpuSpecific;
 typedef int PmeGpuSpecific;
 #endif
 
-#if GMX_GPU_CUDA || GMX_GPU_HIP
+#if (GMX_GPU_CUDA || GMX_GPU_HIP)
 struct PmeGpuCudaKernelParams;
 /*! \brief A typedef for including the GPU kernel arguments data by pointer */
 typedef PmeGpuCudaKernelParams PmeGpuKernelParams;
-#elif GMX_GPU_OPENCL || GMX_GPU_SYCL
+#elif (GMX_GPU_OPENCL || GMX_GPU_SYCL)
 struct PmeGpuKernelParamsBase;
 /*! \brief A typedef for including the GPU kernel arguments data by pointer */
 typedef PmeGpuKernelParamsBase PmeGpuKernelParams;

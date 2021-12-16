@@ -61,7 +61,7 @@
 #include "gromacs/domdec/atomdistribution.h"
 #include "gromacs/domdec/domdec_internal.h"
 #include "gromacs/domdec/gpuhaloexchange.h"
-#if GMX_GPU_CUDA || GMX_GPU_HIP
+#if (GMX_GPU_CUDA || GMX_GPU_HIP)
 #    include "gromacs/gpu_utils/device_stream.h"
 #    include "gromacs/gpu_utils/devicebuffer.h"
 #endif

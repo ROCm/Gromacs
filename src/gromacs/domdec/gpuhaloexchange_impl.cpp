@@ -52,7 +52,7 @@
 #include "gromacs/domdec/gpuhaloexchange.h"
 #include "gromacs/utility/gmxassert.h"
 
-#if !GMX_GPU_CUDA && !GMX_GPU_HIP
+#if (!GMX_GPU_CUDA && !GMX_GPU_HIP)
 
 namespace gmx
 {
