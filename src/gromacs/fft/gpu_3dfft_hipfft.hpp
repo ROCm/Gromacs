@@ -42,8 +42,8 @@
  *  \ingroup module_fft
  */
 
-#ifndef GMX_FFT_GPU_3DFFT_CUFFT_HPP
-#define GMX_FFT_GPU_3DFFT_CUFFT_HPP
+#ifndef GMX_FFT_GPU_3DFFT_HIPFFT_HPP
+#define GMX_FFT_GPU_3DFFT_HIPFFT_HPP
 
 #include <memory>
 
@@ -64,26 +64,26 @@ namespace gmx
 /*! \internal \brief
  * A 3D FFT wrapper class for performing R2C/C2R transforms using cuFFT
  */
-class Gpu3dFft::ImplCuFft : public Gpu3dFft::Impl
+class Gpu3dFft::ImplHipFft : public Gpu3dFft::Impl
 {
 public:
     //! \copydoc Gpu3dFft::Impl::Impl
-    ImplCuFft(bool                 allocateGrids,
-              MPI_Comm             comm,
-              ArrayRef<const int>  gridSizesInXForEachRank,
-              ArrayRef<const int>  gridSizesInYForEachRank,
-              int                  nz,
-              bool                 performOutOfPlaceFFT,
-              const DeviceContext& context,
-              const DeviceStream&  pmeStream,
-              ivec                 realGridSize,
-              ivec                 realGridSizePadded,
-              ivec                 complexGridSizePadded,
-              DeviceBuffer<float>* realGrid,
-              DeviceBuffer<float>* complexGrid);
+    ImplHipFft(bool                 allocateGrids,
+               MPI_Comm             comm,
+               ArrayRef<const int>  gridSizesInXForEachRank,
+               ArrayRef<const int>  gridSizesInYForEachRank,
+               int                  nz,
+               bool                 performOutOfPlaceFFT,
+               const DeviceContext& context,
+               const DeviceStream&  pmeStream,
+               ivec                 realGridSize,
+               ivec                 realGridSizePadded,
+               ivec                 complexGridSizePadded,
+               DeviceBuffer<float>* realGrid,
+               DeviceBuffer<float>* complexGrid);
 
     //! \copydoc Gpu3dFft::Impl::~Impl
-    ~ImplCuFft() override;
+    ~ImplHipFft() override;
 
     //! \copydoc Gpu3dFft::Impl::perform3dFft
     void perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent) override;

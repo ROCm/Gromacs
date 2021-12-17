@@ -43,7 +43,7 @@
 
 #include "gmxpre.h"
 
-#include "gpu_3dfft_cufft.hpp"
+#include "gpu_3dfft_hipfft.hpp"
 
 #include "gromacs/gpu_utils/device_stream.h"
 #include "gromacs/utility/arrayref.h"
@@ -60,19 +60,19 @@ static void handleHipfftError(hipfftResult_t status, const char* msg)
     }
 }
 
-Gpu3dFft::ImplCuFft::ImplCuFft(bool allocateGrids,
-                               MPI_Comm /*comm*/,
-                               ArrayRef<const int> gridSizesInXForEachRank,
-                               ArrayRef<const int> gridSizesInYForEachRank,
-                               const int /*nz*/,
-                               bool /*performOutOfPlaceFFT*/,
-                               const DeviceContext& /*context*/,
-                               const DeviceStream&  pmeStream,
-                               ivec                 realGridSize,
-                               ivec                 realGridSizePadded,
-                               ivec                 complexGridSizePadded,
-                               DeviceBuffer<float>* realGrid,
-                               DeviceBuffer<float>* complexGrid) :
+Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
+                                 MPI_Comm /*comm*/,
+                                 ArrayRef<const int> gridSizesInXForEachRank,
+                                 ArrayRef<const int> gridSizesInYForEachRank,
+                                 const int /*nz*/,
+                                 bool /*performOutOfPlaceFFT*/,
+                                 const DeviceContext& /*context*/,
+                                 const DeviceStream&  pmeStream,
+                                 ivec                 realGridSize,
+                                 ivec                 realGridSizePadded,
+                                 ivec                 complexGridSizePadded,
+                                 DeviceBuffer<float>* realGrid,
+                                 DeviceBuffer<float>* complexGrid) :
     realGrid_(reinterpret_cast<hipfftReal*>(*realGrid)),
     complexGrid_(reinterpret_cast<hipfftComplex*>(*complexGrid))
 {
@@ -135,7 +135,7 @@ Gpu3dFft::ImplCuFft::ImplCuFft(bool allocateGrids,
     handleHipfftError(result, "hipfftSetStream C2R failure");
 }
 
-Gpu3dFft::ImplCuFft::~ImplCuFft()
+Gpu3dFft::ImplHipFft::~ImplHipFft()
 {
     hipfftResult_t result;
     result = hipfftDestroy(planR2C_);
@@ -144,7 +144,7 @@ Gpu3dFft::ImplCuFft::~ImplCuFft()
     handleHipfftError(result, "hipfftDestroy C2R failure");
 }
 
-void Gpu3dFft::ImplCuFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
+void Gpu3dFft::ImplHipFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
 {
     hipfftResult_t result;
     if (dir == GMX_FFT_REAL_TO_COMPLEX)

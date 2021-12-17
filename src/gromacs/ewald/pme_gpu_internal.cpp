@@ -724,8 +724,10 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
         MPI_Comm           comm                      = MPI_COMM_NULL;
         std::array<int, 1> gridOffsetsInXForEachRank = { 0 };
         std::array<int, 1> gridOffsetsInYForEachRank = { 0 };
-#if GMX_GPU_CUDA || GMX_GPU_HIP
+#if GMX_GPU_CUDA
         const gmx::FftBackend backend = gmx::FftBackend::Cufft;
+#elif GMX_GPU_HIP
+        const gmx::FftBackend backend = gmx::FftBackend::Hipfft;
 #elif GMX_GPU_OPENCL
         const gmx::FftBackend backend = gmx::FftBackend::Ocl;
 #elif GMX_GPU_SYCL
