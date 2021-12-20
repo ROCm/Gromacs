@@ -53,7 +53,7 @@ if (GMX_LIB_MPI OR GMXAPI)
     # If we are building GROMACS against an MPI library, we need the CXX component.
     # If the gmxapi interfaces are to be installed, we want to try to help client
     # software to find a compatible MPI toolchain, regardless of the libgromacs configuration.
-    list(APPEND GMX_REQUIRED_MPI_COMPONENTS "CXX")
+    list(APPEND GMX_REQUIRED_MPI_COMPONENTS "CXX" "C")
 endif ()
 if (GMX_LIB_MPI AND GMX_CP2K)
     list(APPEND GMX_REQUIRED_MPI_COMPONENTS "Fortran")

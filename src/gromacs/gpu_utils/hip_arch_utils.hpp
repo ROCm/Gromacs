@@ -76,12 +76,14 @@ static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
  *  to have fallback for texture-less reads (direct/LDG loads), all new code needs
  *  to provide fallback code.
  */
-//#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIP__)) \
-//        || (GMX_PTX_ARCH == 700) || (GMX_PTX_ARCH == 800)
-//#    define DISABLE_HIP_TEXTURES 1
-//#else
-//#    define DISABLE_HIP_TEXTURES 0
-//#endif
+/*
+#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIP__)) \
+        || (GMX_PTX_ARCH == 700) || (GMX_PTX_ARCH == 800)
+#    define DISABLE_HIP_TEXTURES 1
+#else
+#    define DISABLE_HIP_TEXTURES 0
+#endif
+*/
 #if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIPCC__)) 
 #    define DISABLE_HIP_TEXTURES 1
 #else
