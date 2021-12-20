@@ -48,11 +48,11 @@
  * the current compiler pass or zero for the host pass and it is
  * intended to be used instead of __HIP_ARCH__.
  */
-#ifndef __HIP_ARCH__
-#    define GMX_PTX_ARCH 0
-#else
-#    define GMX_PTX_ARCH __HIP_ARCH__
-#endif
+//#ifndef __HIP_ARCH__
+//#    define GMX_PTX_ARCH 0
+//#else
+//#    define GMX_PTX_ARCH __HIP_ARCH__
+//#endif
 
 /* Until CC 5.2 and likely for the near future all NVIDIA architectures
    have a warp size of 32, but this could change later. If it does, the
@@ -63,7 +63,8 @@ static const int warp_size_log2 = 5;
 /*! \brief Bitmask corresponding to all threads active in a warp.
  *  NOTE that here too we assume 32-wide warps.
  */
-static const unsigned int c_fullWarpMask = 0xffffffff;
+//static const unsigned int c_fullWarpMask = 0xffffffff;
+static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
 
 /*! \brief Allow disabling HIP textures using the GMX_DISABLE_HIP_TEXTURES macro.
  *
@@ -75,8 +76,13 @@ static const unsigned int c_fullWarpMask = 0xffffffff;
  *  to have fallback for texture-less reads (direct/LDG loads), all new code needs
  *  to provide fallback code.
  */
-#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIP__)) \
-        || (GMX_PTX_ARCH == 700) || (GMX_PTX_ARCH == 800)
+//#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIP__)) \
+//        || (GMX_PTX_ARCH == 700) || (GMX_PTX_ARCH == 800)
+//#    define DISABLE_HIP_TEXTURES 1
+//#else
+//#    define DISABLE_HIP_TEXTURES 0
+//#endif
+#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIPCC__)) 
 #    define DISABLE_HIP_TEXTURES 1
 #else
 #    define DISABLE_HIP_TEXTURES 0
@@ -91,37 +97,37 @@ static const bool c_disableHipTextures = DISABLE_HIP_TEXTURES;
  * conditionals.
  *
  */
-#if GMX_PTX_ARCH > 0
-#    if GMX_PTX_ARCH <= 370 // CC 3.x
-#        define GMX_HIP_MAX_BLOCKS_PER_MP 16
-#        define GMX_HIP_MAX_THREADS_PER_MP 2048
-#    elif GMX_PTX_ARCH == 750 // CC 7.5, lower limits compared to 7.0
-#        define GMX_HIP_MAX_BLOCKS_PER_MP 16
-#        define GMX_HIP_MAX_THREADS_PER_MP 1024
-#    elif GMX_PTX_ARCH == 860 // CC 8.6, lower limits compared to 8.0
-#        define GMX_HIP_MAX_BLOCKS_PER_MP 16
-#        define GMX_HIP_MAX_THREADS_PER_MP 1536
-#    else // CC 5.x, 6.x, 7.0, 8.0
+//#if GMX_PTX_ARCH > 0
+//#    if GMX_PTX_ARCH <= 370 // CC 3.x
+//#        define GMX_HIP_MAX_BLOCKS_PER_MP 16
+//#        define GMX_HIP_MAX_THREADS_PER_MP 2048
+//#    elif GMX_PTX_ARCH == 750 // CC 7.5, lower limits compared to 7.0
+//#        define GMX_HIP_MAX_BLOCKS_PER_MP 16
+//#        define GMX_HIP_MAX_THREADS_PER_MP 1024
+//#    elif GMX_PTX_ARCH == 860 // CC 8.6, lower limits compared to 8.0
+//#        define GMX_HIP_MAX_BLOCKS_PER_MP 16
+//#        define GMX_HIP_MAX_THREADS_PER_MP 1536
+//#    else // CC 5.x, 6.x, 7.0, 8.0
 /* Note that this final branch covers all future architectures (current gen
  * is 8.x as of writing), hence assuming that these *currently defined* upper
  * limits will not be lowered.
  */
-#        define GMX_HIP_MAX_BLOCKS_PER_MP 32
-#        define GMX_HIP_MAX_THREADS_PER_MP 2048
-#    endif
-#else
+//#        define GMX_HIP_MAX_BLOCKS_PER_MP 32
+//#        define GMX_HIP_MAX_THREADS_PER_MP 2048
+//#    endif
+//#else
 #    define GMX_HIP_MAX_BLOCKS_PER_MP 0
 #    define GMX_HIP_MAX_THREADS_PER_MP 0
-#endif
+//#endif
 
 // Macro defined for clang HIP device compilation in the presence of debug symbols
 // used to work around codegen bug that breaks some kernels when assertions are on
 // at -O1 and higher (tested with clang 6-8).
-#if defined(__clang__) && defined(__HIP__) && defined(__HIP_ARCH__) && !defined(NDEBUG)
-#    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __attribute__((optnone))
-#else
+//#if defined(__clang__) && defined(__HIP__) && defined(__HIP_ARCH__) && !defined(NDEBUG)
+//#    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __attribute__((optnone))
+//#else
 #    define CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE
-#endif
+//#endif
 
 
 #endif /* HIP_ARCH_UTILS_HPP_ */

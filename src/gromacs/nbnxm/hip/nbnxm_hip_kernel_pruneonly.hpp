@@ -145,7 +145,8 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     // cj preload is off in the following cases:
     // - sm_70 (V100), sm_8x (A100, GA100), sm_75 (TU102)
     // - for future arch (> 8.6 at the time of writing) we assume it is better to keep it off
-    constexpr bool c_preloadCj = (GMX_PTX_ARCH < 700);
+    // constexpr bool c_preloadCj = (GMX_PTX_ARCH < 700);
+    constexpr bool c_preloadCj = true;
 
     /*********************************************************************
      * Set up shared memory pointers.
