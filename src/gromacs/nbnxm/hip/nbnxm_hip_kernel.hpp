@@ -258,7 +258,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
     // - sm_61: tested and slower without preload
     // - sm_6x and earlier not tested to
     // constexpr bool c_preloadCj = (GMX_PTX_ARCH < 700 || GMX_PTX_ARCH == 750);
-    constexpr bool c_preloadCj = true;
+    constexpr bool c_preloadCj = false;
 
     /*********************************************************************
      * Set up shared memory pointers.

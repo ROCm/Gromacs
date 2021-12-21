@@ -75,6 +75,9 @@
 
 #define HIP_DEG2RAD_F (HIPRT_PI_F / 180.0F)
 
+static const int warp_size      = 32;
+static const int warp_size_log2 = 5;
+
 /*---------------- BONDED HIP kernels--------------*/
 
 /* Harmonic */
@@ -861,8 +864,8 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams, float4*
         // each warp will accumulate its own partial sum
         // and then a single thread per warp will accumulate this to the global sum
 
-        int numWarps = blockDim.x / warpSize;
-        int warpId   = threadIdx.x / warpSize;
+        int numWarps = blockDim.x / warp_size;
+        int warpId   = threadIdx.x / warp_size;
 
         // Shared memory variables to hold block-local partial sum
         float* sm_vTot = reinterpret_cast<float*>(sm_nextSlotPtr);
@@ -871,7 +874,7 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams, float4*
         sm_nextSlotPtr += numWarps * sizeof(float);
         float* sm_vTotElec = reinterpret_cast<float*>(sm_nextSlotPtr);
 
-        if (threadIdx.x % warpSize == 0)
+        if (threadIdx.x % warp_size == 0)
         {
             // One thread per warp initializes to zero
             sm_vTot[warpId]     = 0.;
@@ -889,7 +892,7 @@ __global__ void exec_kernel_gpu(BondedCudaKernelParameters kernelParams, float4*
         // __syncwarp(); // Ensure all threads in warp have completed
         __all(1);
 
-        if (threadIdx.x % warpSize == 0)
+        if (threadIdx.x % warp_size == 0)
         { // One thread per warp accumulates partial sum into global sum
             atomicAdd(kernelParams.d_vTot + fType, sm_vTot[warpId]);
             atomicAdd(vtotVdw, sm_vTotVdw[warpId]);
