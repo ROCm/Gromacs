@@ -130,21 +130,21 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
-#if GMX_PTX_ARCH == 370
-#    define NTHREAD_Z (2)
-#    define MIN_BLOCKS_PER_MP (16)
-#else
+//#if GMX_PTX_ARCH == 370
+//#    define NTHREAD_Z (2)
+//#    define MIN_BLOCKS_PER_MP (16)
+//#else
 #    define NTHREAD_Z (1)
 #    define MIN_BLOCKS_PER_MP (16)
-#endif /* GMX_PTX_ARCH == 370 */
+//#endif /* GMX_PTX_ARCH == 370 */
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
-#if GMX_PTX_ARCH >= 350
+//#if GMX_PTX_ARCH >= 350
 /**@}*/
-__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
-#else
-__launch_bounds__(THREADS_PER_BLOCK)
-#endif /* GMX_PTX_ARCH >= 350 */
+//__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
+//#else
+//__launch_bounds__(THREADS_PER_BLOCK)
+//#endif /* GMX_PTX_ARCH >= 350 */
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
         __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_hip)
@@ -344,16 +344,22 @@ __launch_bounds__(THREADS_PER_BLOCK)
         /* we have the diagonal: add the charge and LJ self interaction energy term */
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
         {
-#            if defined EL_EWALD_ANY || defined EL_RF || defined EL_CUTOFF
+#           if defined EL_EWALD_ANY || defined EL_RF || defined EL_CUTOFF
             qi = xqib[i * c_clSize + tidxi].w;
             E_el += qi * qi;
 #            endif
 
-#            ifdef LJ_EWALD
+#           ifdef LJ_EWALD
             // load only the first 4 bytes of the parameter pair (equivalent with nbfp[idx].x)
+            #if DISABLE_HIP_TEXTURES
             E_lj += LDG(reinterpret_cast<float*>(
                     &nbparam.nbfp[atom_types[(sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi]
                                   * (ntypes + 1)]));
+            #else
+            E_lj += tex1Dfetch<float>(
+                    nbparam.nbfp_texobj, atom_types[(sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi]
+                                  * (ntypes + 1));
+            #endif
 #            endif
         }
 

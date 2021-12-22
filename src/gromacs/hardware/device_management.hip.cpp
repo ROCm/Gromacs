@@ -358,6 +358,7 @@ void releaseDevice(DeviceInformation* deviceInfo)
             stat = hipDeviceReset();
             if (stat != hipSuccess)
             {
+                // fprintf(stderr, "Failed to free GPU #%d. %s\n", gpuid, gmx::getDeviceErrorString(stat).c_str());
                 gmx_warning("Failed to free GPU #%d. %s", gpuid, gmx::getDeviceErrorString(stat).c_str());
             }
         }

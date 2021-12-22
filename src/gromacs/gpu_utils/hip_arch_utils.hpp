@@ -118,8 +118,8 @@ static const bool c_disableHipTextures = DISABLE_HIP_TEXTURES;
 //#        define GMX_HIP_MAX_THREADS_PER_MP 2048
 //#    endif
 //#else
-#    define GMX_HIP_MAX_BLOCKS_PER_MP 0
-#    define GMX_HIP_MAX_THREADS_PER_MP 0
+#    define GMX_HIP_MAX_BLOCKS_PER_MP 16
+#    define GMX_HIP_MAX_THREADS_PER_MP 1024
 //#endif
 
 // Macro defined for clang HIP device compilation in the presence of debug symbols

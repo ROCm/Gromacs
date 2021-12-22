@@ -232,7 +232,7 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
 
     // Direct GPU comm path is being used with CUDA_AWARE_MPI
     // make sure underlying MPI implementation is CUDA-aware
-    if (GMX_LIB_MPI && (GMX_GPU_CUDA || GMX_GPU_HIP))
+    if (GMX_LIB_MPI && GMX_GPU_CUDA)
     {
         const bool haveDetectedCudaAwareMpi =
                 (checkMpiCudaAwareSupport() == CudaAwareMpiStatus::Supported);
