@@ -599,10 +599,10 @@ __launch_bounds__(THREADS_PER_BLOCK)
                                 // Ensure distance do not become so small that r^-12 overflows
                                 //r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                //inv_r  = rsqrtf(r2);
+                                //inv_r  = __frsqrt_rn(r2);
                                 //inv_r2 = inv_r * inv_r;
 				r2_f2 = {fmax(r2_f2.x, c_nbnxnMinDistanceSquared), fmax(r2_f2.y, c_nbnxnMinDistanceSquared)};
-				inv_r_f2 = {rsqrtf(r2_f2.x), rsqrtf(r2_f2.y)};
+				inv_r_f2 = {__frsqrt_rn(r2_f2.x), __frsqrt_rn(r2_f2.y)};
 				inv_r2_f2 = inv_r_f2 * inv_r_f2;
 
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES

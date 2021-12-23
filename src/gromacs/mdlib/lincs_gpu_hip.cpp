@@ -200,7 +200,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
         float3 dx = pbcDxAiuc(pbcAiuc, xi, xj);
 
-        float rlen = rsqrtf(dx.x * dx.x + dx.y * dx.y + dx.z * dx.z);
+        float rlen = __frsqrt_rn(dx.x * dx.x + dx.y * dx.y + dx.z * dx.z);
         rc         = rlen * dx;
     }
 
@@ -279,7 +279,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 #else
         atomicAddOverWriteForFloat3(&gm_xp[i], -tmp * inverseMassi);
         atomicAddOverWriteForFloat3(&gm_xp[j], tmp * inverseMassj);
-#endif	    
+#endif
     }
 
     /*
@@ -366,7 +366,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 #else
         atomicAddOverWriteForFloat3(&gm_v[i], -tmp * inverseMassi);
         atomicAddOverWriteForFloat3(&gm_v[j], tmp * inverseMassj);
-#endif	    
+#endif
     }
 
 
@@ -526,7 +526,7 @@ void LincsGpu::apply(const float3* d_x,
     launchGpuKernel(kernelPtr, config, deviceStream_, nullptr,
                     "lincs_kernel<updateVelocities, computeVirial>", kernelArgs);
     */
-    launchGpuKernel(kernelPtr, config, deviceStream_, nullptr, "lincs_kernel<updateVelocities, computeVirial>", 
+    launchGpuKernel(kernelPtr, config, deviceStream_, nullptr, "lincs_kernel<updateVelocities, computeVirial>",
 		    kernelParams_, d_x, d_xp, d_v, invdt);
 
 

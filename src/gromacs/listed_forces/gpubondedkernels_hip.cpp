@@ -200,7 +200,7 @@ __device__ void bonds_gpu(const int       i,
 
         if (dr2 != 0.0f)
         {
-            fbond *= rsqrtf(dr2);
+            fbond *= __frsqrt_rn(dr2);
 
             float3 fij = fbond * dx;
 	    hipGlobalAtomicAdd(&gm_f[ai].x, fij.x);
@@ -284,13 +284,13 @@ __device__ void angles_gpu(const int       i,
         float cos_theta2 = cos_theta * cos_theta;
         if (cos_theta2 < 1.0f)
         {
-            float st    = dVdt * rsqrtf(1.0f - cos_theta2);
+            float st    = dVdt * __frsqrt_rn(1.0f - cos_theta2);
             float sth   = st * cos_theta;
             float nrij2 = norm2(r_ij);
             float nrkj2 = norm2(r_kj);
 
-            float nrij_1 = rsqrtf(nrij2);
-            float nrkj_1 = rsqrtf(nrkj2);
+            float nrij_1 = __frsqrt_rn(nrij2);
+            float nrkj_1 = __frsqrt_rn(nrkj2);
 
             float cik = st * nrij_1 * nrkj_1;
             float cii = sth * nrij_1 * nrij_1;
@@ -371,7 +371,7 @@ __device__ void urey_bradley_gpu(const int       i,
         int    ki = pbcDxAiuc<calcVir>(pbcAiuc, gm_xq[ai], gm_xq[ak], r_ik);
 
         float dr2 = norm2(r_ik);
-        float dr  = dr2 * rsqrtf(dr2);
+        float dr  = dr2 * __frsqrt_rn(dr2);
 
         float vbond;
         float fbond;
@@ -380,13 +380,13 @@ __device__ void urey_bradley_gpu(const int       i,
         float cos_theta2 = cos_theta * cos_theta;
         if (cos_theta2 < 1.0f)
         {
-            float st  = dVdt * rsqrtf(1.0f - cos_theta2);
+            float st  = dVdt * __frsqrt_rn(1.0f - cos_theta2);
             float sth = st * cos_theta;
 
             float nrkj2 = norm2(r_kj);
             float nrij2 = norm2(r_ij);
 
-            float cik = st * rsqrtf(nrkj2 * nrij2);
+            float cik = st * __frsqrt_rn(nrkj2 * nrij2);
             float cii = sth / nrij2;
             float ckk = sth / nrkj2;
 
@@ -425,7 +425,7 @@ __device__ void urey_bradley_gpu(const int       i,
                 *vtot_loc += vbond;
             }
 
-            fbond *= rsqrtf(dr2);
+            fbond *= __frsqrt_rn(dr2);
 
             float3 fik = fbond * r_ik;
 	    hipGlobalAtomicAdd(&gm_f[ai].x, fik.x);
@@ -484,8 +484,8 @@ __device__ __forceinline__ static void
     float mdphi, sdphi;
 
     mdphi = mult * phi - phiA * HIP_DEG2RAD_F;
-    sdphi = sinf(mdphi);
-    *v    = cpA * (1.0f + cosf(mdphi));
+    sdphi = __sinf(mdphi);
+    *v    = cpA * (1.0f + __cosf(mdphi));
     *f    = -cpA * mult * sdphi;
 }
 
@@ -514,7 +514,7 @@ __device__ static void do_dih_fup_gpu(const int      i,
     float toler = nrkj2 * GMX_REAL_EPS;
     if ((iprm > toler) && (iprn > toler))
     {
-        float  nrkj_1 = rsqrtf(nrkj2); // replacing std::invsqrt call
+        float  nrkj_1 = __frsqrt_rn(nrkj2); // replacing std::invsqrt call
         float  nrkj_2 = nrkj_1 * nrkj_1;
         float  nrkj   = nrkj2 * nrkj_1;
         float  a      = -ddphi * nrkj / iprm;
@@ -547,7 +547,7 @@ __device__ static void do_dih_fup_gpu(const int      i,
 	    const float3 sumfj = {hipHeadSegmentedSum(f_j.x, headj), hipHeadSegmentedSum(f_j.y, headj), hipHeadSegmentedSum(f_j.z, headj)};
 	    const float3 sumfk = {hipHeadSegmentedSum(f_k.x, headk), hipHeadSegmentedSum(f_k.y, headk), hipHeadSegmentedSum(f_k.z, headk)};
 	    const float3 sumfl = {hipHeadSegmentedSum(f_l.x, headl), hipHeadSegmentedSum(f_l.y, headl), hipHeadSegmentedSum(f_l.z, headl)};
-            
+
             if (headi)
             {
                 hipGlobalAtomicAdd(&gm_f[i].x, sumfi.x);
@@ -699,9 +699,9 @@ __device__ void rbdihs_gpu(const int       i,
         {
             phi -= HIP_PI_F;
         }
-        float cos_phi = cosf(phi);
+        float cos_phi = __cosf(phi);
         /* Beware of accuracy loss, cannot use 1-sqrt(cos^2) ! */
-        float sin_phi = sinf(phi);
+        float sin_phi = __sinf(phi);
 
         float parm[NR_RBDIHS];
         for (int j = 0; j < NR_RBDIHS; j++)
@@ -863,7 +863,7 @@ __device__ void pairs_gpu(const int       i,
         int    fshift_index = pbcDxAiuc<calcVir>(pbcAiuc, gm_xq[ai], gm_xq[aj], dr);
 
         float r2    = norm2(dr);
-        float rinv  = rsqrtf(r2);
+        float rinv  = __frsqrt_rn(r2);
         float rinv2 = rinv * rinv;
         float rinv6 = rinv2 * rinv2 * rinv2;
 
@@ -1010,7 +1010,7 @@ __global__ void exec_kernel_gpu(
             break;
         }
     }
-    
+
     if (calcEner)
     {
         #pragma unroll
@@ -1091,7 +1091,7 @@ void GpuBonded::Impl::launchKernel()
     //                "exec_kernel_gpu<calcVir, calcEner>", kernelParams_);
     dim3 blockSize(kernelLaunchConfig_.blockSize[0], kernelLaunchConfig_.blockSize[1], kernelLaunchConfig_.blockSize[2]);
     dim3 gridSize(kernelLaunchConfig_.gridSize[0], kernelLaunchConfig_.gridSize[1], kernelLaunchConfig_.gridSize[2]);
-    
+
     hipLaunchKernelGGL(kernelPtr,
         gridSize,
         blockSize,

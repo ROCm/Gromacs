@@ -136,10 +136,10 @@
 #    define NTHREAD_Z NTHREAD_Z_VALUE
 #endif
 
-#define MIN_BLOCKS_PER_MP (16)
+#define MIN_BLOCKS_PER_MP (4)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
-__launch_bounds__(THREADS_PER_BLOCK)
+__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
 #       if NTHREAD_Z == 4
@@ -494,7 +494,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
                                 // Ensure distance do not become so small that r^-12 overflows
                                 r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                inv_r  = rsqrtf(r2);
+                                inv_r  = __frsqrt_rn(r2);
                                 inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                                 inv_r6 = inv_r2 * inv_r2 * inv_r2;
