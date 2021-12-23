@@ -49,3 +49,12 @@
 #undef FUNCTION_DECLARATION_ONLY
 #include "nbnxm_cuda_kernels_hip.h"
 #undef CALC_ENERGIES
+
+#define NTHREAD_Z_VALUE 4
+#define CALC_ENERGIES
+#define FUNCTION_DECLARATION_ONLY
+#include "nbnxm_cuda_kernels_hip.h"
+#undef FUNCTION_DECLARATION_ONLY
+#include "nbnxm_cuda_kernels_hip.h"
+#undef CALC_ENERGIES
+#undef NTHREAD_Z_VALUE

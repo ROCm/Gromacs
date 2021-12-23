@@ -105,6 +105,26 @@
 #include "nbnxm_cuda_kernel_pruneonly_hip.h"
 #undef FUNCTION_DECLARATION_ONLY
 
+#define NTHREAD_Z_VALUE 4
+#define FUNCTION_DECLARATION_ONLY
+/** Force only **/
+#include "nbnxm_cuda_kernels_hip.h"
+/** Force & energy **/
+#define CALC_ENERGIES
+#include "nbnxm_cuda_kernels_hip.h"
+#undef CALC_ENERGIES
+
+/*** Pair-list pruning kernels ***/
+/** Force only **/
+#define PRUNE_NBL
+#include "nbnxm_cuda_kernels_hip.h"
+/** Force & energy **/
+#define CALC_ENERGIES
+#include "nbnxm_cuda_kernels_hip.h"
+#undef CALC_ENERGIES
+#undef PRUNE_NBL
+#undef NTHREAD_Z_VALUE
+
 /* Now generate the function definitions if we are using a single compilation unit. */
 #if GMX_HIP_NB_SINGLE_COMPILATION_UNIT
 #    include "nbnxm_cuda_kernel_F_noprune_hip.cpp"
@@ -191,6 +211,33 @@ static const nbnxn_cu_kfunc_ptr_t nb_kfunc_noener_noprune_ptr[eelTypeNR][evdwTyp
       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_cuda }
 };
 
+static const nbnxn_cu_kfunc_ptr_t nb_kfunc_noener_noprune_dimZ_4_ptr[eelTypeNR][evdwTypeNR] = {
+    { nbnxn_kernel_ElecCut_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecRF_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTab_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEw_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwTwinCut_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_cuda_dimZ_4 }
+};
+
 static const nbnxn_cu_kfunc_ptr_t nb_pack_kfunc_noener_noprune_ptr[eelTypeNR][evdwTypeNR] = {
     { nbnxn_kernel_ElecCut_VdwLJ_F_cuda, nbnxn_kernel_ElecCut_VdwLJCombGeom_F_cuda,
       nbnxn_kernel_ElecCut_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecCut_VdwLJFsw_F_cuda,
@@ -216,6 +263,33 @@ static const nbnxn_cu_kfunc_ptr_t nb_pack_kfunc_noener_noprune_ptr[eelTypeNR][ev
       nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_F_cuda,
       nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_F_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_cuda,
       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_cuda }
+};
+
+static const nbnxn_cu_kfunc_ptr_t nb_pack_kfunc_noener_noprune_dimZ_4_ptr[eelTypeNR][evdwTypeNR] = {
+    { nbnxn_kernel_ElecCut_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecRF_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTab_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_pack_kernel_ElecEwQSTab_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_pack_kernel_ElecEwQSTab_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEw_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJEwCombLB_F_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwTwinCut_VdwLJ_F_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_F_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_cuda_dimZ_4 }
 };
 
 /*! Force + energy kernel function pointers. */
@@ -246,6 +320,33 @@ static const nbnxn_cu_kfunc_ptr_t nb_kfunc_ener_noprune_ptr[eelTypeNR][evdwTypeN
       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_VF_cuda }
 };
 
+static const nbnxn_cu_kfunc_ptr_t nb_kfunc_ener_noprune_dimZ_4_ptr[eelTypeNR][evdwTypeNR] = {
+    { nbnxn_kernel_ElecCut_VdwLJ_VF_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJCombLB_VF_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJFsw_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJPsw_VF_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJEwCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJEwCombLB_VF_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecRF_VdwLJ_VF_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJCombLB_VF_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJFsw_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJPsw_VF_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJEwCombLB_VF_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTab_VdwLJ_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJCombLB_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJFsw_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJPsw_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_VF_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombLB_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJFsw_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJPsw_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombLB_VF_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEw_VdwLJ_VF_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJCombLB_VF_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJFsw_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJPsw_VF_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJEwCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJEwCombLB_VF_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwTwinCut_VdwLJ_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_VF_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_VF_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_VF_cuda_dimZ_4 }
+};
+
 /*! Force + pruning kernel function pointers. */
 static const nbnxn_cu_kfunc_ptr_t nb_kfunc_noener_prune_ptr[eelTypeNR][evdwTypeNR] = {
     { nbnxn_kernel_ElecCut_VdwLJ_F_prune_cuda, nbnxn_kernel_ElecCut_VdwLJCombGeom_F_prune_cuda,
@@ -274,6 +375,35 @@ static const nbnxn_cu_kfunc_ptr_t nb_kfunc_noener_prune_ptr[eelTypeNR][evdwTypeN
       nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_prune_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_F_prune_cuda,
       nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_F_prune_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_prune_cuda,
       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_prune_cuda }
+};
+
+static const nbnxn_cu_kfunc_ptr_t nb_kfunc_noener_prune_dimZ_4_ptr[eelTypeNR][evdwTypeNR] = {
+    { nbnxn_kernel_ElecCut_VdwLJ_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJCombLB_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJFsw_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJPsw_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJEwCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJEwCombLB_F_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecRF_VdwLJ_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJCombLB_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJFsw_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJPsw_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJEwCombLB_F_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTab_VdwLJ_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJCombLB_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJFsw_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJPsw_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_F_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombLB_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJFsw_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJPsw_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombLB_F_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEw_VdwLJ_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJCombLB_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJFsw_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJPsw_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJEwCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJEwCombLB_F_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwTwinCut_VdwLJ_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_F_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_prune_cuda_dimZ_4 }
 };
 
 /*! Force + energy + pruning kernel function pointers. */
@@ -308,13 +438,46 @@ static const nbnxn_cu_kfunc_ptr_t nb_kfunc_ener_prune_ptr[eelTypeNR][evdwTypeNR]
       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_VF_prune_cuda }
 };
 
+/*! Force + energy + pruning kernel function pointers. */
+static const nbnxn_cu_kfunc_ptr_t nb_kfunc_ener_prune_dimZ_4_ptr[eelTypeNR][evdwTypeNR] = {
+    { nbnxn_kernel_ElecCut_VdwLJ_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJCombLB_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJFsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJPsw_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecCut_VdwLJEwCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecCut_VdwLJEwCombLB_VF_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecRF_VdwLJ_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJCombLB_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJFsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJPsw_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecRF_VdwLJEwCombLB_VF_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTab_VdwLJ_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJCombLB_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJFsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJPsw_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_VF_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombLB_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJFsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJPsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombLB_VF_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEw_VdwLJ_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJCombLB_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJFsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJPsw_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEw_VdwLJEwCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEw_VdwLJEwCombLB_VF_prune_cuda_dimZ_4 },
+    { nbnxn_kernel_ElecEwTwinCut_VdwLJ_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_VF_prune_cuda_dimZ_4, nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_VF_prune_cuda_dimZ_4,
+      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_VF_prune_cuda_dimZ_4 }
+};
+
 /*! Return a pointer to the kernel version to be executed at the current step. */
 static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     eeltype,
                                                        int                     evdwtype,
                                                        bool                    bDoEne,
                                                        bool                    bDoPrune,
                                                        const DeviceInformation gmx_unused* deviceInfo,
-						       bool                    pack=false)
+                                                       bool                    pack = false,
+                                                       bool                    nthread4 = false)
 {
     nbnxn_cu_kfunc_ptr_t res;
 
@@ -334,26 +497,41 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
     {
         if (bDoPrune)
         {
-            res = nb_kfunc_ener_prune_ptr[eeltype][evdwtype];
+            if(nthread4)
+                res = nb_kfunc_ener_prune_dimZ_4_ptr[eeltype][evdwtype];
+            else
+                res = nb_kfunc_ener_prune_ptr[eeltype][evdwtype];
         }
         else
         {
-            res = nb_kfunc_ener_noprune_ptr[eeltype][evdwtype];
+            if(nthread4)
+                res = nb_kfunc_ener_noprune_dimZ_4_ptr[eeltype][evdwtype];
+            else
+                res = nb_kfunc_ener_noprune_ptr[eeltype][evdwtype];
         }
     }
     else
     {
         if (bDoPrune)
         {
-            res = nb_kfunc_noener_prune_ptr[eeltype][evdwtype];
+            if(nthread4)
+                res = nb_kfunc_noener_prune_dimZ_4_ptr[eeltype][evdwtype];
+            else
+                res = nb_kfunc_noener_prune_ptr[eeltype][evdwtype];
         }
         else
         {
             if (!pack) {
-                res = nb_kfunc_noener_noprune_ptr[eeltype][evdwtype];
-	    } else {
-                res = nb_pack_kfunc_noener_noprune_ptr[eeltype][evdwtype];
-	    }
+                if(nthread4)
+                    res = nb_kfunc_noener_noprune_dimZ_4_ptr[eeltype][evdwtype];
+                else
+                    res = nb_kfunc_noener_noprune_ptr[eeltype][evdwtype];
+	        } else {
+                if(nthread4)
+                    res = nb_pack_kfunc_noener_noprune_dimZ_4_ptr[eeltype][evdwtype];
+                else
+                    res = nb_pack_kfunc_noener_noprune_ptr[eeltype][evdwtype];
+	        }
         }
     }
 
@@ -595,9 +773,9 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     bool usePack = false;
 
 #ifdef GMX_GPU_USE_PACK
-    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 && 
-    //    	    !stepWork.computeEnergy && 
-    //    	    !(plist->haveFreshList && 
+    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 &&
+    //    	    !stepWork.computeEnergy &&
+    //    	    !(plist->haveFreshList &&
     //                !nb->timers->interaction[iloc].didPrune)) {
     //    usePack = true;
     //}
@@ -608,7 +786,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     const auto kernel =
             select_nbnxn_kernel(nbp->eeltype, nbp->vdwtype, stepWork.computeEnergy,
                                 (plist->haveFreshList && !nb->timers->interaction[iloc].didPrune),
-                                &nb->deviceContext_->deviceInfo(), usePack);
+                                &nb->deviceContext_->deviceInfo(), usePack, num_threads_z == 4);
     /*
     const auto kernelArgs =
             prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
@@ -873,10 +1051,15 @@ void cuda_set_cacheconfig()
         {
             /* Default kernel 32/32 kB Shared/L1 */
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_prune_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_prune_dimZ_4_ptr[i][j]), hipFuncCachePreferEqual);
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_dimZ_4_ptr[i][j]), hipFuncCachePreferEqual);
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_dimZ_4_ptr[i][j]), hipFuncCachePreferEqual);
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_pack_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
-            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_pack_kfunc_noener_noprune_dimZ_4_ptr[i][j]), hipFuncCachePreferEqual);
+            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_dimZ_4_ptr[i][j]), hipFuncCachePreferEqual);
             CU_RET_ERR(stat, "hipFuncSetCacheConfig failed");
         }
     }

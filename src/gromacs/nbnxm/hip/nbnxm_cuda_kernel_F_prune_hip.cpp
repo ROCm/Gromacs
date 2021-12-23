@@ -49,3 +49,12 @@
 #undef FUNCTION_DECLARATION_ONLY
 #include "nbnxm_cuda_kernels_hip.h"
 #undef PRUNE_NBL
+
+#define NTHREAD_Z_VALUE 4
+#define PRUNE_NBL
+#define FUNCTION_DECLARATION_ONLY
+#include "nbnxm_cuda_kernels_hip.h"
+#undef FUNCTION_DECLARATION_ONLY
+#include "nbnxm_cuda_kernels_hip.h"
+#undef PRUNE_NBL
+#undef NTHREAD_Z_VALUE

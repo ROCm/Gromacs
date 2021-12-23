@@ -130,32 +130,44 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
-#if defined(__gfx90a__)
-#    define NTHREAD_Z (4)
-#    define MIN_BLOCKS_PER_MP (16)
+
+#ifndef NTHREAD_Z_VALUE
+#    define NTHREAD_Z 1
 #else
-#    define NTHREAD_Z (1)
-#    define MIN_BLOCKS_PER_MP (16)
-#endif /* GMX_PTX_ARCH == 370 */
+#    define NTHREAD_Z NTHREAD_Z_VALUE
+#endif
+
+#define MIN_BLOCKS_PER_MP (16)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
-#if GMX_PTX_ARCH >= 350
-/**@}*/
-__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
-#else
 __launch_bounds__(THREADS_PER_BLOCK)
-#endif /* GMX_PTX_ARCH >= 350 */
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
-        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _VF_prune_cuda)
+#       if NTHREAD_Z == 4
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _VF_prune_cuda_dimZ_4)
+#       else
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _VF_prune_cuda)
+#       endif
 #    else
-        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _F_prune_cuda)
+#       if NTHREAD_Z == 4
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _F_prune_cuda_dimZ_4)
+#       else
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _F_prune_cuda)
+#       endif
 #    endif /* CALC_ENERGIES */
 #else
 #    ifdef CALC_ENERGIES
-        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _VF_cuda)
+#       if NTHREAD_Z == 4
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _VF_cuda_dimZ_4)
+#       else
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _VF_cuda)
+#       endif
 #    else
-        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _F_cuda)
+#       if NTHREAD_Z == 4
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _F_cuda_dimZ_4)
+#       else
+            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_pack_kernel, _F_cuda)
+#       endif
 #    endif /* CALC_ENERGIES */
 #endif     /* PRUNE_NBL */
                 (const cu_atomdata_t atdat, const NBParamGpu nbparam, const Nbnxm::gpu_plist plist, bool bCalcFshift)
@@ -458,7 +470,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
             {
                 if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
-                    
+
 
                     mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
@@ -543,7 +555,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
                             /* cutoff & exclusion check */
 #    ifdef EXCLUSION_FORCES
                             if ((r2_f2.x < rcoulomb_sq) * (nonSelfInteraction_int2.x | (ci != cj)) ||
-                                (r2_f2.y < rcoulomb_sq) * (nonSelfInteraction_int2.y | (ci != cj)))            
+                                (r2_f2.y < rcoulomb_sq) * (nonSelfInteraction_int2.y | (ci != cj)))
 #    else
                             if ((r2 < rcoulomb_sq) * int_bit)
 #    endif
