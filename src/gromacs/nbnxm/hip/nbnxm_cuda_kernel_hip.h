@@ -136,9 +136,13 @@
 #    define NTHREAD_Z NTHREAD_Z_VALUE
 #endif
 
-#define MIN_BLOCKS_PER_MP 8
-#define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
+#ifdef CALC_ENERGIES
+#    define MIN_BLOCKS_PER_MP 6
+#else
+#    define MIN_BLOCKS_PER_MP 8
 #endif
+#define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
+
 __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
