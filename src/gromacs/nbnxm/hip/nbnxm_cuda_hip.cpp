@@ -793,7 +793,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
     */
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
-    
+
     if (bDoTime)
     {
         t->interaction[iloc].nb_k.closeTimingRegion(deviceStream);

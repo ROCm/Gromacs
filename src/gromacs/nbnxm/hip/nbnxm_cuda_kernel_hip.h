@@ -136,9 +136,9 @@
 #    define NTHREAD_Z NTHREAD_Z_VALUE
 #endif
 
-#define MIN_BLOCKS_PER_MP (4)
+#define MIN_BLOCKS_PER_MP 8
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
-
+#endif
 __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
@@ -210,7 +210,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float                rlist_sq    = nbparam.rlistOuter_sq;
 #    endif
 
-    unsigned int bidx  = blockIdx.x;
+    unsigned int bidx = blockIdx.x;
 
 #    ifdef CALC_ENERGIES
 #        ifdef EL_EWALD_ANY
@@ -230,8 +230,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    if NTHREAD_Z == 1
     unsigned int tidxz = 0;
 #    else
-    unsigned int  tidxz = threadIdx.z;
+    unsigned int tidxz = threadIdx.z;
 #    endif
+
+    unsigned int widx  = tidx >> 5; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -388,38 +390,29 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
      */
     for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
-        wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
-        imask     = pl_cj4[j4].imei[0].imask;
-        wexcl     = excl[wexcl_idx].pair[(tidx) & (warp_size - 1)];
+        wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
+        imask     = pl_cj4[j4].imei[widx].imask;
+        wexcl     = excl[wexcl_idx].pair[tidx & 31];
 
 #    ifndef PRUNE_NBL
         if (imask)
 #    endif
         {
             /* Pre-load cj into shared memory on both warps separately */
-            if (tidxi == 0)
+            if ((tidxj == 0 || tidxj == 4) && tidxi < c_nbnxnGpuJgroupSize)
             {
-                for (i = 0; i < c_nbnxnGpuJgroupSize; i++) {
-                    cjs[i] = pl_cj4[j4].cj[i];
-		}
+                cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
             }
 //            __syncwarp(c_fullWarpMask); //cm todo
               __all(1);
 
-            /* Unrolling this loop
-               - with pruning leads to register spilling;
-               - on Kepler and later it is much slower;
-               Tested with up to nvcc 7.5 */
-#    if !defined PRUNE_NBL
-#        pragma unroll 4
-#    endif
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
                     mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    cj = cjs[jm];
+                    cj = cjs[jm + (tidxj & 4) * c_nbnxnGpuJgroupSize / c_splitClSize];
                     aj = cj * c_clSize + tidxj;
 
                     /* load j atom data */
@@ -433,10 +426,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
 
                     fcj_buf = make_float3(0.0f);
-
-#    if !defined PRUNE_NBL
-#        pragma unroll 8
-#    endif
                     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
                     {
                         if (imask & mask_ji)
@@ -455,7 +444,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                             /* If _none_ of the atoms pairs are in cutoff range,
                                the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            if (!__any(r2 < rlist_sq))
+                            if (!__half_any(r2 < rlist_sq, widx))
                             {
                                 imask &= ~mask_ji;
                             }
@@ -631,7 +620,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifdef PRUNE_NBL
             /* Update the imask with the new one which does not contain the
                out of range clusters anymore. */
-            pl_cj4[j4].imei[0].imask = imask;
+            pl_cj4[j4].imei[widx].imask = imask;
 #    endif
         }
         // avoid shared memory WAR hazards between loop iterations
@@ -648,9 +637,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float fshift_buf = 0.0f;
 
     /* reduce i forces */
-#    if !defined PRUNE_NBL
-#        pragma unroll 8
-#    endif
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
@@ -658,28 +644,18 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if ( bCalcFshift)
+    if (bCalcFshift && (tidxj & 3) < 3)
     {
-        #pragma unroll
-        for (unsigned int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
-        {
-            fshift_buf += __shfl_down(fshift_buf, offset);
-        }
-
-        if( tidxi == 0 && tidxj < 3 )
-        {
-            #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-                    atomicAddNoRet(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + tidxj, fshift_buf);
-            #else
-                    atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + tidxj, fshift_buf);
-            #endif
-        }
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAddNoRet(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + (tidxj & 3), fshift_buf);
+#else
+        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + (tidxj & 3), fshift_buf);
+#endif
     }
 
 #    ifdef CALC_ENERGIES
     /* reduce the energies over warps and store into global memory */
     reduce_energy_warp_shfl(E_lj, E_el, e_lj, e_el, tidx, c_fullWarpMask);
-
 #    endif
 }
 #endif /* FUNCTION_DECLARATION_ONLY */

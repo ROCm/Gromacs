@@ -75,6 +75,11 @@ static const unsigned __device__ superClInteractionMask =
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
+__device__ __forceinline__ int __half_any(int predicate,int widx)
+{
+  return (int)(__ballot(predicate) >> (widx << 5));
+}
+
 template<
     unsigned int BlockSize,
     unsigned int MemoryMultiplier
@@ -698,6 +703,11 @@ __forceinline__ __host__ __device__ T lerp(T d0, T d1, T t)
     return fma(t, d1, fma(-t, d0, d0));
 }
 
+__forceinline__ __device__ float flerp(float d0, float d1, float t)
+{
+    return __fmaf_rn(t, d1, __fmaf_rn(-t, d0, d0));
+}
+
 /*! Interpolate Ewald coulomb force correction using the F*r table.
  */
 static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBParamGpu nbparam, float r)
@@ -708,7 +718,7 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
-    return lerp(d01.x, d01.y, fraction);
+    return flerp(d01.x, d01.y, fraction);
 }
 
 // For float2 type
@@ -721,7 +731,7 @@ static __forceinline__ __device__ float2 interpolate_coulomb_force_r(const NBPar
     float2 d01 = fetch_coulomb_force_r(nbparam, index.x);
     float2 d02 = fetch_coulomb_force_r(nbparam, index.y);
 
-    return {lerp(d01.x, d01.y, fraction.x), lerp(d02.x, d02.y, fraction.y)};
+    return {flerp(d01.x, d01.y, fraction.x), flerp(d02.x, d02.y, fraction.y)};
 }
 
 /*! Fetch C6 and C12 from the parameter table.
@@ -774,19 +784,19 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float2& c6, float2& c12
 /*! Calculate analytical Ewald correction term. */
 static __forceinline__ __device__ float pmecorrF(float z2)
 {
-    const float FN6 = -1.7357322914161492954e-8f;
-    const float FN5 = 1.4703624142580877519e-6f;
-    const float FN4 = -0.000053401640219807709149f;
-    const float FN3 = 0.0010054721316683106153f;
-    const float FN2 = -0.019278317264888380590f;
-    const float FN1 = 0.069670166153766424023f;
-    const float FN0 = -0.75225204789749321333f;
+    constexpr float FN6 = -1.7357322914161492954e-8f;
+    constexpr float FN5 = 1.4703624142580877519e-6f;
+    constexpr float FN4 = -0.000053401640219807709149f;
+    constexpr float FN3 = 0.0010054721316683106153f;
+    constexpr float FN2 = -0.019278317264888380590f;
+    constexpr float FN1 = 0.069670166153766424023f;
+    constexpr float FN0 = -0.75225204789749321333f;
 
-    const float FD4 = 0.0011193462567257629232f;
-    const float FD3 = 0.014866955030185295499f;
-    const float FD2 = 0.11583842382862377919f;
-    const float FD1 = 0.50736591960530292870f;
-    const float FD0 = 1.0f;
+    constexpr float FD4 = 0.0011193462567257629232f;
+    constexpr float FD3 = 0.014866955030185295499f;
+    constexpr float FD2 = 0.11583842382862377919f;
+    constexpr float FD1 = 0.50736591960530292870f;
+    constexpr float FD0 = 1.0f;
 
     float z4;
     float polyFN0, polyFN1, polyFD0, polyFD1;
@@ -921,7 +931,7 @@ static __forceinline__ __device__ void reduce_force_i_pow2(volatile float* f_buf
      * Can't just use i as loop variable because than nvcc refuses to unroll.
      */
     i = c_clSize / 2;
-#    pragma unroll 5
+//#    pragma unroll 5
     for (j = c_clSizeLog2 - 1; j > 0; j--)
     {
         if (tidxj < i)
@@ -999,16 +1009,10 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
         fin.x = fin.z;
     }
 
-    fin.x += __shfl_down(fin.x, 4*c_clSize);
-
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-    if (tidxj < 3)
+    if ((tidxj & 3) < 3)
     {
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&fout[aidx].x + tidxj, fin.x);
-#else
-        atomicAddOverWriteForFloat(&fout[aidx].x + tidxj, fin.x);
-#endif
+        atomicAddNoRet(&fout[aidx].x + (tidxj & 3), fin.x);
 
         if (bCalcFshift)
         {
@@ -1028,8 +1032,8 @@ static __forceinline__ __device__ void
     unsigned int i = warp_size / 2;
 
     /* Can't just use i as loop variable because than nvcc refuses to unroll. */
-#    pragma unroll 10
-    for (int j = warp_size_log2 - 1; j > 0; j--)
+//#    pragma unroll 10
+    for (int j = 5 - 1; j > 0; j--)
     {
         if (tidx < i)
         {
@@ -1066,8 +1070,8 @@ static __forceinline__ __device__ void
     int i, sh;
 
     sh = 1;
-#    pragma unroll warp_size_log2
-    for (i = 0; i < warp_size_log2; i++)
+//#    pragma unroll 5
+    for (i = 0; i < 5; i++)
     {
         E_lj += __shfl_down(E_lj, sh);
         E_el += __shfl_down(E_el, sh);
@@ -1075,7 +1079,7 @@ static __forceinline__ __device__ void
     }
 
     /* The first thread in the warp writes the reduced energies */
-    if (tidx == 0)
+    if (tidx == 0 || tidx == 32)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAddNoRet(e_lj, E_lj);
