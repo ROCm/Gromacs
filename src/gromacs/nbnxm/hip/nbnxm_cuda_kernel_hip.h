@@ -223,8 +223,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj + bidx % c_clEnergySize;
-    float*               e_el        = atdat.e_el + bidx % c_clEnergySize;
+    float*               e_lj        = atdat.e_lj + 1 + bidx % c_clEnergyMemoryMultiplier;
+    float*               e_el        = atdat.e_el + 1 + bidx % c_clEnergyMemoryMultiplier;
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
@@ -651,9 +651,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     if (bCalcFshift && (tidxj & 3) < 3)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + (tidxj & 3), fshift_buf);
+        atomicAddNoRet(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
 #else
-        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + (tidxj & 3), fshift_buf);
+        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
 #endif
     }
 

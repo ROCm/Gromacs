@@ -80,80 +80,29 @@ __device__ __forceinline__ int __half_any(int predicate,int widx)
   return (int)(__ballot(predicate) >> (widx << 5));
 }
 
-template<
-    unsigned int BlockSize,
-    unsigned int MemoryMultiplier
->
 static __forceinline__ __device__
-void force_sum_up(float3* values_ptr, int size)
+void float3_reduce_final(float3* input_ptr)
 {
-    constexpr unsigned int items_per_block = BlockSize;
-
     const unsigned int flat_id = threadIdx.x;
-    const unsigned int flat_block_id = blockIdx.x;
-    const unsigned int block_offset = flat_block_id * items_per_block;
-    const unsigned int number_of_blocks = gridDim.x;
-    const unsigned int valid_in_last_block = size - block_offset;
 
-    float3 thread_values[MemoryMultiplier];
+    float3 input;
+    input.x = atomicExch((float*)(input_ptr + (flat_id + 1))    , 0.0f);
+    input.y = atomicExch((float*)(input_ptr + (flat_id + 1)) + 1, 0.0f);
+    input.z = atomicExch((float*)(input_ptr + (flat_id + 1)) + 2, 0.0f);
 
-    if(flat_block_id == (number_of_blocks - 1)) // last block
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
     {
-        // Load
-        if( flat_id < valid_in_last_block )
-        {
-            #pragma unroll
-            for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
-            {
-                thread_values[memoryIndex] = values_ptr[size * memoryIndex + block_offset + flat_id];
-            }
-        }
-
-        // Sum up
-        if( flat_id < valid_in_last_block )
-        {
-            #pragma unroll
-            for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
-            {
-                thread_values[0] =  thread_values[0] + thread_values[memoryIndex];
-            }
-        }
-
-        // Store
-        if( flat_id < valid_in_last_block )
-        {
-            values_ptr[block_offset + flat_id] = thread_values[0];
-            #pragma unroll
-            for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
-            {
-                values_ptr[size * memoryIndex + block_offset + flat_id] = float3(0.0f, 0.0f, 0.0f);
-            }
-        }
+        input.x = input.x + __shfl_down(input.x, offset);
+        input.y = input.y + __shfl_down(input.y, offset);
+        input.z = input.z + __shfl_down(input.z, offset);
     }
-    else
+
+    if( flat_id == 0 && flat_id == warpSize )
     {
-        // Load
-        // Load
-        #pragma unroll
-        for( unsigned int memoryIndex = 0; memoryIndex < MemoryMultiplier; memoryIndex++ )
-        {
-            thread_values[memoryIndex] = values_ptr[size * memoryIndex + block_offset + flat_id];
-        }
-
-        // Sum up
-        #pragma unroll
-        for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
-        {
-            thread_values[0] =  thread_values[0] + thread_values[memoryIndex];
-        }
-
-        // Store
-        values_ptr[block_offset + flat_id] = thread_values[0];
-        #pragma unroll
-        for( unsigned int memoryIndex = 1; memoryIndex < MemoryMultiplier; memoryIndex++ )
-        {
-            values_ptr[size * memoryIndex + block_offset + flat_id] = float3(0.0f, 0.0f, 0.0f);
-        }
+        atomicAddNoRet((float*)(input_ptr)    , input.x);
+        atomicAddNoRet((float*)(input_ptr) + 1, input.y);
+        atomicAddNoRet((float*)(input_ptr) + 2, input.z);
     }
 }
 
@@ -162,16 +111,8 @@ void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
 {
     const unsigned int flat_id = threadIdx.x;
 
-    float E_lj;
-    float E_el;
-
-    // Load the results
-    E_lj = e_lj_ptr[flat_id + 1];
-    E_el = e_el_ptr[flat_id + 1];
-
-    // Clean the extre space
-    e_lj_ptr[flat_id + 1] = 0.0f;
-    e_el_ptr[flat_id + 1] = 0.0f;
+    float E_lj = atomicExch(e_lj_ptr + (flat_id + 1), 0.0f);
+    float E_el = atomicExch(e_el_ptr + (flat_id + 1), 0.0f);
 
     #pragma unroll
     for(unsigned int offset = 1; offset < warpSize; offset *= 2)
@@ -180,7 +121,7 @@ void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
         E_el += __shfl_down(E_el, offset);
     }
 
-    if( flat_id == 0 )
+    if( flat_id == 0 && flat_id == warpSize )
     {
         atomicAddNoRet(e_lj_ptr, E_lj);
         atomicAddNoRet(e_el_ptr, E_el);
@@ -195,19 +136,19 @@ __launch_bounds__(BlockSize) __global__
 void nbnxn_kernel_sum_up(
     const cu_atomdata_t atdat,
     bool computeEnergy,
-    bool computeVirial,
-    int fshiftSize)
+    bool computeVirial)
 {
+    unsigned int bidx = blockIdx.x;
+
     // Sum up fshifts
     if(computeVirial)
     {
-        float3* values_ptr = atdat.fshift;
-
-        force_sum_up<BlockSize, MemoryMultiplier>(values_ptr, fshiftSize);
+        float3* values_ptr = atdat.fshift + bidx * MemoryMultiplier;
+        float3_reduce_final(values_ptr);
     }
 
     // Sum up energies
-    if(computeEnergy)
+    if(computeEnergy && bidx == 0)
     {
         float* e_lj_ptr = atdat.e_lj;
         float* e_el_ptr = atdat.e_el;
