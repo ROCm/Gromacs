@@ -786,7 +786,7 @@ bool decideWhetherDirectGpuCommunicationCanBeUsed(const DevelopmentFeatureFlags&
     bool canUseDirectGpuCommWithThreadMpi = (GMX_THREAD_MPI && (GMX_GPU_CUDA || GMX_GPU_HIP) && !disableDirectGpuComm);
     // GPU-aware MPI case off by default, can be enabled with dev flag
     // Note: GMX_DISABLE_DIRECT_GPU_COMM already taken into account in devFlags.enableDirectGpuCommWithMpi
-    bool canUseDirectGpuCommWithMpi = (GMX_LIB_MPI && GMX_GPU_CUDA && devFlags.canUseCudaAwareMpi
+    bool canUseDirectGpuCommWithMpi = (GMX_LIB_MPI && (GMX_GPU_CUDA || GMX_GPU_HIP) && devFlags.canUseCudaAwareMpi
                                        && enableDirectGpuComm && !disableDirectGpuComm);
 
     return canUseDirectGpuCommWithThreadMpi || canUseDirectGpuCommWithMpi;

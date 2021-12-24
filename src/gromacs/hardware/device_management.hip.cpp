@@ -354,11 +354,11 @@ void releaseDevice(DeviceInformation* deviceInfo)
             {
                 fprintf(stderr, "Cleaning up context on GPU ID #%d.\n", gpuid);
             }
-
+            
+            // fprintf(stderr, "Cleaning up context on GPU ID #%d.\n", gpuid);
             stat = hipDeviceReset();
             if (stat != hipSuccess)
             {
-                // fprintf(stderr, "Failed to free GPU #%d. %s\n", gpuid, gmx::getDeviceErrorString(stat).c_str());
                 gmx_warning("Failed to free GPU #%d. %s", gpuid, gmx::getDeviceErrorString(stat).c_str());
             }
         }
@@ -377,7 +377,7 @@ std::string getDeviceInformationString(const DeviceInformation& deviceInfo)
     }
     else
     {
-        return gmx::formatString("#%d: NVIDIA %s, compute cap.: %d.%d, ECC: %3s, stat: %s",
+        return gmx::formatString("#%d: AMD %s, compute cap.: %d.%d, ECC: %3s, stat: %s",
                                  deviceInfo.id,
                                  deviceInfo.prop.name,
                                  deviceInfo.prop.major,

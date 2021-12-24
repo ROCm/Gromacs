@@ -68,7 +68,7 @@ macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FL
             )
             if(HIPCC_COMPILER)
                 set(${COMPILER_INFO} "${HIPCC_COMPILER} ${_hipcc_version_out}")
-                set(${DEVICE_COMPILER_FLAGS} "")
+                set(${DEVICE_COMPILER_FLAGS} "-std=c++17 -mavx2 -mfma -fopenmp")
             else()
                 set(${COMPILER_INFO} "N/A")
                 set(${DEVICE_COMPILER_FLAGS} "N/A")
