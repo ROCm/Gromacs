@@ -205,7 +205,7 @@ function (gmx_add_gtest_executable EXENAME)
 	            ${ARG_CPP_SOURCE_FILES} 
 	            ${ARG_HIP_CPP_SOURCE_FILES} 
 	    	    ${ARG_GPU_CPP_SOURCE_FILES} 
-                HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" CLANG_OPTIONS "" NVCC_OPTIONS)
+                HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ggdb -ffast-math -DNDEBUG" CLANG_OPTIONS "" NVCC_OPTIONS)
         else()
             add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
                 ${ARG_CPP_SOURCE_FILES})

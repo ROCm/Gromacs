@@ -59,7 +59,13 @@ namespace gmx
 PmeCoordinateReceiverGpu::Impl::Impl(MPI_Comm                     comm,
                                      const DeviceContext&         deviceContext,
                                      gmx::ArrayRef<const PpRanks> ppRanks) :
-    comm_(comm), requests_(ppRanks.size(), MPI_REQUEST_NULL), deviceContext_(deviceContext)
+    comm_(comm), 
+#if GMX_MPI
+    requests_(ppRanks.size(), MPI_REQUEST_NULL),
+#else
+    requests_(),
+#endif
+    deviceContext_(deviceContext)
 {
     // Create streams to manage pipelining
     ppCommManagers_.reserve(ppRanks.size());
@@ -77,6 +83,7 @@ PmeCoordinateReceiverGpu::Impl::~Impl() = default;
 
 void PmeCoordinateReceiverGpu::Impl::reinitCoordinateReceiver(DeviceBuffer<RVec> d_x)
 {
+#if GMX_MPI
     int indEnd = 0;
     for (auto& ppCommManager : ppCommManagers_)
     {
@@ -85,18 +92,17 @@ void PmeCoordinateReceiverGpu::Impl::reinitCoordinateReceiver(DeviceBuffer<RVec>
 
         ppCommManager.atomRange = std::make_tuple(indStart, indEnd);
 
-        // Need to send address to PP rank only for thread-MPI as PP rank pushes data using hipmemcpy
+        // Need to send address to PP rank only for thread-MPI as PP rank pushes data using cudamemcpy
         if (GMX_THREAD_MPI)
         {
             // Data will be transferred directly from GPU.
             void* sendBuf = reinterpret_cast<void*>(&d_x[indStart]);
-#if GMX_MPI
             MPI_Send(&sendBuf, sizeof(void**), MPI_BYTE, ppCommManager.ppRank.rankId, 0, comm_);
-#else
-            GMX_UNUSED_VALUE(sendBuf);
-#endif
         }
     }
+#else
+    GMX_UNUSED_VALUE(d_x);
+#endif
 }
 
 /*! \brief Receive coordinate synchronizer pointer from the PP ranks. */
@@ -139,6 +145,7 @@ void PmeCoordinateReceiverGpu::Impl::launchReceiveCoordinatesFromPpCudaMpi(Devic
     GMX_UNUSED_VALUE(numAtoms);
     GMX_UNUSED_VALUE(numBytes);
     GMX_UNUSED_VALUE(ppRank);
+    GMX_UNUSED_VALUE(senderIndex);
 #endif
 }
 
@@ -156,7 +163,7 @@ int PmeCoordinateReceiverGpu::Impl::synchronizeOnCoordinatesFromPpRank(int pipel
 #    else
     // MPI_Waitany is not available in thread-MPI. However, the
     // MPI_Wait here is not associated with data but is host-side
-    // scheduling code to receive a HIP event, and will be executed
+    // scheduling code to receive a CUDA event, and will be executed
     // in advance of the actual data transfer. Therefore we can
     // receive in order of pipeline stage, still allowing the
     // scheduled GPU-direct comms to initiate out-of-order in their
@@ -169,6 +176,10 @@ int PmeCoordinateReceiverGpu::Impl::synchronizeOnCoordinatesFromPpRank(int pipel
     ppCommManagers_[senderRank].sync->enqueueWaitEvent(deviceStream);
 #    endif
     return senderRank;
+#else
+    GMX_UNUSED_VALUE(pipelineStage);
+    GMX_UNUSED_VALUE(deviceStream);
+    return -1;
 #endif
 }
 

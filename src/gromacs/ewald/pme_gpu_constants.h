@@ -167,7 +167,7 @@ static constexpr int c_solveMaxThreadsPerBlock = c_solveMaxWarpsPerBlock * warp_
 static constexpr int c_gatherMaxThreadsPerBlock = c_gatherMaxWarpsPerBlock * warp_size;
 //! Gathering min blocks per CUDA multiprocessor
 static constexpr int c_gatherMinBlocksPerMP = 
-#if GMX_GPU_CUDA
+#if !GMX_GPU_HIP
     GMX_CUDA_MAX_THREADS_PER_MP / c_gatherMaxThreadsPerBlock;
 #else
     GMX_HIP_MAX_THREADS_PER_MP / c_gatherMaxThreadsPerBlock;

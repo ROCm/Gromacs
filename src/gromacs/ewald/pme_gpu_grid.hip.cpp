@@ -328,6 +328,7 @@ static void reduceXData(const PmeGpu* pmeGpu, int overlapSize, float* realGrid, 
 
 void pmeGpuGridHaloExchange(const PmeGpu* pmeGpu)
 {
+#if GMX_MPI
     // Note here we are assuming that width of the chunks is not so small that we need to
     // transfer to/from multiple ranks i.e. that the distributed grid contains chunks at least order-1 points wide.
 
@@ -543,10 +544,16 @@ void pmeGpuGridHaloExchange(const PmeGpu* pmeGpu)
             }
         }
     }
+#else
+    GMX_UNUSED_VALUE(packYData);
+    GMX_UNUSED_VALUE(pmeGpu);
+    GMX_UNUSED_VALUE(reduceXData);
+#endif
 }
 
 void pmeGpuGridHaloExchangeReverse(const PmeGpu* pmeGpu)
 {
+#if GMX_MPI
     auto* kernelParamsPtr = pmeGpu->kernelParams.get();
     ivec  localPmeSize;
     localPmeSize[XX] = kernelParamsPtr->grid.realGridSizePadded[XX];
@@ -745,6 +752,9 @@ void pmeGpuGridHaloExchangeReverse(const PmeGpu* pmeGpu)
             }
         }
     }
+#else
+    GMX_UNUSED_VALUE(pmeGpu);
+#endif
 }
 
 template<bool pmeToFft>

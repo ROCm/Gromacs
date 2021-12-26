@@ -46,7 +46,6 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Reference")
     set(GMX_OPENMP OFF CACHE BOOL "Disabled for regressiontests reference builds" FORCE)
     set(GMX_SIMD "None" CACHE STRING "Disabled for regressiontests reference builds" FORCE)
     set(GMX_FFT_LIBRARY "fftpack" CACHE STRING "Use fftpack for regressiontests reference builds" FORCE)
-    set(GMX_SOFTWARE_INVSQRT OFF CACHE BOOL "Disabled for regressiontests reference builds" FORCE)
     set(GMX_THREAD_MPI OFF CACHE BOOL "Disabled for regressiontests reference builds" FORCE)
 
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_VERSION}" VERSION_GREATER_EQUAL "8")

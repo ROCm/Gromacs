@@ -141,6 +141,7 @@ enum tpxv
     tpxv_SoftcoreGapsys,              /**< Added gapsys softcore function */
     tpxv_ReaddedConstantAcceleration, /**< Re-added support for constant acceleration NEMD. */
     tpxv_RemoveTholeRfac,             /**< Remove unused rfac parameter from thole listed force */
+    tpxv_RemoveAtomtypes,             /**< Remove unused atomtypes parameter from mtop */
     tpxv_Count                        /**< the total number of tpxv versions */
 };
 
@@ -819,9 +820,12 @@ static void do_rotgrp(gmx::ISerializer* serializer, t_rotgrp* rotg)
     serializer->doIntArray(rotg->ind, rotg->nat);
     if (serializer->reading())
     {
-        snew(rotg->x_ref, rotg->nat);
+        rotg->x_ref_original.resize(rotg->nat);
     }
-    serializer->doRvecArray(rotg->x_ref, rotg->nat);
+    for (gmx::RVec& x : rotg->x_ref_original)
+    {
+        serializer->doRvec(as_rvec_array(&x));
+    }
     serializer->doRvec(&rotg->inputVec);
     serializer->doRvec(&rotg->pivot);
     serializer->doReal(&rotg->rate);
@@ -836,18 +840,18 @@ static void do_rotgrp(gmx::ISerializer* serializer, t_rotgrp* rotg)
 
 static void do_rot(gmx::ISerializer* serializer, t_rot* rot)
 {
-    int g;
+    int numGroups = rot->grp.size();
 
-    serializer->doInt(&rot->ngrp);
+    serializer->doInt(&numGroups);
     serializer->doInt(&rot->nstrout);
     serializer->doInt(&rot->nstsout);
     if (serializer->reading())
     {
-        snew(rot->grp, rot->ngrp);
+        rot->grp.resize(numGroups);
     }
-    for (g = 0; g < rot->ngrp; g++)
+    for (auto& grp : rot->grp)
     {
-        do_rotgrp(serializer, &rot->grp[g]);
+        do_rotgrp(serializer, &grp);
     }
 }
 
@@ -1542,9 +1546,9 @@ static void do_inputrec(gmx::ISerializer* serializer, t_inputrec* ir, int file_v
         {
             if (serializer->reading())
             {
-                snew(ir->rot, 1);
+                ir->rot = std::make_unique<t_rot>();
             }
-            do_rot(serializer, ir->rot);
+            do_rot(serializer, ir->rot.get());
         }
     }
     else
@@ -2403,28 +2407,23 @@ static void do_groups(gmx::ISerializer* serializer, SimulationGroups* groups, t_
     }
 }
 
-static void do_atomtypes(gmx::ISerializer* serializer, t_atomtypes* atomtypes, int file_version)
+static void do_atomtypes(gmx::ISerializer* serializer, int file_version)
 {
-    int j;
-
-    serializer->doInt(&atomtypes->nr);
-    j = atomtypes->nr;
-    if (serializer->reading())
-    {
-        snew(atomtypes->atomnumber, j);
-    }
+    int nr;
+    serializer->doInt(&nr);
     if (serializer->reading() && file_version < tpxv_RemoveImplicitSolvation)
     {
-        std::vector<real> dummy(atomtypes->nr, 0);
+        std::vector<real> dummy(nr, 0);
         serializer->doRealArray(dummy.data(), dummy.size());
         serializer->doRealArray(dummy.data(), dummy.size());
         serializer->doRealArray(dummy.data(), dummy.size());
     }
-    serializer->doIntArray(atomtypes->atomnumber, j);
+    std::vector<int> atomnumbers(nr);
+    serializer->doIntArray(atomnumbers.data(), atomnumbers.size());
 
     if (serializer->reading() && file_version >= 60 && file_version < tpxv_RemoveImplicitSolvation)
     {
-        std::vector<real> dummy(atomtypes->nr, 0);
+        std::vector<real> dummy(nr, 0);
         serializer->doRealArray(dummy.data(), dummy.size());
         serializer->doRealArray(dummy.data(), dummy.size());
     }
@@ -2633,7 +2632,11 @@ static void do_mtop(gmx::ISerializer* serializer, gmx_mtop_t* mtop, int file_ver
         mtop->bIntermolecularInteractions = FALSE;
     }
 
-    do_atomtypes(serializer, &(mtop->atomtypes), file_version);
+    if (file_version < tpxv_RemoveAtomtypes)
+    {
+        do_atomtypes(serializer, file_version);
+    }
+
 
     if (file_version >= 65)
     {

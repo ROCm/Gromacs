@@ -2145,9 +2145,6 @@ int gmx_grompp(int argc, char* argv[])
         gmx_fatal(FARGS, "Implicit solvation is no longer supported");
     }
 
-    /* PELA: Copy the atomtype data to the topology atomtype list */
-    atypes.copyTot_atomtypes(&(sys.atomtypes));
-
     if (debug)
     {
         pr_symtab(debug, 0, "After atype.renumberTypes", &sys.symtab);
@@ -2451,7 +2448,7 @@ int gmx_grompp(int argc, char* argv[])
 
     if (ir->bRot)
     {
-        set_reference_positions(ir->rot,
+        set_reference_positions(ir->rot.get(),
                                 state.x.rvec_array(),
                                 state.box,
                                 opt2fn("-ref", NFILE, fnm),

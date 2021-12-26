@@ -260,6 +260,30 @@ __launch_bounds__(THREADS_PER_BLOCK)
     // constexpr bool c_preloadCj = (GMX_PTX_ARCH < 700 || GMX_PTX_ARCH == 750);
     constexpr bool c_preloadCj = false;
 
+    // Full or partial unroll on Ampere GPUs is beneficial given the incresead L1 intruction cache
+    // Tested with CUDA 11.2-5.
+#    if GMX_PTX_ARCH == 800
+#        define DO_JM_UNROLL 1
+#        if !defined CALC_ENERGIES && !defined PRUNE_NBL
+#            if (defined EL_CUTOFF || defined EL_RF \
+                 || defined EL_EWALD_ANY && !defined LJ_FORCE_SWITCH && !defined LJ_POT_SWITCH)
+    static constexpr int jmLoopUnrollFactor = 4;
+#            else
+    static constexpr int jmLoopUnrollFactor = 2;
+#            endif
+#        else // CALC_ENERGIES
+#            if (defined EL_CUTOFF || defined EL_RF && !defined LJ_FORCE_SWITCH && !defined LJ_POT_SWITCH)
+    static constexpr int jmLoopUnrollFactor = 2;
+#            else
+    static constexpr int jmLoopUnrollFactor = 1;
+#            endif
+#        endif
+#    elif GMX_PTX_ARCH == 860
+#        define DO_JM_UNROLL 1
+    static constexpr int jmLoopUnrollFactor = 2;
+#    else
+#        define DO_JM_UNROLL 0
+#    endif
     /*********************************************************************
      * Set up shared memory pointers.
      * sm_nextSlotPtr should always be updated to point to the "next slot",
