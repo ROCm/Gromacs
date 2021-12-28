@@ -487,7 +487,6 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
                                sendSize * DIM * sizeof(float),
                                hipMemcpyDeviceToDevice,
                                haloStream_->stream());
-
         HIP_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec HIP direct data transfer failed");
     }
 
@@ -566,6 +565,7 @@ GpuHaloExchange::Impl::~Impl()
     freeDeviceBuffer(&d_recvBuf_);
     freeDeviceBuffer(&d_fShift_);
     delete haloDataTransferLaunched_;
+    delete haloStream_;
 }
 
 GpuHaloExchange::GpuHaloExchange(gmx_domdec_t*        dd,

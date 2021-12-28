@@ -84,11 +84,11 @@ bool isHostMemoryPinned(const void* h_ptr)
             // non-registered host memory. That change means that this
             // code needs conditional compilation and different
             // execution paths to function with all supported versions.
-#if HIPRT_VERSION < 11 * 1000
-            isPinned = true;
-#else
-            isPinned = (memoryAttributes.type == hipMemoryTypeHost);
-#endif
+//#if HIPRT_VERSION < 11 * 1000
+//            isPinned = true;
+//#else
+            isPinned = (memoryAttributes.memoryType == hipMemoryTypeHost);
+//#endif
             break;
 
         case hipErrorInvalidValue:
@@ -161,7 +161,7 @@ void resetGpuProfiler()
  * \param[in] gpuA           ID for GPU initiating peer access call
  * \param[in] gpuB           ID for remote GPU
  * \param[in] mdlog          Logger object
- * \param[in] hipCallName   name of HIP peer access call
+ * \param[in] hipCallName    name of HIP peer access call
  */
 static void peerAccessCheckStat(const hipError_t    stat,
                                 const int            gpuA,
