@@ -56,13 +56,14 @@ endif()
 
 # The GROMACS convention is that these are the version number of the next
 # release that is going to be made from this branch.
-project(Gromacs VERSION 2022.0)
+project(Gromacs VERSION 2023.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(gmxManageCcache)
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -280,7 +281,7 @@ mark_as_advanced(GMX_COMPILER_WARNINGS)
 gmx_add_cache_dependency(GMX_COMPILER_WARNINGS BOOL "NOT GMX_DEVELOPER_BUILD" ON)
 
 option(GMX_BUILD_SHARED_EXE
-    "Build exectuables as shared binaries. If not set, this disables rpath and dynamic linker flags in an attempt to build a static binary, but this may require setting up the toolchain properly and making appropriate libraries available."
+    "Build executables as shared binaries. If not set, this disables rpath and dynamic linker flags in an attempt to build a static binary, but this may require setting up the toolchain properly and making appropriate libraries available."
     ON)
 mark_as_advanced(GMX_BUILD_SHARED_EXE)
 
@@ -581,6 +582,7 @@ gmx_manage_simd()
 
 
 if(GMX_GPU)
+
     string(TOUPPER "${GMX_GPU}" _gmx_gpu_uppercase)
     if(${_gmx_gpu_uppercase} STREQUAL "CUDA")
         include(gmxManageCuda)
@@ -653,7 +655,7 @@ if(GMX_USE_HEFFTE)
     if(NOT GMX_LIB_MPI)
         message(FATAL_ERROR "HeFFTe support requires a library MPI build")
     endif()
-    find_package(Heffte 2.1.0 REQUIRED CUDA)
+    find_package(Heffte 2.2.0 REQUIRED CUDA)
 endif()
 
 if(WIN32)

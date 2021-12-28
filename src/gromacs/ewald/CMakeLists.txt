@@ -98,7 +98,6 @@ elseif (GMX_GPU_HIP)
         pme_gpu_internal.cpp
         pme_gpu_timings.cpp
         )
-    
 elseif (GMX_GPU_OPENCL)
     gmx_add_libgromacs_sources(
         # OpenCL-specific sources

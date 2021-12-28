@@ -178,8 +178,6 @@ struct gmx_mtop_t //NOLINT(clang-analyzer-optin.performance.Padding)
     std::unique_ptr<InteractionLists> intermolecular_ilist = nullptr;
     //! Number of global atoms.
     int natoms = 0;
-    //! Atomtype properties
-    t_atomtypes atomtypes;
     //! Groups of atoms for different purposes
     SimulationGroups groups;
     //! The legacy symbol table
@@ -239,17 +237,15 @@ struct gmx_localtop_t
 /* The old topology struct, completely written out, used in analysis tools */
 typedef struct t_topology
 {
-    char**      name;                        /* Name of the topology                 */
-    t_idef      idef;                        /* The interaction function definition  */
-    t_atoms     atoms;                       /* The atoms                            */
-    t_atomtypes atomtypes;                   /* Atomtype properties                  */
-    t_block     mols;                        /* The molecules                        */
-    gmx_bool    bIntermolecularInteractions; /* Inter.mol. int. ?   */
+    char**  name;                        /* Name of the topology                 */
+    t_idef  idef;                        /* The interaction function definition  */
+    t_atoms atoms;                       /* The atoms                            */
+    t_block mols;                        /* The molecules                        */
+    bool    bIntermolecularInteractions; /* Inter.mol. int. ?   */
     /* Note that the exclusions are not stored in t_topology */
     t_symtab symtab; /* The symbol table                     */
 } t_topology;
 
-void init_top(t_topology* top);
 void done_top(t_topology* top);
 // Frees both t_topology and gmx_mtop_t when the former has been created from
 // the latter.
@@ -257,12 +253,11 @@ void done_top_mtop(t_topology* top, gmx_mtop_t* mtop);
 
 bool gmx_mtop_has_masses(const gmx_mtop_t* mtop);
 bool gmx_mtop_has_charges(const gmx_mtop_t* mtop);
-bool gmx_mtop_has_perturbed_charges(const gmx_mtop_t& mtop);
 bool gmx_mtop_has_atomtypes(const gmx_mtop_t* mtop);
 bool gmx_mtop_has_pdbinfo(const gmx_mtop_t* mtop);
 
-void pr_mtop(FILE* fp, int indent, const char* title, const gmx_mtop_t* mtop, gmx_bool bShowNumbers, gmx_bool bShowParameters);
-void pr_top(FILE* fp, int indent, const char* title, const t_topology* top, gmx_bool bShowNumbers, gmx_bool bShowParameters);
+void pr_mtop(FILE* fp, int indent, const char* title, const gmx_mtop_t* mtop, bool bShowNumbers, bool bShowParameters);
+void pr_top(FILE* fp, int indent, const char* title, const t_topology* top, bool bShowNumbers, bool bShowParameters);
 
 /*! \brief Compare two mtop topologies.
  *

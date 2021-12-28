@@ -69,9 +69,9 @@ elseif (GMX_GPU_HIP)
 
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
-	    hip_add_library(testutils test_device.cpp HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math -DNDEBUG" NVCC_OPTIONS)
+	    hip_add_library(testutils test_device.cpp HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ggdb -ffast-math -DNDEBUG" NVCC_OPTIONS)
     else()
-	    hip_add_library(testutils test_device.cpp HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ffast-math" NVCC_OPTIONS)
+	    hip_add_library(testutils test_device.cpp HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ggdb -ffast-math" NVCC_OPTIONS)
     endif()
 
     if (GMX_GPU_USE_VKFFT)
