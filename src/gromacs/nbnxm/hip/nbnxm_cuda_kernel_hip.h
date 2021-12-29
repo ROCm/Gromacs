@@ -651,9 +651,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     if (bCalcFshift && (tidxj & 3) < 3)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
+        atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
 #else
-        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
+        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
 #endif
     }
 

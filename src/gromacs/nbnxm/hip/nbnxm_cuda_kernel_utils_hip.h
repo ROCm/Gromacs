@@ -86,9 +86,9 @@ void float3_reduce_final(float3* input_ptr)
     const unsigned int flat_id = threadIdx.x;
 
     float3 input;
-    input.x = atomicExch((float*)(input_ptr + (flat_id + 1))    , 0.0f);
-    input.y = atomicExch((float*)(input_ptr + (flat_id + 1)) + 1, 0.0f);
-    input.z = atomicExch((float*)(input_ptr + (flat_id + 1)) + 2, 0.0f);
+    input.x = atomicExch(&(input_ptr[flat_id + 1].x)    , 0.0f);
+    input.y = atomicExch(&(input_ptr[flat_id + 1].x) + 1, 0.0f);
+    input.z = atomicExch(&(input_ptr[flat_id + 1].x) + 2, 0.0f);
 
     #pragma unroll
     for(unsigned int offset = 1; offset < warpSize; offset *= 2)
@@ -98,11 +98,11 @@ void float3_reduce_final(float3* input_ptr)
         input.z = input.z + __shfl_down(input.z, offset);
     }
 
-    if( flat_id == 0 && flat_id == warpSize )
+    if( flat_id == 0 || flat_id == warpSize )
     {
-        atomicAddNoRet((float*)(input_ptr)    , input.x);
-        atomicAddNoRet((float*)(input_ptr) + 1, input.y);
-        atomicAddNoRet((float*)(input_ptr) + 2, input.z);
+        atomicAddNoRet(&(input_ptr[0].x)    , input.x);
+        atomicAddNoRet(&(input_ptr[0].x) + 1, input.y);
+        atomicAddNoRet(&(input_ptr[0].x) + 2, input.z);
     }
 }
 
@@ -121,7 +121,7 @@ void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
         E_el += __shfl_down(E_el, offset);
     }
 
-    if( flat_id == 0 && flat_id == warpSize )
+    if( flat_id == 0 || flat_id == warpSize )
     {
         atomicAddNoRet(e_lj_ptr, E_lj);
         atomicAddNoRet(e_el_ptr, E_el);
@@ -143,7 +143,7 @@ void nbnxn_kernel_sum_up(
     // Sum up fshifts
     if(computeVirial)
     {
-        float3* values_ptr = atdat.fshift + bidx * MemoryMultiplier;
+        float3* values_ptr = atdat.fshift + bidx * (1 + MemoryMultiplier);
         float3_reduce_final(values_ptr);
     }
 
