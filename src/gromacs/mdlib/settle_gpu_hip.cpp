@@ -164,9 +164,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         float yaksyd = zakszd * xaksxd - xakszd * zaksxd;
         float zaksyd = xakszd * yaksxd - yakszd * xaksxd;
 
-        float axlng = rsqrt(xaksxd * xaksxd + yaksxd * yaksxd + zaksxd * zaksxd);
-        float aylng = rsqrt(xaksyd * xaksyd + yaksyd * yaksyd + zaksyd * zaksyd);
-        float azlng = rsqrt(xakszd * xakszd + yakszd * yakszd + zakszd * zakszd);
+        float axlng = __frsqrt_rn(xaksxd * xaksxd + yaksxd * yaksxd + zaksxd * zaksxd);
+        float aylng = __frsqrt_rn(xaksyd * xaksyd + yaksyd * yaksyd + zaksyd * zaksyd);
+        float azlng = __frsqrt_rn(xakszd * xakszd + yakszd * yakszd + zakszd * zakszd);
 
         // TODO {1,2,3} indexes should be swapped with {.x, .y, .z} components.
         //      This way, we will be able to use vector ops more.
@@ -206,7 +206,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         c1d.z = trns1.z * c1.x + trns2.z * c1.y + trns3.z * c1.z;
 
 
-        float sinphi = a1d_z * rsqrt(pars.ra * pars.ra);
+        float sinphi = a1d_z * __frsqrt_rn(pars.ra * pars.ra);
         float tmp2   = 1.0f - sinphi * sinphi;
 
         if (almost_zero > tmp2)
@@ -214,12 +214,12 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             tmp2 = almost_zero;
         }
 
-        float tmp    = rsqrt(tmp2);
+        float tmp    = __frsqrt_rn(tmp2);
         float cosphi = tmp2 * tmp;
         float sinpsi = (b1d.z - c1d.z) * pars.irc2 * tmp;
         tmp2         = 1.0f - sinpsi * sinpsi;
 
-        float cospsi = tmp2 * rsqrt(tmp2);
+        float cospsi = tmp2 * __frsqrt_rn(tmp2);
 
         float a2d_y = pars.ra * cosphi;
         float b2d_x = -pars.rc * cospsi;
@@ -234,11 +234,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         float gamma  = b0d.x * b1d.y - b1d.x * b0d.y + c0d.x * c1d.y - c1d.x * c0d.y;
         float al2be2 = alpha * alpha + beta * beta;
         tmp2         = (al2be2 - gamma * gamma);
-        float sinthe = (alpha * gamma - beta * tmp2 * rsqrt(tmp2)) * rsqrt(al2be2 * al2be2);
+        float sinthe = (alpha * gamma - beta * tmp2 * __frsqrt_rn(tmp2)) * __frsqrt_rn(al2be2 * al2be2);
 
         /*  --- Step4  A3' --- */
         tmp2         = 1.0f - sinthe * sinthe;
-        float costhe = tmp2 * rsqrt(tmp2);
+        float costhe = tmp2 * __frsqrt_rn(tmp2);
 
         float3 a3d, b3d, c3d;
 
@@ -453,7 +453,7 @@ void SettleGpu::apply(const float3* d_x,
                     "settle_kernel<updateVelocities, computeVirial>", kernelArgs);
     */
     launchGpuKernel(kernelPtr, config, deviceStream_, nullptr, "settle_kernel<updateVelocities, computeVirial>",
-                    numSettles_, const_cast<const int3*>(d_atomIds_), settleParameters_, 
+                    numSettles_, const_cast<const int3*>(d_atomIds_), settleParameters_,
 		    d_x, d_xp, invdt, d_v, d_virialScaled_, pbcAiuc);
 
 
