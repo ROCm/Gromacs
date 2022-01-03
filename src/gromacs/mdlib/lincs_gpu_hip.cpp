@@ -193,7 +193,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         targetLength    = gm_constraintsTargetLengths[threadIndex];
         inverseMassi    = gm_inverseMasses[i];
         inverseMassj    = gm_inverseMasses[j];
-        sqrtReducedMass = rsqrt(inverseMassi + inverseMassj);
+        sqrtReducedMass = __frsqrt_rn(inverseMassi + inverseMassj);
 
         xi = gm_x[i];
         xj = gm_x[j];
@@ -307,7 +307,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         float proj;
         if (dlen2 > 0.0f)
         {
-            proj = sqrtReducedMass * (targetLength - dlen2 * rsqrt(dlen2));
+            proj = sqrtReducedMass * (targetLength - dlen2 * __frsqrt_rn(dlen2));
         }
         else
         {
