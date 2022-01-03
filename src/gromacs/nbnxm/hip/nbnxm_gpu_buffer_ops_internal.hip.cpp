@@ -113,7 +113,7 @@ namespace Nbnxm
 
 //! Number of HIP threads in a block
 // TODO Optimize this through experimentation
-constexpr static int c_bufOpsThreadsPerBlock = 128;
+constexpr static int c_bufOpsThreadsPerBlock = 512;
 
 void launchNbnxmKernelTransformXToXq(const Grid&          grid,
                                      NbnxmGpu*            nb,

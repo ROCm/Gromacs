@@ -220,7 +220,6 @@
     unsigned int  tidxz = threadIdx.z;
 #    endif
     unsigned int bidx  = blockIdx.x;
-    unsigned int widx  = tidx / warp_size; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -417,8 +416,8 @@
      */
     for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
-        wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
-        imask     = pl_cj4[j4].imei[widx].imask;
+        wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
+        imask     = pl_cj4[j4].imei[0].imask;
         wexcl     = excl[wexcl_idx].pair[(tidx) & (warp_size - 1)];
 
 #    ifndef PRUNE_NBL
@@ -428,9 +427,9 @@
             if (c_preloadCj)
             {
                 /* Pre-load cj into shared memory on both warps separately */
-                if ((tidxj == 0 | tidxj == 4) & (tidxi < c_nbnxnGpuJgroupSize))
+                if (((tidxj * hipBlockDim_x) % warp_size == 0) & (tidxi < c_nbnxnGpuJgroupSize))
                 {
-                    cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
+                    cjs[tidxi] = pl_cj4[j4].cj[tidxi];
                 }
                 // __syncwarp(c_fullWarpMask);
                 __all(1);
@@ -446,7 +445,7 @@
                 {
                     mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    cj = c_preloadCj ? cjs[jm + (tidxj & 4) * c_nbnxnGpuJgroupSize / c_splitClSize]
+                    cj = c_preloadCj ? cjs[jm]
                                      : cj = pl_cj4[j4].cj[jm];
 
                     aj = cj * c_clSize + tidxj;
@@ -523,9 +522,9 @@
 #    endif     /* LJ_COMB */
 
                                 // Ensure distance do not become so small that r^-12 overflows
-                                r2 = max(r2, c_nbnxnMinDistanceSquared);
+                                r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                inv_r  = rsqrt(r2);
+                                inv_r  = rsqrtf(r2);
                                 inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                                 inv_r6 = inv_r2 * inv_r2 * inv_r2;
@@ -670,7 +669,7 @@
 #    ifdef PRUNE_NBL
             /* Update the imask with the new one which does not contain the
                out of range clusters anymore. */
-            pl_cj4[j4].imei[widx].imask = imask;
+            pl_cj4[j4].imei[0].imask = imask;
 #    endif
         }
         if (c_preloadCj)
@@ -697,10 +696,10 @@
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && (tidxj & 3) < 3)
+    if (bCalcFshift && tidxj < 3)
     {
         float3* fShift = asFloat3(atdat.fShift);
-        atomicAdd(&(fShift[nb_sci.shift].x) + (tidxj & 3), fshift_buf);
+        atomicAdd(&(fShift[nb_sci.shift].x) + tidxj, fshift_buf);
     }
 
 #    ifdef CALC_ENERGIES

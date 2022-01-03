@@ -125,7 +125,11 @@ static PmeGpuKernelParamsBase* pme_gpu_get_kernel_params_base_ptr(const PmeGpu* 
  * the numbers of atoms used for determining the size of the memory
  * allocation must be divisible by this.
  */
+#if GMX_GPU_HIP
+constexpr int c_pmeAtomDataBlockSize = 128;
+#else
 constexpr int c_pmeAtomDataBlockSize = 64;
+#endif
 
 int pme_gpu_get_atom_data_block_size()
 {
@@ -1720,9 +1724,8 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     {
         cellsPerBlock = (gridLineSize + blocksPerGridLine - 1) / blocksPerGridLine;
     }
-    const int warpSize  = pmeGpu->programHandle_->warpSize();
-    const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
+    const int blockSize = (cellsPerBlock + c_pmeAtomDataBlockSize - 1) / c_pmeAtomDataBlockSize * c_pmeAtomDataBlockSize;
     static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
                   "The CUDA solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");

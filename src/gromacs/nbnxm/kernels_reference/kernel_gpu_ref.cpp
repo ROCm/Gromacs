@@ -149,7 +149,10 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*        nbl,
         for (int cj4_ind = cj4_ind0; (cj4_ind < cj4_ind1); cj4_ind++)
         {
             excl[0] = &nbl->excl[nbl->cj4[cj4_ind].imei[0].excl_ind];
-            excl[1] = &nbl->excl[nbl->cj4[cj4_ind].imei[1].excl_ind];
+            if (c_nbnxnGpuClusterpairSplit == 2)
+            {
+                excl[1] = &nbl->excl[nbl->cj4[cj4_ind].imei[1].excl_ind];
+            }
 
             for (int jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {

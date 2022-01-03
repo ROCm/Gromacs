@@ -140,7 +140,6 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     unsigned int tidxz = threadIdx.z;
 #    endif
     unsigned int bidx  = blockIdx.x;
-    unsigned int widx  = (threadIdx.y * c_clSize) / warp_size; /* warp index */
 
     // cj preload is off in the following cases:
     // - sm_70 (V100), sm_8x (A100, GA100), sm_75 (TU102)
@@ -166,7 +165,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     int* cjs = reinterpret_cast<int*>(sm_nextSlotPtr);
     if (c_preloadCj)
     {
-        /* the cjs buffer's use expects a base pointer offset for pairs of warps in the j-concurrent execution */
+        /* the cjs buffer's use expects a base pointer offset for each sub-group (one or more warps) in the j-concurrent execution */
         cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
         sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
     }
@@ -194,7 +193,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     __syncthreads();
 
     /* loop over the j clusters = seen by any of the atoms in the current super-cluster;
-     * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
+     * The loop stride NTHREAD_Z ensures that consecutive sub-group are assigned
      * consecutive j4's entries.
      */
     for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
@@ -204,7 +203,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
         if (haveFreshList)
         {
             /* Read the mask from the list transferred from the CPU */
-            imaskFull = pl_cj4[j4].imei[widx].imask;
+            imaskFull = pl_cj4[j4].imei[0].imask;
             /* We attempt to prune all pairs present in the original list */
             imaskCheck = imaskFull;
             imaskNew   = 0;
@@ -212,9 +211,9 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
         else
         {
             /* Read the mask from the "warp-pruned" by rlistOuter mask array */
-            imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
+            imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit];
             /* Read the old rolling pruned mask, use as a base for new */
-            imaskNew = pl_cj4[j4].imei[widx].imask;
+            imaskNew = pl_cj4[j4].imei[0].imask;
             /* We only need to check pairs with different mask */
             imaskCheck = (imaskNew ^ imaskFull);
         }
@@ -224,9 +223,9 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
             if (c_preloadCj)
             {
                 /* Pre-load cj into shared memory on both warps separately */
-                if ((tidxj == 0 || tidxj == 4) && tidxi < c_nbnxnGpuJgroupSize)
+                if (((tidxj * hipBlockDim_x) % warp_size == 0) && tidxi < c_nbnxnGpuJgroupSize)
                 {
-                    cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
+                    cjs[tidxi] = pl_cj4[j4].cj[tidxi];
                 }
                 // __syncwarp(c_fullWarpMask);
                 __all(1);
@@ -238,7 +237,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
                 if (imaskCheck & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
                     unsigned int mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
-                    int cj = c_preloadCj ? cjs[jm + (tidxj & 4) * c_nbnxnGpuJgroupSize / c_splitClSize]
+                    int cj = c_preloadCj ? cjs[jm]
                                          : pl_cj4[j4].cj[jm];
                     int aj = cj * c_clSize + tidxj;
 
@@ -285,10 +284,10 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
             if (haveFreshList)
             {
                 /* copy the list pruned to rlistOuter to a separate buffer */
-                plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
+                plist.imask[j4 * c_nbnxnGpuClusterpairSplit] = imaskFull;
             }
             /* update the imask with only the pairs up to rlistInner */
-            plist.cj4[j4].imei[widx].imask = imaskNew;
+            plist.cj4[j4].imei[0].imask = imaskNew;
         }
         if (c_preloadCj)
         {

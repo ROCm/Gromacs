@@ -75,8 +75,8 @@
 
 #define HIP_DEG2RAD_F (HIPRT_PI_F / 180.0F)
 
-static const int warp_size      = 32;
-static const int warp_size_log2 = 5;
+static const int warp_size      = 64;
+static const int warp_size_log2 = 6;
 
 /*---------------- BONDED HIP kernels--------------*/
 
