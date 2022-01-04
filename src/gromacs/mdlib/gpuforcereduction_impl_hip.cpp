@@ -68,15 +68,17 @@ typedef struct rvecDeviceForceData rvecDeviceForceData_t;
 
 
 template<bool addRvecForce, bool accumulateForce>
-static __global__ void reduceKernel(const float3* __restrict__ gm_nbnxmForce,
-                                    const float3* __restrict__ rvecForceToAdd,
-                                    float3*    gm_fTotal,
-                                    const int* gm_cell,
-                                    const int  numAtoms)
+static __global__
+__launch_bounds__(c_threadsPerBlock)
+void reduceKernel(const float3* __restrict__ gm_nbnxmForce,
+                  const float3* __restrict__ rvecForceToAdd,
+                  float3*    gm_fTotal,
+                  const int* gm_cell,
+                  const int  numAtoms)
 {
 
     // map particle-level parallelism to 1D CUDA thread and block index
-    const int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    const int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
 
     // perform addition for each particle
     if (threadIndex < numAtoms)
@@ -195,8 +197,8 @@ void GpuForceReduction::Impl::execute()
 
     launchGpuKernel(kernelFn, config, deviceStream_, nullptr, "Force Reduction", kernelArgs);
     */
-    launchGpuKernel(kernelFn, config, deviceStream_, nullptr, "Force Reduction", 
-		    const_cast<const float3*>(reinterpret_cast<float3*>(d_nbnxmForce)), 
+    launchGpuKernel(kernelFn, config, deviceStream_, nullptr, "Force Reduction",
+		    const_cast<const float3*>(reinterpret_cast<float3*>(d_nbnxmForce)),
 		    const_cast<const float3*>(reinterpret_cast<float3*>(d_rvecForceToAdd)),
                     baseForce_, const_cast<const int*>(cellInfo_.d_cell), numAtoms_);
 

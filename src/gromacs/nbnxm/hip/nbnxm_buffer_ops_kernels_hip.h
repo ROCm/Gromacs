@@ -45,6 +45,10 @@
 #include "gromacs/gpu_utils/vectype_ops.cuh"
 #include "gromacs/nbnxm/nbnxm.h"
 
+//! Number of CUDA threads in a block
+// TODO Optimize this through experimentation
+constexpr static int c_bufOpsThreadsPerBlock = 512;
+
 /*! \brief CUDA kernel for transforming position coordinates from rvec to nbnxm layout.
  *
  * TODO:
@@ -62,7 +66,8 @@
  * \param[in]     numAtomsPerCell     Number of atoms per cell.
  */
 template<bool setFillerCoords>
-static __global__ void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
+static __launch_bounds__(c_bufOpsThreadsPerBlock) __global__
+void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
                                                     float4* __restrict__ gm_xq,
                                                     const float3* __restrict__ gm_x,
                                                     const int* __restrict__ gm_atomIndex,
@@ -97,7 +102,7 @@ static __global__ void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
             numAtomsRounded = numAtoms;
         }
 
-        const int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+        const int threadIndex = blockIdx.x * c_bufOpsThreadsPerBlock + threadIdx.x;
 
         // Destination address where x should be stored in nbnxm layout. We use this cast here to
         // save only x, y and z components, not touching the w (q) component, which is pre-defined.

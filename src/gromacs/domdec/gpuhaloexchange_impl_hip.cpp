@@ -77,13 +77,14 @@ namespace gmx
 constexpr static int c_threadsPerBlock = 256;
 
 template<bool usePBC>
+__launch_bounds__(c_threadsPerBlock)
 __global__ void packSendBufKernel(float3* __restrict__ dataPacked,
                                   const float3* __restrict__ data,
                                   const int* __restrict__ map,
                                   const int    mapSize,
                                   const float3 coordinateShift)
 {
-    int           threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int           threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
     float3*       gm_dataDest = &dataPacked[threadIndex];
     const float3* gm_dataSrc  = &data[map[threadIndex]];
 
@@ -108,13 +109,14 @@ __global__ void packSendBufKernel(float3* __restrict__ dataPacked,
  * from full to packed array \param[in]  mapSize     number of elements in map array
  */
 template<bool accumulate>
+__launch_bounds__(c_threadsPerBlock)
 __global__ void unpackRecvBufKernel(float3* __restrict__ data,
                                     const float3* __restrict__ dataPacked,
                                     const int* __restrict__ map,
                                     const int mapSize)
 {
 
-    int           threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int           threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
     const float3* gm_dataSrc  = &dataPacked[threadIndex];
     float3*       gm_dataDest = &data[map[threadIndex]];
 

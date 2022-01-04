@@ -124,7 +124,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
     HIP_DYNAMIC_SHARED( float, sm_threadVirial)
 
-    int tid = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    int tid = static_cast<int>(blockIdx.x * c_maxThreadsPerBlock + threadIdx.x);
 
     if (tid < numSettles)
     {
@@ -299,17 +299,17 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             float3 mdc = pars.mH * dxHw3;
             float3 mdo = pars.mO * dxOw1 + mdb + mdc;
 
-            sm_threadVirial[0 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[0 * c_maxThreadsPerBlock + threadIdx.x] =
                     -(x_ow1.x * mdo.x + dist21.x * mdb.x + dist31.x * mdc.x);
-            sm_threadVirial[1 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[1 * c_maxThreadsPerBlock + threadIdx.x] =
                     -(x_ow1.x * mdo.y + dist21.x * mdb.y + dist31.x * mdc.y);
-            sm_threadVirial[2 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[2 * c_maxThreadsPerBlock + threadIdx.x] =
                     -(x_ow1.x * mdo.z + dist21.x * mdb.z + dist31.x * mdc.z);
-            sm_threadVirial[3 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[3 * c_maxThreadsPerBlock + threadIdx.x] =
                     -(x_ow1.y * mdo.y + dist21.y * mdb.y + dist31.y * mdc.y);
-            sm_threadVirial[4 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[4 * c_maxThreadsPerBlock + threadIdx.x] =
                     -(x_ow1.y * mdo.z + dist21.y * mdb.z + dist31.y * mdc.z);
-            sm_threadVirial[5 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[5 * c_maxThreadsPerBlock + threadIdx.x] =
                     -(x_ow1.z * mdo.z + dist21.z * mdb.z + dist31.z * mdc.z);
         }
     }
@@ -320,7 +320,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         {
             for (int d = 0; d < 6; d++)
             {
-                sm_threadVirial[d * blockDim.x + threadIdx.x] = 0.0f;
+                sm_threadVirial[d * c_maxThreadsPerBlock + threadIdx.x] = 0.0f;
             }
         }
     }
@@ -332,7 +332,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         __syncthreads();
         // This casts unsigned into signed integers to avoid clang warnings
         int tib       = static_cast<int>(threadIdx.x);
-        int blockSize = static_cast<int>(blockDim.x);
+        int blockSize = static_cast<int>(c_maxThreadsPerBlock);
         // Reduce up to one virial per thread block
         // All blocks are divided by half, the first half of threads sums
         // two virials. Then the first half is divided by two and the first half
