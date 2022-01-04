@@ -88,6 +88,41 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
     GMX_RELEASE_ASSERT(realGrid_, "Bad (null) input real-space grid");
     GMX_RELEASE_ASSERT(complexGrid_, "Bad (null) input complex grid");
 
+
+#ifdef GMX_GPU_USE_VKFFT
+    configuration = {};
+    appR2C = {};
+    configuration.FFTdim = 3;
+    configuration.size[0] = realGridSize[ZZ];
+    configuration.size[1] = realGridSize[YY];
+    configuration.size[2] = realGridSize[XX];
+
+    configuration.performR2C = 1;
+    //configuration.disableMergeSequencesR2C = 1;
+    configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
+    hipError_t result = hipGetDevice(configuration.device);
+    configuration.stream = pmeStream.stream();
+    configuration.num_streams=1;
+
+    uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
+    configuration.bufferSize=&bufferSize;
+    configuration.bufferStride[0] = complexGridSizePadded[ZZ];
+    configuration.bufferStride[1] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY];
+    configuration.bufferStride[2] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY]* complexGridSizePadded[XX];
+    configuration.buffer = (void**)&complexGrid_;
+
+    configuration.isInputFormatted = 1;
+    configuration.inverseReturnToInputBuffer = 1;
+    uint64_t inputBufferSize = realGridSizePadded[XX]* realGridSizePadded[YY]* realGridSizePadded[ZZ] * sizeof(hipfftReal);
+    configuration.inputBufferSize = &inputBufferSize;
+    configuration.inputBufferStride[0] = realGridSizePadded[ZZ];
+    configuration.inputBufferStride[1] = realGridSizePadded[ZZ]* realGridSizePadded[YY];
+    configuration.inputBufferStride[2] = realGridSizePadded[ZZ]* realGridSizePadded[YY]* realGridSizePadded[XX];
+    configuration.inputBuffer = (void**)&realGrid_;
+    VkFFTResult resFFT = initializeVkFFT(&appR2C, configuration);
+    if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
+#else
+
     hipfftResult_t result;
     /* Commented code for a simple 3D grid with no padding */
     /*
@@ -133,29 +168,49 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
 
     result = hipfftSetStream(planC2R_, stream);
     handleHipfftError(result, "hipfftSetStream C2R failure");
+#endif
 }
 
 Gpu3dFft::ImplHipFft::~ImplHipFft()
 {
+#ifdef GMX_GPU_USE_VKFFT
+    deleteVkFFT(&appR2C);
+    free(configuration.device);
+#else
     hipfftResult_t result;
     result = hipfftDestroy(planR2C_);
     handleHipfftError(result, "hipfftDestroy R2C failure");
     result = hipfftDestroy(planC2R_);
     handleHipfftError(result, "hipfftDestroy C2R failure");
+#endif
 }
 
 void Gpu3dFft::ImplHipFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
 {
+#ifdef GMX_GPU_USE_VKFFT
+    VkFFTResult resFFT = VKFFT_SUCCESS;
+#else
     hipfftResult_t result;
+#endif
     if (dir == GMX_FFT_REAL_TO_COMPLEX)
     {
+#ifdef GMX_GPU_USE_VKFFT
+        resFFT = VkFFTAppend(&appR2C, -1, NULL);
+        if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
+#else
         result = hipfftExecR2C(planR2C_, realGrid_, complexGrid_);
         handleHipfftError(result, "hipFFT R2C execution failure");
+#endif
     }
     else
     {
+#ifdef GMX_GPU_USE_VKFFT
+        resFFT = VkFFTAppend(&appR2C, 1, NULL);
+        if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
+#else
         result = hipfftExecC2R(planC2R_, complexGrid_, realGrid_);
         handleHipfftError(result, "hipFFT C2R execution failure");
+#endif
     }
 }
 

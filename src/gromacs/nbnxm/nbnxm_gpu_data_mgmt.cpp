@@ -143,6 +143,8 @@ static inline ElecType nbnxn_gpu_pick_ewald_kernel_type(const interaction_const_
 #if GMX_GPU_CUDA
             (deviceInfo.prop.major == 7 && deviceInfo.prop.minor == 0)
             || (deviceInfo.prop.major == 8 && deviceInfo.prop.minor == 0);
+#elif GMX_GPU_HIP
+            true;
 #else
             false;
 #endif

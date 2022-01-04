@@ -55,6 +55,10 @@
 
 #include <hipfft.h>
 
+#ifdef GMX_GPU_USE_VKFFT
+# include "gromacs/vkFFT/vkFFT.h"
+#endif
+
 class DeviceContext;
 class DeviceStream;
 
@@ -93,6 +97,10 @@ private:
     hipfftHandle   planC2R_;
     hipfftReal*    realGrid_;
     hipfftComplex* complexGrid_;
+#ifdef GMX_GPU_USE_VKFFT
+    VkFFTConfiguration configuration;
+    VkFFTApplication appR2C;
+#endif
 };
 
 } // namespace gmx
