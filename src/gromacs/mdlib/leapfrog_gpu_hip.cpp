@@ -126,7 +126,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
                              const unsigned short* __restrict__ gm_tempScaleGroups,
                              const float3 prVelocityScalingMatrixDiagonal)
 {
-    int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int threadIndex = blockIdx.x * c_maxThreadsPerBlock + threadIdx.x;
     if (threadIndex < numAtoms)
     {
         float3 x    = gm_x[threadIndex];
