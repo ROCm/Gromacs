@@ -154,11 +154,6 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
     float4* xib = (float4*)sm_nextSlotPtr;
     sm_nextSlotPtr += (c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(*xib));
 
-    /* shmem buffer for cj, for each warp separately */
-    int* cjs = (int*)(sm_nextSlotPtr);
-    /* the cjs buffer's use expects a base pointer offset for each sub-group (one or more warps) in the j-concurrent execution */
-    cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-    sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
     /*********************************************************************/
 
 
@@ -168,17 +163,20 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
     int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     int cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
 
-    if (tidxz == 0)
+    if (tidxz == 0 && tidxj == 0)
     {
-        /* Pre-load i-atom x and q into shared memory */
-        int ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
-        int ai = ci * c_clSize + tidxi;
+        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+        {
+            /* Pre-load i-atom x and q into shared memory */
+            int ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
+            int ai = ci * c_clSize + tidxi;
 
-        /* We don't need q, but using float4 in shmem avoids bank conflicts.
-           (but it also wastes L2 bandwidth). */
-        float4 tmp                    = xq[ai];
-        float4 xi                     = tmp + shift_vec[nb_sci.shift];
-        xib[tidxj * c_clSize + tidxi] = xi;
+            /* We don't need q, but using float4 in shmem avoids bank conflicts.
+               (but it also wastes L2 bandwidth). */
+            float4 tmp                    = xq[ai];
+            float4 xi                     = tmp + shift_vec[nb_sci.shift];
+            xib[i * c_clSize + tidxi] = xi;
+        }
     }
     __syncthreads();
 
@@ -210,29 +208,21 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
 
         if (imaskCheck)
         {
-            /* Pre-load cj into shared memory on both warps separately */
-            if ((tidxj == 0 || tidxj == 4) && tidxi < c_nbnxnGpuJgroupSize)
-            {
-                cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
-            }
-            //__syncwarp(c_fullWarpMask);
-	    __all(1);
-
-#    pragma unroll 4
+#    pragma unroll c_nbnxnGpuJgroupSize
             for (int jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imaskCheck & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
                     unsigned int mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    int cj = cjs[jm + (tidxj & 4) * c_nbnxnGpuJgroupSize / c_splitClSize];
+                    int cj = pl_cj4[j4].cj[jm];
                     int aj = cj * c_clSize + tidxj;
 
                     /* load j atom data */
                     float4 tmp = xq[aj];
                     float3 xj  = make_float3(tmp.x, tmp.y, tmp.z);
 
-#    pragma unroll 8
+#    pragma unroll c_nbnxnGpuNumClusterPerSupercluster
                     for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
                     {
                         if (imaskCheck & mask_ji)
@@ -274,9 +264,6 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4[j4].imei[widx].imask = imaskNew;
         }
-        // avoid shared memory WAR hazards between loop iterations
-        //__syncwarp(c_fullWarpMask);
-	__all(1);
     }
 }
 #endif /* FUNCTION_DECLARATION_ONLY */
