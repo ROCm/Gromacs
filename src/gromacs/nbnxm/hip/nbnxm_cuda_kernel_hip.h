@@ -281,12 +281,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float4* xqib = (float4*)sm_nextSlotPtr;
     sm_nextSlotPtr += (c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(*xqib));
 
-    /* shmem buffer for cj, for each warp separately */
-    int* cjs = (int*)(sm_nextSlotPtr);
-    /* the cjs buffer's use expects a base pointer offset for pairs of warps in the j-concurrent execution */
-    cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-    sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
-
 #    ifndef LJ_COMB
     /* shmem buffer for i atom-type pre-loading */
     int* atib = (int*)sm_nextSlotPtr;
@@ -303,24 +297,27 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
 
-    if (tidxz == 0)
+    if (tidxz == 0 && tidxj == 0)
     {
-        /* Pre-load i-atom x and q into shared memory */
-        ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
-        ai = ci * c_clSize + tidxi;
+        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+        {
+            /* Pre-load i-atom x and q into shared memory */
+            ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
+            ai = ci * c_clSize + tidxi;
 
-        float* shiftptr = (float*)&shift_vec[nb_sci.shift];
-        xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0f);
-        xqbuf.w *= nbparam.epsfac;
-        xqib[tidxj * c_clSize + tidxi] = xqbuf;
+            float* shiftptr = (float*)&shift_vec[nb_sci.shift];
+            xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0f);
+            xqbuf.w *= nbparam.epsfac;
+            xqib[i * c_clSize + tidxi] = xqbuf;
 
-#    ifndef LJ_COMB
-        /* Pre-load the i-atom types into shared memory */
-        atib[tidxj * c_clSize + tidxi] = atom_types[ai];
-#    else
-        /* Pre-load the LJ combination parameters into shared memory */
-        ljcpib[tidxj * c_clSize + tidxi] = lj_comb[ai];
-#    endif
+    #    ifndef LJ_COMB
+            /* Pre-load the i-atom types into shared memory */
+            atib[i * c_clSize + tidxi] = atom_types[ai];
+    #    else
+            /* Pre-load the LJ combination parameters into shared memory */
+            ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
+    #    endif
+        }
     }
     __syncthreads();
 
@@ -402,21 +399,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         if (imask)
 #    endif
         {
-            /* Pre-load cj into shared memory on both warps separately */
-            if ((tidxj == 0 || tidxj == 4) && tidxi < c_nbnxnGpuJgroupSize)
-            {
-                cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize / c_splitClSize] = pl_cj4[j4].cj[tidxi];
-            }
-//            __syncwarp(c_fullWarpMask); //cm todo
-              __all(1);
-
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
                     mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    cj = cjs[jm + (tidxj & 4) * c_nbnxnGpuJgroupSize / c_splitClSize];
+                    cj = pl_cj4[j4].cj[jm];
                     aj = cj * c_clSize + tidxj;
 
                     /* load j atom data */
@@ -627,9 +616,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             pl_cj4[j4].imei[widx].imask = imask;
 #    endif
         }
-        // avoid shared memory WAR hazards between loop iterations
-        //__syncwarp(c_fullWarpMask);
-	__all(1);
     }
 
     /* skip central shifts when summing shift forces */
