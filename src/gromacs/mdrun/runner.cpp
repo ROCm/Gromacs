@@ -1511,7 +1511,7 @@ int Mdrunner::mdrunner()
         }
         const bool useGpuTiming = decideGpuTimingsUsage();
         deviceStreamManager     = std::make_unique<DeviceStreamManager>(
-                *deviceInfo, havePPDomainDecomposition(cr), runScheduleWork.simulationWork, useGpuTiming);
+                *deviceInfo, havePPDomainDecomposition(cr), runScheduleWork.simulationWork, useGpuTiming, thisRankHasDuty(cr, DUTY_PME), thisRankHasDuty(cr, DUTY_PP));
     }
 
     // If the user chose a task assignment, give them some hints

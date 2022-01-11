@@ -87,10 +87,11 @@ void PmePpCommGpu::Impl::reinit(int size)
     {
         // receive device coordinate buffer address from PME rank
         MPI_Recv(&remotePmeXBuffer_, sizeof(float3*), MPI_BYTE, pmeRank_, 0, comm_, MPI_STATUS_IGNORE);
+	MPI_Recv(&remotePmeFBuffer_, sizeof(float3*), MPI_BYTE, pmeRank_, 0, comm_, MPI_STATUS_IGNORE);
         // send host and device force buffer addresses to PME rank
-        MPI_Send(&d_pmeForces_, sizeof(float3*), MPI_BYTE, pmeRank_, 0, comm_);
-        RVec* pmeCpuForceBufferData = pmeCpuForceBuffer_->data();
-        MPI_Send(&pmeCpuForceBufferData, sizeof(RVec*), MPI_BYTE, pmeRank_, 0, comm_);
+        //MPI_Send(&d_pmeForces_, sizeof(float3*), MPI_BYTE, pmeRank_, 0, comm_);
+        //RVec* pmeCpuForceBufferData = pmeCpuForceBuffer_->data();
+        //MPI_Send(&pmeCpuForceBufferData, sizeof(RVec*), MPI_BYTE, pmeRank_, 0, comm_);
         // Receive address of event and associated flag from PME rank, to allow sync to local stream after force transfer
         // NOLINTNEXTLINE(bugprone-sizeof-expression)
         MPI_Recv(&remotePmeForceSendEvent_, sizeof(GpuEventSynchronizer*), MPI_BYTE, pmeRank_, 0, comm_, MPI_STATUS_IGNORE);
@@ -100,7 +101,7 @@ void PmePpCommGpu::Impl::reinit(int size)
 #endif
 }
 
-void PmePpCommGpu::Impl::receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu)
+void PmePpCommGpu::Impl::receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu, int recvSize, float3* pmeForcePtr)
 {
 #if GMX_MPI
     // Wait until remote PME task has pushed data, and then enqueue remote event to local stream.
@@ -110,6 +111,10 @@ void PmePpCommGpu::Impl::receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu
 
     // Enqueue remote event
     remotePmeForceSendEvent_->enqueueWaitEvent(pmePpCommStream_);
+
+    hipError_t stat = hipMemcpyAsync(pmeForcePtr, remotePmeFBuffer_, recvSize * DIM * sizeof(float),
+                                       hipMemcpyDefault, pmePpCommStream_.stream());
+    HIP_RET_ERR(stat, "hipMemcpyAsync on Recv from PME CUDA direct data transfer failed");
 
     // Reset the flag
     remotePmeForceSendEventRecorded_->store(false, std::memory_order_release);
@@ -145,7 +150,7 @@ void PmePpCommGpu::Impl::receiveForceFromPme(float3* recvPtr, int recvSize, bool
     float3* pmeForcePtr = receivePmeForceToGpu ? asFloat3(d_pmeForces_) : recvPtr;
     if (GMX_THREAD_MPI)
     {
-        receiveForceFromPmeCudaDirect(receivePmeForceToGpu);
+        receiveForceFromPmeCudaDirect(receivePmeForceToGpu, recvSize, pmeForcePtr);
     }
     else
     {

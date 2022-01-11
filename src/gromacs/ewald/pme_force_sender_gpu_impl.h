@@ -83,7 +83,7 @@ public:
     Impl(GpuEventSynchronizer*  pmeForcesReady,
          MPI_Comm               comm,
          const DeviceContext&   deviceContext,
-         gmx::ArrayRef<PpRanks> ppRanks);
+         gmx::ArrayRef<PpRanks> ppRanks, const DeviceStream& pmeStream);
     // NOLINTNEXTLINE(performance-trivially-destructible)
     ~Impl();
 
@@ -112,6 +112,7 @@ public:
     void sendFToPpCudaMpi(DeviceBuffer<RVec> sendbuf, int offset, int numBytes, int ppRank, MPI_Request* request);
 
 private:
+    const DeviceStream& pmeStream_;
     //! Event indicating when PME forces are ready on the GPU in order for PP stream to sync with the PME stream
     GpuEventSynchronizer* pmeForcesReady_;
     //! communicator for simulation

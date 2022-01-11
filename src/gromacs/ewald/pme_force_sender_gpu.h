@@ -83,7 +83,7 @@ public:
     PmeForceSenderGpu(GpuEventSynchronizer*  pmeForcesReady,
                       MPI_Comm               comm,
                       const DeviceContext&   deviceContext,
-                      gmx::ArrayRef<PpRanks> ppRanks);
+                      gmx::ArrayRef<PpRanks> ppRanks, const DeviceStream& pmeStream);
     ~PmeForceSenderGpu();
 
     /*! \brief

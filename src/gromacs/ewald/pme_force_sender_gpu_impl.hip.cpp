@@ -58,7 +58,7 @@ namespace gmx
 PmeForceSenderGpu::Impl::Impl(GpuEventSynchronizer*  pmeForcesReady,
                               MPI_Comm               comm,
                               const DeviceContext&   deviceContext,
-                              gmx::ArrayRef<PpRanks> ppRanks) :
+                              gmx::ArrayRef<PpRanks> ppRanks, const DeviceStream& pmeStream) :
     pmeForcesReady_(pmeForcesReady),
     comm_(comm),
     ppRanks_(ppRanks),
@@ -67,16 +67,17 @@ PmeForceSenderGpu::Impl::Impl(GpuEventSynchronizer*  pmeForcesReady,
     ppCommEventRecorded_(ppRanks.size()),
     deviceContext_(deviceContext),
     pmeRemoteCpuForcePtr_(ppRanks.size()),
-    pmeRemoteGpuForcePtr_(ppRanks.size())
+    pmeRemoteGpuForcePtr_(ppRanks.size()),
+    pmeStream_(pmeStream)
 {
     // Create streams and events to manage pushing of force buffers to remote PP ranks
-    std::unique_ptr<DeviceStream>         stream;
+    //std::unique_ptr<DeviceStream>         stream;
     std::unique_ptr<GpuEventSynchronizer> event;
     size_t                                i = 0;
     for (i = 0; i < ppRanks_.size(); i++)
     {
-        stream = std::make_unique<DeviceStream>(deviceContext_, DeviceStreamPriority::High, false);
-        ppCommStream_[i] = std::move(stream);
+        //stream = std::make_unique<DeviceStream>(deviceContext_, DeviceStreamPriority::High, false);
+        //ppCommStream_[i] = std::move(stream);
         event            = std::make_unique<GpuEventSynchronizer>();
         ppCommEvent_[i]  = std::move(event);
     }
@@ -97,10 +98,10 @@ void PmeForceSenderGpu::Impl::setForceSendBuffer(DeviceBuffer<Float3> d_f)
 
 #if GMX_MPI
 
-    if (localForcePtr_.empty())
-    {
-        localForcePtr_.resize(ppRanks_.size());
-    }
+    //if (localForcePtr_.empty())
+    //{
+    //    localForcePtr_.resize(ppRanks_.size());
+    //}
     int ind_start = 0;
     int ind_end   = 0;
     int i         = 0;
@@ -109,11 +110,13 @@ void PmeForceSenderGpu::Impl::setForceSendBuffer(DeviceBuffer<Float3> d_f)
         ind_start = ind_end;
         ind_end   = ind_start + receiver.numAtoms;
 
-        localForcePtr_[i] = &d_f[ind_start];
-        // NOLINTNEXTLINE(bugprone-sizeof-expression)
-        MPI_Recv(&pmeRemoteGpuForcePtr_[i], sizeof(float3*), MPI_BYTE, receiver.rankId, 0, comm_, MPI_STATUS_IGNORE);
-        // NOLINTNEXTLINE(bugprone-sizeof-expression)
-        MPI_Recv(&pmeRemoteCpuForcePtr_[i], sizeof(float3*), MPI_BYTE, receiver.rankId, 0, comm_, MPI_STATUS_IGNORE);
+	void* sendBuf = reinterpret_cast<void*>(&d_f[ind_start]);
+	MPI_Send(&sendBuf, sizeof(void**), MPI_BYTE, receiver.rankId, 0, comm_);
+        //localForcePtr_[i] = &d_f[ind_start];
+        //// NOLINTNEXTLINE(bugprone-sizeof-expression)
+        //MPI_Recv(&pmeRemoteGpuForcePtr_[i], sizeof(float3*), MPI_BYTE, receiver.rankId, 0, comm_, MPI_STATUS_IGNORE);
+        //// NOLINTNEXTLINE(bugprone-sizeof-expression)
+        //MPI_Recv(&pmeRemoteCpuForcePtr_[i], sizeof(float3*), MPI_BYTE, receiver.rankId, 0, comm_, MPI_STATUS_IGNORE);
         // Send address of event and associated flag to PP rank, to allow remote enqueueing
         // NOLINTNEXTLINE(bugprone-sizeof-expression)
         MPI_Send(&ppCommEvent_[i], sizeof(GpuEventSynchronizer*), MPI_BYTE, receiver.rankId, 0, comm_);
@@ -140,18 +143,18 @@ void PmeForceSenderGpu::Impl::sendFToPpCudaDirect(int ppRank, int numAtoms, bool
 
 
 #if GMX_MPI
-    float3* pmeRemoteForcePtr =
-            sendForcesDirectToPpGpu ? pmeRemoteGpuForcePtr_[ppRank] : pmeRemoteCpuForcePtr_[ppRank];
+    //float3* pmeRemoteForcePtr =
+    //        sendForcesDirectToPpGpu ? pmeRemoteGpuForcePtr_[ppRank] : pmeRemoteCpuForcePtr_[ppRank];
 
-    pmeForcesReady_->enqueueWaitEvent(*ppCommStream_[ppRank]);
+    //pmeForcesReady_->enqueueWaitEvent(*ppCommStream_[ppRank]);
 
-    hipError_t stat = hipMemcpyAsync(pmeRemoteForcePtr,
-                                       localForcePtr_[ppRank],
-                                       numAtoms * sizeof(rvec),
-                                       hipMemcpyDefault,
-                                       ppCommStream_[ppRank]->stream());
-    HIP_RET_ERR(stat, "hipMemcpyAsync on Recv from PME HIP direct data transfer failed");
-    ppCommEvent_[ppRank]->markEvent(*ppCommStream_[ppRank]);
+    //hipError_t stat = hipMemcpyAsync(pmeRemoteForcePtr,
+    //                                   localForcePtr_[ppRank],
+    //                                   numAtoms * sizeof(rvec),
+    //                                   hipMemcpyDefault,
+    //                                   ppCommStream_[ppRank]->stream());
+    //HIP_RET_ERR(stat, "hipMemcpyAsync on Recv from PME HIP direct data transfer failed");
+    ppCommEvent_[ppRank]->markEvent(pmeStream_);
     std::atomic<bool>* tmpPpCommEventRecordedPtr =
             reinterpret_cast<std::atomic<bool>*>(&(ppCommEventRecorded_[ppRank]));
     tmpPpCommEventRecordedPtr->store(true, std::memory_order_release);
@@ -189,8 +192,8 @@ void PmeForceSenderGpu::Impl::sendFToPpCudaMpi(DeviceBuffer<RVec> sendbuf,
 PmeForceSenderGpu::PmeForceSenderGpu(GpuEventSynchronizer*  pmeForcesReady,
                                      MPI_Comm               comm,
                                      const DeviceContext&   deviceContext,
-                                     gmx::ArrayRef<PpRanks> ppRanks) :
-    impl_(new Impl(pmeForcesReady, comm, deviceContext, ppRanks))
+                                     gmx::ArrayRef<PpRanks> ppRanks, const DeviceStream& pmeStream) :
+    impl_(new Impl(pmeForcesReady, comm, deviceContext, ppRanks, pmeStream))
 {
 }
 

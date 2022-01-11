@@ -439,6 +439,9 @@
                - with pruning leads to register spilling;
                - on Kepler and later it is much slower;
                Tested with up to nvcc 7.5 */
+#    if !defined PRUNE_NBL
+#        pragma unroll 4
+#    endif
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
@@ -689,6 +692,9 @@
     float fshift_buf = 0.0F;
 
     /* reduce i forces */
+#    if !defined PRUNE_NBL
+#        pragma unroll 8
+#    endif
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
@@ -696,10 +702,19 @@
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && tidxj < 3)
+    if (bCalcFshift)
     {
         float3* fShift = asFloat3(atdat.fShift);
-        atomicAdd(&(fShift[nb_sci.shift].x) + tidxj, fshift_buf);
+	#pragma unroll
+	for (unsigned int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
+        {
+            fshift_buf += __shfl_down(fshift_buf, offset);
+        }
+
+	if( tidxi == 0 && tidxj < 3 )
+        {
+            atomicAdd(&(fShift[nb_sci.shift].x) + tidxj, fshift_buf);
+        }
     }
 
 #    ifdef CALC_ENERGIES

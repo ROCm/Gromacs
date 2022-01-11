@@ -3101,7 +3101,7 @@ void constructGpuHaloExchange(const t_commrec&                cr,
         for (int pulse = cr.dd->gpuHaloExchange[d].size(); pulse < cr.dd->comm->cd[d].numPulses(); pulse++)
         {
             cr.dd->gpuHaloExchange[d].push_back(std::make_unique<gmx::GpuHaloExchange>(
-                    cr.dd, d, cr.mpi_comm_mygroup, deviceStreamManager.context(), pulse, wcycle));
+                    cr.dd, d, cr.mpi_comm_mygroup, deviceStreamManager.context(), pulse, wcycle, deviceStreamManager.stream(gmx::DeviceStreamType::NonBondedNonLocal)));
         }
     }
 }

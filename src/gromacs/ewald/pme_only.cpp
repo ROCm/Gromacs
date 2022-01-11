@@ -260,7 +260,8 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
                                       real*                        ewaldcoeff_lj,
                                       bool                         useGpuForPme,
                                       gmx::StatePropagatorDataGpu* stateGpu,
-                                      PmeRunMode gmx_unused        runMode)
+                                      PmeRunMode gmx_unused        runMode,
+				      const gmx::DeviceStreamManager* deviceStreamManager)
 {
     int status = -1;
     int nat    = 0;
@@ -503,6 +504,11 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
                 senderCount++;
             }
 
+	    if (pme_pp->useGpuDirectComm)
+            {
+                pme_pp->pmeCoordinateReceiverGpu->synchronizeOnCoordinatesFromAllPpRanks(deviceStreamManager->stream(gmx::DeviceStreamType::Pme));
+            }
+
             status = pmerecvqxX;
         }
 
@@ -681,7 +687,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
                     std::make_unique<gmx::PmeForceSenderGpu>(pme_gpu_get_f_ready_synchronizer(pme),
                                                              pme_pp->mpi_comm_mysim,
                                                              deviceStreamManager->context(),
-                                                             pme_pp->ppRanks);
+                                                             pme_pp->ppRanks, deviceStreamManager->stream(gmx::DeviceStreamType::Pme));
         }
         // TODO: Special PME-only constructor is used here. There is no mechanism to prevent from using the other constructor here.
         //       This should be made safer.
@@ -719,7 +725,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
                                              &ewaldcoeff_lj,
                                              useGpuForPme,
                                              stateGpu.get(),
-                                             runMode);
+                                             runMode, deviceStreamManager);
 
             if (ret == pmerecvqxSWITCHGRID)
             {
@@ -832,5 +838,6 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
 
     walltime_accounting_end_time(walltime_accounting);
 
+    pme_pp.release();
     return 0;
 }
