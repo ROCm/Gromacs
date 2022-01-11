@@ -138,7 +138,7 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
     unsigned int tidxz = threadIdx.z;
 #    endif
     unsigned int bidx  = blockIdx.x;
-    unsigned int widx  = (threadIdx.y * c_clSize) >> 5; /* warp index */
+    unsigned int widx  = (threadIdx.y * c_clSize) / c_subWarp; /* warp index */
 
     /*********************************************************************
      * Set up shared memory pointers.
@@ -238,13 +238,13 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
                             /* If _none_ of the atoms pairs are in rlistOuter
                                range, the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            if (haveFreshList && !__half_any(r2 < rlistOuter_sq, widx))
+                            if (haveFreshList && !__nb_any(r2 < rlistOuter_sq, widx))
                             {
                                 imaskFull &= ~mask_ji;
                             }
                             /* If any atom pair is within range, set the bit
                                corresponding to the current cluster-pair. */
-                            if (__half_any(r2 < rlistInner_sq, widx))
+                            if (__nb_any(r2 < rlistInner_sq, widx))
                             {
                                 imaskNew |= mask_ji;
                             }

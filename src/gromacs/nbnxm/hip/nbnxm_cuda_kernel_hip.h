@@ -237,7 +237,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     unsigned int tidxz = threadIdx.z;
 #    endif
 
-    unsigned int widx  = tidx >> 5; /* warp index */
+    unsigned int widx  = tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -393,7 +393,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     {
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
         imask     = pl_cj4[j4].imei[widx].imask;
-        wexcl     = excl[wexcl_idx].pair[tidx & 31];
+        wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 
 #    ifndef PRUNE_NBL
         if (imask)
@@ -437,7 +437,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                             /* If _none_ of the atoms pairs are in cutoff range,
                                the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            if (!__half_any(r2 < rlist_sq, widx))
+                            if (!__nb_any(r2 < rlist_sq, widx))
                             {
                                 imask &= ~mask_ji;
                             }
@@ -624,23 +624,37 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         bCalcFshift = false;
     }
 
-    float fshift_buf = 0.0f;
+    float3 fshift_buf = make_float3(0.0f);
 
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, &fshift_buf, bCalcFshift, tidxj, ai, c_fullWarpMask);
+        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai, c_fullWarpMask);
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && (tidxj & 3) < 3)
+    if (bCalcFshift)
     {
+        for (int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
+        {
+            fshift_buf.x += __shfl_down(fshift_buf.x, offset);
+            fshift_buf.y += __shfl_down(fshift_buf.y, offset);
+            fshift_buf.z += __shfl_down(fshift_buf.z, offset);
+        }
+
+        if (tidx == 0)
+        {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
+            atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x), fshift_buf.x);
+            atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].y), fshift_buf.y);
+            atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].z), fshift_buf.z);
 #else
-        atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x) + (tidxj & 3), fshift_buf);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x), fshift_buf.x);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].y), fshift_buf.y);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].z), fshift_buf.z);
 #endif
+        }
     }
 
 #    ifdef CALC_ENERGIES

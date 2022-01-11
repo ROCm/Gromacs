@@ -59,6 +59,7 @@
 #ifndef NBNXM_CUDA_KERNEL_UTILS_CUH
 #    define NBNXM_CUDA_KERNEL_UTILS_CUH
 
+constexpr int c_subWarp = warpSize / c_nbnxnGpuClusterpairSplit;
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
 static const int __device__ c_clSizeLog2 = 3;
@@ -75,9 +76,16 @@ static const unsigned __device__ superClInteractionMask =
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
-__device__ __forceinline__ int __half_any(int predicate,int widx)
+__device__ __forceinline__ int __nb_any(int predicate,int widx)
 {
-  return (int)(__ballot(predicate) >> (widx << 5));
+    if (c_subWarp == warpSize)
+    {
+        return __any(predicate);
+    }
+    else
+    {
+        return (int)(__ballot(predicate) >> (widx * c_subWarp));
+    }
 }
 
 static __forceinline__ __device__
@@ -761,164 +769,30 @@ static __forceinline__ __device__ float pmecorrF(float z2)
     return polyFN0 * polyFD0;
 }
 
-/*! Final j-force reduction; this generic implementation works with
- *  arbitrary array sizes.
- */
-static __forceinline__ __device__ void
-                       reduce_force_j_generic(float* f_buf, float3* fout, int tidxi, int tidxj, int aidx)
-{
-    if (tidxi < 3)
-    {
-        float f = 0.0f;
-        for (int j = tidxj * c_clSize; j < (tidxj + 1) * c_clSize; j++)
-        {
-            f += f_buf[c_fbufStride * tidxi + j];
-        }
-
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet((&fout[aidx].x) + tidxi, f);
-#else
-        atomicAdd((&fout[aidx].x) + tidxi, f);
-#endif
-    }
-}
-
 /*! Final j-force reduction; this implementation only with power of two
  *  array sizes.
  */
 static __forceinline__ __device__ void
                        reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
 {
-    f.x += __shfl_down(f.x, 1);
-    f.y += __shfl_up(f.y, 1);
-    f.z += __shfl_down(f.z, 1);
-
-    if (tidxi & 1)
+    for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
     {
-        f.x = f.y;
+        f.x += __shfl_down(f.x, offset);
+        f.y += __shfl_down(f.y, offset);
+        f.z += __shfl_down(f.z, offset);
     }
 
-    f.x += __shfl_down(f.x, 2);
-    f.z += __shfl_up(f.z, 2);
-
-    if (tidxi & 2)
-    {
-        f.x = f.z;
-    }
-
-    f.x += __shfl_down(f.x, 4);
-
-    if (tidxi < 3)
+    if (tidxi == 0)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet((&fout[aidx].x) + tidxi, f.x);
+        atomicAddNoRet((&fout[aidx].x), f.x);
+        atomicAddNoRet((&fout[aidx].y), f.y);
+        atomicAddNoRet((&fout[aidx].z), f.z);
 #else
-        atomicAddOverWriteForFloat((&fout[aidx].x) + tidxi, f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].x), f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].y), f.y);
+        atomicAddOverWriteForFloat((&fout[aidx].z), f.z);
 #endif
-    }
-}
-
-/*! Final i-force reduction; this generic implementation works with
- *  arbitrary array sizes.
- * TODO: add the tidxi < 3 trick
- */
-static __forceinline__ __device__ void reduce_force_i_generic(float*  f_buf,
-                                                              float3* fout,
-                                                              float*  fshift_buf,
-                                                              bool    bCalcFshift,
-                                                              int     tidxi,
-                                                              int     tidxj,
-                                                              int     aidx)
-{
-    if (tidxj < 3)
-    {
-        float f = 0.0f;
-        for (int j = tidxi; j < c_clSizeSq; j += c_clSize)
-        {
-            f += f_buf[tidxj * c_fbufStride + j];
-        }
-
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&fout[aidx].x + tidxj, f);
-#else
-        atomicAdd(&fout[aidx].x + tidxj, f);
-#endif
-
-        if (bCalcFshift)
-        {
-            *fshift_buf += f;
-        }
-    }
-}
-
-/*! Final i-force reduction; this implementation works only with power of two
- *  array sizes.
- */
-static __forceinline__ __device__ void reduce_force_i_pow2(volatile float* f_buf,
-                                                           float3*         fout,
-                                                           float*          fshift_buf,
-                                                           bool            bCalcFshift,
-                                                           int             tidxi,
-                                                           int             tidxj,
-                                                           int             aidx)
-{
-    int   i, j;
-    float f;
-
-    assert(c_clSize == 1 << c_clSizeLog2);
-
-    /* Reduce the initial c_clSize values for each i atom to half
-     * every step by using c_clSize * i threads.
-     * Can't just use i as loop variable because than nvcc refuses to unroll.
-     */
-    i = c_clSize / 2;
-//#    pragma unroll 5
-    for (j = c_clSizeLog2 - 1; j > 0; j--)
-    {
-        if (tidxj < i)
-        {
-
-            f_buf[tidxj * c_clSize + tidxi] += f_buf[(tidxj + i) * c_clSize + tidxi];
-            f_buf[c_fbufStride + tidxj * c_clSize + tidxi] +=
-                    f_buf[c_fbufStride + (tidxj + i) * c_clSize + tidxi];
-            f_buf[2 * c_fbufStride + tidxj * c_clSize + tidxi] +=
-                    f_buf[2 * c_fbufStride + (tidxj + i) * c_clSize + tidxi];
-        }
-        i >>= 1;
-    }
-
-    /* i == 1, last reduction step, writing to global mem */
-    if (tidxj < 3)
-    {
-        /* tidxj*c_fbufStride selects x, y or z */
-        f = f_buf[tidxj * c_fbufStride + tidxi] + f_buf[tidxj * c_fbufStride + i * c_clSize + tidxi];
-
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(&(fout[aidx].x) + tidxj, f);
-#else
-        atomicAdd(&(fout[aidx].x) + tidxj, f);
-#endif
-
-        if (bCalcFshift)
-        {
-            *fshift_buf += f;
-        }
-    }
-}
-
-/*! Final i-force reduction wrapper; calls the generic or pow2 reduction depending
- *  on whether the size of the array to be reduced is power of two or not.
- */
-static __forceinline__ __device__ void
-                       reduce_force_i(float* f_buf, float3* f, float* fshift_buf, bool bCalcFshift, int tidxi, int tidxj, int ai)
-{
-    if ((c_clSize & (c_clSize - 1)))
-    {
-        reduce_force_i_generic(f_buf, f, fshift_buf, bCalcFshift, tidxi, tidxj, ai);
-    }
-    else
-    {
-        reduce_force_i_pow2(f_buf, f, fshift_buf, bCalcFshift, tidxi, tidxj, ai);
     }
 }
 
@@ -962,43 +836,33 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     }
 }
 
-/*! Energy reduction; this implementation works only with power of two
- *  array sizes.
- */
-static __forceinline__ __device__ void
-                       reduce_energy_pow2(volatile float* buf, float* e_lj, float* e_el, unsigned int tidx)
+static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
+                                                                float3*            fout,
+                                                                float3&            fshift_buf,
+                                                                bool               bCalcFshift,
+                                                                int                tidxj,
+                                                                int                aidx,
+                                                                const unsigned long activemask)
 {
-    float e1, e2;
-
-    unsigned int i = warp_size / 2;
-
-    /* Can't just use i as loop variable because than nvcc refuses to unroll. */
-//#    pragma unroll 10
-    for (int j = 5 - 1; j > 0; j--)
+    for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
     {
-        if (tidx < i)
-        {
-            buf[tidx] += buf[tidx + i];
-            buf[c_fbufStride + tidx] += buf[c_fbufStride + tidx + i];
-        }
-        i >>= 1;
+        fin.x += __shfl_down(fin.x, offset * c_clSize);
+        fin.y += __shfl_down(fin.y, offset * c_clSize);
+        fin.z += __shfl_down(fin.z, offset * c_clSize);
     }
 
-    // TODO do this on two threads - requires e_lj and e_el to be stored on adjascent
-    // memory locations to make sense
-    /* last reduction step, writing to global mem */
-    if (tidx == 0)
+    if (tidxj == 0)
     {
-        e1 = buf[tidx] + buf[tidx + i];
-        e2 = buf[c_fbufStride + tidx] + buf[c_fbufStride + tidx + i];
+        atomicAddNoRet((&fout[aidx].x), fin.x);
+        atomicAddNoRet((&fout[aidx].y), fin.y);
+        atomicAddNoRet((&fout[aidx].z), fin.z);
 
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(e_lj, e1);
-        atomicAddNoRet(e_el, e2);
-#else
-        atomicAdd(e_lj, e1);
-        atomicAdd(e_el, e2);
-#endif
+        if (bCalcFshift)
+        {
+            fshift_buf.x += fin.x;
+            fshift_buf.y += fin.y;
+            fshift_buf.z += fin.z;
+        }
     }
 }
 
@@ -1008,19 +872,14 @@ static __forceinline__ __device__ void
 static __forceinline__ __device__ void
                        reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
 {
-    int i, sh;
-
-    sh = 1;
-//#    pragma unroll 5
-    for (i = 0; i < 5; i++)
+    for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
     {
-        E_lj += __shfl_down(E_lj, sh);
-        E_el += __shfl_down(E_el, sh);
-        sh += sh;
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
     }
 
     /* The first thread in the warp writes the reduced energies */
-    if (tidx == 0 || tidx == 32)
+    if ((tidx & (c_subWarp - 1)) == 0)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAddNoRet(e_lj, E_lj);
