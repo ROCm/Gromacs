@@ -76,6 +76,25 @@ static const unsigned __device__ superClInteractionMask =
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
 
+template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
+__device__ inline
+T warp_move_dpp(const T& input) {
+    constexpr int words_no = (sizeof(T) + sizeof(int) - 1) / sizeof(int);
+
+    struct V { int words[words_no]; };
+    V a = __builtin_bit_cast(V, input);
+
+    #pragma unroll
+    for (int i = 0; i < words_no; i++) {
+        a.words[i] = __builtin_amdgcn_update_dpp(
+          0, a.words[i],
+          dpp_ctrl, row_mask, bank_mask, bound_ctrl
+        );
+    }
+
+    return __builtin_bit_cast(T, a);
+}
+
 __device__ __forceinline__ int __nb_any(int predicate,int widx)
 {
     if (c_subWarp == warpSize)
@@ -775,14 +794,26 @@ static __forceinline__ __device__ float pmecorrF(float z2)
 static __forceinline__ __device__ void
                        reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
 {
-    for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
+    /*for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
     {
         f.x += __shfl_down(f.x, offset);
         f.y += __shfl_down(f.y, offset);
         f.z += __shfl_down(f.z, offset);
-    }
+    }*/
 
-    if (tidxi == 0)
+    f.x += warp_move_dpp<float, 0xb1>(f.x);
+    f.y += warp_move_dpp<float, 0xb1>(f.y);
+    f.z += warp_move_dpp<float, 0xb1>(f.z);
+
+    f.x += warp_move_dpp<float, 0x4e>(f.x);
+    f.y += warp_move_dpp<float, 0x4e>(f.y);
+    f.z += warp_move_dpp<float, 0x4e>(f.z);
+
+    f.x += warp_move_dpp<float, 0x114>(f.x);
+    f.y += warp_move_dpp<float, 0x114>(f.y);
+    f.z += warp_move_dpp<float, 0x114>(f.z);
+
+    if (tidxi == c_clSize - 1)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAddNoRet((&fout[aidx].x), f.x);
