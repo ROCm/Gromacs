@@ -925,8 +925,8 @@ __global__ void exec_kernel_gpu(
             int            fTypeTid = tid - fTypeRangeStart[j];
             const t_iatom* iatoms   = d_iatoms[j];
             fType                   = fTypesOnGpu[j];
+            fType_shared_index      = j;
             
-
             switch (fType)
             {
                 case F_BONDS:
