@@ -495,7 +495,7 @@ __device__ static void do_dih_fup_gpu(const int            i,
         float3 f_j  = f_i - svec;
         float3 f_k  = f_l + svec;
 
-	unsigned long long int b_ = __ballot(1);
+        unsigned long long int b_ = __ballot(1);
         const int prev_lane_i = __shfl_up(i, 1);
         const int prev_lane_j = __shfl_up(j, 1);
         const int prev_lane_k = __shfl_up(k, 1);
@@ -561,7 +561,7 @@ __device__ static void do_dih_fup_gpu(const int            i,
             float3 dx_jl;
             int    t3 = pbcDxAiuc<calcVir>(pbcAiuc, gm_xq[l], gm_xq[j], dx_jl);
 
-	    hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
+            hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
             hipLocalAtomicAdd(&sm_fShiftLoc[t1].y, f_i.y);
             hipLocalAtomicAdd(&sm_fShiftLoc[t1].z, f_i.z);
             hipLocalAtomicAdd(&sm_fShiftLoc[gmx::c_centralShiftIndex].x, -f_j.x);
@@ -895,14 +895,12 @@ __global__ void exec_kernel_gpu(
 {
     assert(blockDim.y == 1 && blockDim.z == 1);
     const int tid          = blockIdx.x * blockDim.x + threadIdx.x;
-    float     vtot_loc     = 0;
-    float     vtotVdw_loc  = 0;
-    float     vtotElec_loc = 0;
+    float     vtot_loc     = 0.0F;
+    float     vtotVdw_loc  = 0.0F;
+    float     vtotElec_loc = 0.0F;
 
-    extern __shared__ char sm_dynamicShmem[];
-    char*                  sm_nextSlotPtr = sm_dynamicShmem;
-    float3*                sm_fShiftLoc   = reinterpret_cast<float3*>(sm_nextSlotPtr);
-    sm_nextSlotPtr += c_numShiftVectors * sizeof(float3);
+    extern __shared__ float3 sm_dynamicShmem[];
+    float3* sm_fShiftLoc = sm_dynamicShmem;
 
     if (calcVir)
     {
@@ -915,7 +913,6 @@ __global__ void exec_kernel_gpu(
 
     int  fType;
     int  fType_shared_index = -1;
-    bool threadComputedPotential = false;
 #pragma unroll
     for (int j = 0; j < numFTypesOnGpu; j++)
     {
@@ -1046,7 +1043,7 @@ __global__ void exec_kernel_gpu(
 
         if (threadIdx.x % warp_size == 0)
         { // One thread per warp accumulates partial sum into global sum
-	    hipGlobalAtomicAdd(d_vTot + F_LJ14, vtotVdw_shuffle);
+            hipGlobalAtomicAdd(d_vTot + F_LJ14, vtotVdw_shuffle);
             hipGlobalAtomicAdd(d_vTot + F_COUL14, vtotElec_shuffle);
         }
     }
@@ -1056,7 +1053,7 @@ __global__ void exec_kernel_gpu(
         __syncthreads();
         if (threadIdx.x < c_numShiftVectors)
         {
-	    hipGlobalAtomicAdd(&gm_fShift[threadIdx.x].x, sm_fShiftLoc[threadIdx.x].x);
+            hipGlobalAtomicAdd(&gm_fShift[threadIdx.x].x, sm_fShiftLoc[threadIdx.x].x);
             hipGlobalAtomicAdd(&gm_fShift[threadIdx.x].y, sm_fShiftLoc[threadIdx.x].y);
             hipGlobalAtomicAdd(&gm_fShift[threadIdx.x].z, sm_fShiftLoc[threadIdx.x].z);
         }
