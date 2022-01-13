@@ -137,6 +137,8 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
 #    else
     unsigned int tidxz = threadIdx.z;
 #    endif
+    unsigned int tidx  = tidxi + c_clSize * tidxj;
+
     unsigned int bidx  = blockIdx.x;
     unsigned int widx  = (threadIdx.y * c_clSize) / c_subWarp; /* warp index */
 
@@ -157,11 +159,25 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
     /*********************************************************************/
 
 
-    nbnxn_sci_t nb_sci =
-            pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
-    int sci        = nb_sci.sci;           /* super-cluster */
-    int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-    int cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+    nbnxn_sci_t nb_sci;// =
+    //        pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
+    int sci       ;// = nb_sci.sci;           /* super-cluster */
+    int cij4_start;// = nb_sci.cj4_ind_start; /* first ...*/
+    int cij4_end  ;// = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+
+    if( tidx == 0 || tidx == warpSize )
+    {
+        nb_sci     = pl_sci[bidx * numParts + part];         /* my i super-cluster's index = current bidx */
+        sci        = nb_sci.sci;           /* super-cluster */
+        cij4_start = nb_sci.cj4_ind_start; /* first ...*/
+        cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+    }
+
+    sci          = __shfl(sci, 0, warpSize);
+    nb_sci.shift = __shfl(nb_sci.shift, 0, warpSize);
+    cij4_start   = __shfl(cij4_start, 0, warpSize);
+    cij4_end     = __shfl(cij4_end, 0, warpSize);
+
 
     if (tidxz == 0 && tidxj == 0)
     {
@@ -190,7 +206,6 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
 
         if (haveFreshList)
         {
-            /* Read the mask from the list transferred from the CPU */
             imaskFull = pl_cj4[j4].imei[widx].imask;
             /* We attempt to prune all pairs present in the original list */
             imaskCheck = imaskFull;
@@ -198,7 +213,6 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
         }
         else
         {
-            /* Read the mask from the "warp-pruned" by rlistOuter mask array */
             imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
             /* Read the old rolling pruned mask, use as a base for new */
             imaskNew = pl_cj4[j4].imei[widx].imask;
