@@ -312,10 +312,10 @@ __device__ void angles_gpu(const int       i,
 
             if (calcVir)
             {
-		hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
-		hipLocalAtomicAdd(&sm_fShiftLoc[t1].y, f_i.y);
-		hipLocalAtomicAdd(&sm_fShiftLoc[t1].z, f_i.z);
-		hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, f_j.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t1].x, f_i.x);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t1].y, f_i.y);
+                hipLocalAtomicAdd(&sm_fShiftLoc[t1].z, f_i.z);
+                hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].x, f_j.x);
                 hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].y, f_j.y);
                 hipLocalAtomicAdd(&sm_fShiftLoc[CENTRAL].z, f_j.z);
                 hipLocalAtomicAdd(&sm_fShiftLoc[t2].x, f_k.x);
