@@ -2542,6 +2542,7 @@ static void get_nsubpair_target(const Nbnxm::GridSet&     gridSet,
      *   since we will always generate at least #cells lists.
      * - We don't have any cells, since then there won't be any lists.
      */
+#if !GMX_GPU_HIP
     if (min_ci_balanced <= 0 || grid.numCells() >= min_ci_balanced || grid.numCells() == 0)
     {
         /* nsubpair_target==0 signals no balancing */
@@ -2550,6 +2551,7 @@ static void get_nsubpair_target(const Nbnxm::GridSet&     gridSet,
 
         return;
     }
+#endif
 
     gmx::RVec               ls;
     const int               numAtomsCluster = grid.geometry().numAtomsICluster;
@@ -3304,8 +3306,8 @@ static void nbnxn_make_pairlist_part(const Nbnxm::GridSet&   gridSet,
 
         // The max cluster length in a block
         int length_limit = INT_MAX;
-        if( nbat->numAtoms() < 128000)
-            length_limit = std::max(1, static_cast<int>(5.33469418092E-05 * nbat->numAtoms() + 1.137194) );
+        if( nsubpair_tot_est < 10476000.0f)
+            length_limit = std::max(1, static_cast<int>(4.6515479920814E-06 * nsubpair_tot_est + 0.92769688768) );
 
         /* Loop over shift vectors in three dimensions */
         for (int tz = -shp[ZZ]; tz <= shp[ZZ]; tz++)
@@ -4007,7 +4009,11 @@ void PairlistSet::constructPairlists(const Nbnxm::GridSet&         gridSet,
         resizeAndZeroBufferFlags(&nbat->buffer_flags, nbat->numAtoms());
     }
 
+#if GMX_GPU_HIP
+    if (!isCpuType_)
+#else
     if (!isCpuType_ && minimumIlistCountForGpuBalancing > 0)
+#endif
     {
         get_nsubpair_target(gridSet, locality_, rlist, minimumIlistCountForGpuBalancing,
                             &nsubpair_target, &nsubpair_tot_est);
