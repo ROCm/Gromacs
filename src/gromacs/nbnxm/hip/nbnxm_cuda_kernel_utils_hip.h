@@ -108,14 +108,14 @@ __device__ __forceinline__ int __nb_any(int predicate,int widx)
 }
 
 static __forceinline__ __device__
-void float3_reduce_final(float3* input_ptr)
+void float3_reduce_final(float3* input_ptr, const unsigned int size)
 {
     const unsigned int flat_id = threadIdx.x;
 
     float3 input;
-    input.x = atomicExch(&(input_ptr[flat_id + 1].x)    , 0.0f);
-    input.y = atomicExch(&(input_ptr[flat_id + 1].x) + 1, 0.0f);
-    input.z = atomicExch(&(input_ptr[flat_id + 1].x) + 2, 0.0f);
+    input.x = atomicExch(&(input_ptr[size * (flat_id + 1)].x)    , 0.0f);
+    input.y = atomicExch(&(input_ptr[size * (flat_id + 1)].x) + 1, 0.0f);
+    input.z = atomicExch(&(input_ptr[size * (flat_id + 1)].x) + 2, 0.0f);
 
     #pragma unroll
     for(unsigned int offset = 1; offset < warpSize; offset *= 2)
@@ -156,12 +156,12 @@ void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
 }
 
 template<
-    unsigned int BlockSize,
-    unsigned int MemoryMultiplier
+    unsigned int BlockSize
 >
 __launch_bounds__(BlockSize) __global__
 void nbnxn_kernel_sum_up(
     const cu_atomdata_t atdat,
+    int size,
     bool computeEnergy,
     bool computeVirial)
 {
@@ -170,8 +170,8 @@ void nbnxn_kernel_sum_up(
     // Sum up fshifts
     if(computeVirial)
     {
-        float3* values_ptr = atdat.fshift + bidx * (1 + MemoryMultiplier);
-        float3_reduce_final(values_ptr);
+        float3* values_ptr = atdat.fshift + bidx;
+        float3_reduce_final(values_ptr, size);
     }
 
     // Sum up energies

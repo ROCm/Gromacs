@@ -645,14 +645,15 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
         if (tidx == 0)
         {
+            const unsigned int shift_index_base = SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier);
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-            atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x), fshift_buf.x);
-            atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].y), fshift_buf.y);
-            atomicAddNoRet(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].z), fshift_buf.z);
+            atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
+            atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
+            atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
 #else
-            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x), fshift_buf.x);
-            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].y), fshift_buf.y);
-            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].z), fshift_buf.z);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
 #endif
         }
     }

@@ -791,7 +791,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 
         if( tidxi == 0 && tidxj < 3 )
         {
-            atomicAdd(&(atdat.fshift[nb_sci.shift * (1 + c_clShiftMemoryMultiplier) + (1 + bidx % c_clShiftMemoryMultiplier)].x) + tidxj, fshift_buf);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier)].x) + tidxj, fshift_buf);
         }
     }
 

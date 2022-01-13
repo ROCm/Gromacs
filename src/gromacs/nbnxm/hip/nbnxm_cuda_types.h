@@ -76,7 +76,7 @@ const int c_cudaPruneKernelJ4Concurrency = GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
 /*! \brief cluster size = number of atoms per cluster. */
 static constexpr int c_clSize = c_nbnxnGpuClusterSize;
 
-// The memory multiplier can be turned off with value zeros
+// The memory multiplier can be turned off with values 0
 static constexpr unsigned int c_clEnergyMemoryMultiplier = 64U;
 static constexpr unsigned int c_clShiftMemoryMultiplier = 64U;
 

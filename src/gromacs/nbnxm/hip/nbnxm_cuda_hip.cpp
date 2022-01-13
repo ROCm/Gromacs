@@ -1008,7 +1008,8 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
     if (iloc == InteractionLocality::Local)
     {
         /* DtoH fshift when virial is needed */
-        if ( (stepWork.computeVirial && c_clShiftMemoryMultiplier != 0) || (stepWork.computeEnergy && c_clEnergyMemoryMultiplier != 0))
+        if ( (stepWork.computeVirial && c_clShiftMemoryMultiplier != 0) ||
+             (stepWork.computeEnergy && c_clEnergyMemoryMultiplier != 0) )
         {
             constexpr unsigned int block_size = 64U;
 
@@ -1019,7 +1020,7 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
             configSumUp.gridSize[0]  = (stepWork.computeVirial && c_clShiftMemoryMultiplier != 0) ? SHIFTS : 1;
             configSumUp.sharedMemorySize = 0;
 
-            const auto kernelSumUp = nbnxn_kernel_sum_up<block_size, c_clShiftMemoryMultiplier>;
+            const auto kernelSumUp = nbnxn_kernel_sum_up<block_size>;
 
             launchGpuKernel(
                 kernelSumUp,
@@ -1028,6 +1029,7 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
                 nullptr,
                 "nbnxn_kernel_sum_up",
                 *adat,
+                SHIFTS,
                 (stepWork.computeEnergy && c_clEnergyMemoryMultiplier != 0),
                 (stepWork.computeVirial && c_clShiftMemoryMultiplier != 0)
             );
