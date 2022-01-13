@@ -130,21 +130,21 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
-//#if GMX_PTX_ARCH == 370
-//#    define NTHREAD_Z (2)
-//#    define MIN_BLOCKS_PER_MP (16)
-//#else
+#if defined(__gfx90a__)
+#    define NTHREAD_Z (4)
+#    define MIN_BLOCKS_PER_MP (16)
+#else
 #    define NTHREAD_Z (1)
 #    define MIN_BLOCKS_PER_MP (16)
-//#endif /* GMX_PTX_ARCH == 370 */
+#endif /* GMX_PTX_ARCH == 370 */
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
-//#if GMX_PTX_ARCH >= 350
+#if GMX_PTX_ARCH >= 350
 /**@}*/
-//__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
-//#else
-//__launch_bounds__(THREADS_PER_BLOCK)
-//#endif /* GMX_PTX_ARCH >= 350 */
+__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
+#else
+__launch_bounds__(c_clSize * c_clSize * 4)
+#endif /* GMX_PTX_ARCH >= 350 */
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
         __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_hip)
@@ -304,7 +304,7 @@
     {
         /* the cjs buffer's use expects a base pointer offset for pairs of warps in the j-concurrent execution */
         cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-        sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
+        sm_nextSlotPtr += (blockDim.z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
     }
 
 #    ifndef LJ_COMB
@@ -388,13 +388,13 @@
 
         /* divide the self term(s) equally over the j-threads, then multiply with the coefficients. */
 #            ifdef LJ_EWALD
-        E_lj /= c_clSize * NTHREAD_Z;
+        E_lj /= c_clSize * blockDim.z;
         E_lj *= 0.5F * c_oneSixth * lje_coeff6_6;
 #            endif
 
 #            if defined EL_EWALD_ANY || defined EL_RF || defined EL_CUTOFF
         /* Correct for epsfac^2 due to adding qi^2 */
-        E_el /= nbparam.epsfac * c_clSize * NTHREAD_Z;
+        E_el /= nbparam.epsfac * c_clSize * blockDim.z;
 #                if defined EL_RF || defined EL_CUTOFF
         E_el *= -0.5F * reactionFieldShift;
 #                else
@@ -414,7 +414,7 @@
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
      */
-    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
+    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += blockDim.z)
     {
         wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
         imask     = pl_cj4[j4].imei[0].imask;
