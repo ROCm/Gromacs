@@ -53,8 +53,6 @@ struct NbnxnPairlistCpuWork;
 struct NbnxnPairlistGpuWork;
 struct t_nblist;
 
-#define nsp_based_sort
-
 //! Convenience type for vector with aligned memory
 template<typename T>
 using AlignedVector = std::vector<T, gmx::AlignedAllocator<T>>;
@@ -179,8 +177,6 @@ typedef struct nbnxn_sci
 
     //! i-super-cluster
     int sci;
-    // number of caluclations
-    int nsp_cj4;
     //! Shift vector index plus possible flags
     int shift;
     //! Start index into cj4
