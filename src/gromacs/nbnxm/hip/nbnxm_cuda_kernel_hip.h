@@ -277,7 +277,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         nb_sci     = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
         sci        = nb_sci.sci;           /* super-cluster */
         cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-        cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+        cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
     /*}
 
     sci          = __shfl(sci, 0, warpSize);
@@ -326,7 +326,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     E_el         = 0.0f;
 
 #        ifdef EXCLUSION_FORCES /* Ewald or RF */
-    if (nb_sci.shift == CENTRAL && pl_cj4[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
+    if ((int)nb_sci.shift == CENTRAL && pl_cj4[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
     {
         /* we have the diagonal: add the charge and LJ self interaction energy term */
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)

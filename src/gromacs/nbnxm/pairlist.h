@@ -173,16 +173,18 @@ struct nbnxn_ci_t
 typedef struct nbnxn_sci
 {
     //! Returns the number of j-cluster groups in this entry
-    int numJClusterGroups() const { return cj4_ind_end - cj4_ind_start; }
+    int numJClusterGroups() const { return static_cast<int>(cj4_length); }
+
+    int cj4IndEnd() const { return cj4_ind_start + cj4_length; }
 
     //! i-super-cluster
     int sci;
-    //! Shift vector index plus possible flags
-    int shift;
     //! Start index into cj4
     int cj4_ind_start;
     //! End index into cj4
-    int cj4_ind_end;
+    short cj4_length;
+    //! Shift vector index plus possible flags
+    short shift;
 } nbnxn_sci_t;
 
 //! Interaction data for a j-group for one warp

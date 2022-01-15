@@ -170,7 +170,7 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
         nb_sci     = pl_sci[bidx * numParts + part];         /* my i super-cluster's index = current bidx */
         sci        = nb_sci.sci;           /* super-cluster */
         cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-        cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+        cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
     }
 
     sci          = __shfl(sci, 0, warpSize);
