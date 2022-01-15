@@ -766,7 +766,7 @@ static void print_nblist_statistics(FILE*                   fp,
     int npexcl     = 0;
     for (const nbnxn_ci_t& ciEntry : nbl.ci)
     {
-        cs[ciEntry.shift & NBNXN_CI_SHIFT] += ciEntry.cj_ind_end - ciEntry.cj_ind_start;
+        cs[(int)ciEntry.shift & NBNXN_CI_SHIFT] += ciEntry.cj_ind_end - ciEntry.cj_ind_start;
 
         int j = ciEntry.cj_ind_start;
         while (j < ciEntry.cj_ind_end && nbl.cj[j].excl != NBNXN_INTERACTION_MASK_ALL)
@@ -812,7 +812,7 @@ static void print_nblist_statistics(FILE*                   fp,
     for (const nbnxn_sci_t& sci : nbl.sci)
     {
         int nsp = 0;
-        for (int j4 = sci.cj4_ind_start; j4 < sci.cj4_ind_end; j4++)
+        for (int j4 = sci.cj4_ind_start; j4 < sci.cj4IndEnd(); j4++)
         {
             for (int j = 0; j < c_nbnxnGpuJgroupSize; j++)
             {
@@ -1237,8 +1237,9 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
             nbl->nci_tot += npair;
 
             /* Increase the closing index in i super-cell list */
-            nbl->sci.back().cj4_ind_end =
-                    (nbl->work->cj_ind + c_nbnxnGpuJgroupSize - 1) / c_nbnxnGpuJgroupSize;
+            nbl->sci.back().cj4_length =
+                (nbl->work->cj_ind + c_nbnxnGpuJgroupSize - 1) / c_nbnxnGpuJgroupSize -
+                nbl->sci.back().cj4_ind_start;
         }
     }
 }
@@ -1555,7 +1556,7 @@ static void make_fep_list(gmx::ArrayRef<const int> atomIndices,
             nlist->iinr[nri]       = ai;
             /* The actual energy group pair index is set later */
             nlist->gid[nri]   = 0;
-            nlist->shift[nri] = nbl_ci->shift & NBNXN_CI_SHIFT;
+            nlist->shift[nri] = (int)nbl_ci->shift & NBNXN_CI_SHIFT;
 
             bFEP_i = iGrid.atomIsPerturbed(ci - iGrid.cellOffset(), i);
 
@@ -1727,7 +1728,7 @@ static void make_fep_list(gmx::ArrayRef<const int> atomIndices,
     const int sci = nbl_sci->sci;
 
     const int cj4_ind_start = nbl_sci->cj4_ind_start;
-    const int cj4_ind_end   = nbl_sci->cj4_ind_end;
+    const int cj4_ind_end   = nbl_sci->cj4IndEnd();
 
     /* Here we process one super-cell, max #atoms na_sc, versus a list
      * cj4 entries, each with max c_nbnxnGpuJgroupSize cj's, each
@@ -1991,7 +1992,7 @@ static void addNewIEntry(NbnxnPairlistGpu* nbl, int sci, int shift, int gmx_unus
     sciEntry.sci           = sci;
     sciEntry.shift         = shift;
     sciEntry.cj4_ind_start = nbl->cj4.size();
-    sciEntry.cj4_ind_end   = nbl->cj4.size();
+    sciEntry.cj4_length    = 0;
 
     nbl->sci.push_back(sciEntry);
 }
@@ -2118,7 +2119,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
 
 
     const int cj4_start = nbl->sci.back().cj4_ind_start;
-    const int cj4_end   = nbl->sci.back().cj4_ind_end;
+    const int cj4_end   = nbl->sci.back().cj4IndEnd();
     const int j4len     = cj4_end - cj4_start;
 #if GMX_GPU_HIP
     if (j4len > cj4len_max)
@@ -2149,7 +2150,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             if (nsp > 0 && (cj4 - nbl->sci.back().cj4_ind_start) > cj4len_max)
             {
                 /* Split the list at cj4 */
-                nbl->sci.back().cj4_ind_end = cj4;
+                nbl->sci.back().cj4_length = cj4 - nbl->sci.back().cj4_ind_start;
                 /* Create a new sci entry */
                 nbnxn_sci_t sciNew;
                 sciNew.sci           = nbl->sci.back().sci;
@@ -2170,9 +2171,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
         }
 
         /* Put the remaining cj4's in the last sci entry */
-        nbl->sci.back().cj4_ind_end = cj4_end;
-        nbl->sci.back().nsp_cj4 = nsp;
-
+        nbl->sci.back().cj4_length = cj4_end - cj4_start;
 
         /* Possibly balance out the last two sci's
          * by moving the last cj4 of the second last sci.
@@ -2180,7 +2179,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
         if (nsp_sci - nsp_cj4_e >= nsp + nsp_cj4_e)
         {
             GMX_ASSERT(nbl->sci.size() >= 2, "We expect at least two elements");
-            nbl->sci[nbl->sci.size() - 2].cj4_ind_end--;
+            nbl->sci[nbl->sci.size() - 2].cj4_length--;
             nbl->sci[nbl->sci.size() - 1].cj4_ind_start--;
         }
     }
@@ -2643,7 +2642,7 @@ static void print_nblist_sci_cj(FILE* fp, const NbnxnPairlistGpu& nbl)
         fprintf(fp, "ci %4d  shift %2d  ncj4 %2d\n", sci.sci, sci.shift, sci.numJClusterGroups());
 
         int ncp = 0;
-        for (int j4 = sci.cj4_ind_start; j4 < sci.cj4_ind_end; j4++)
+        for (int j4 = sci.cj4_ind_start; j4 < sci.cj4IndEnd(); j4++)
         {
             for (int j = 0; j < c_nbnxnGpuJgroupSize; j++)
             {
@@ -2711,7 +2710,7 @@ static void combine_nblists(gmx::ArrayRef<const NbnxnPairlistGpu> nbls, NbnxnPai
             {
                 nblc->sci[sci_offset + i] = nbli.sci[i];
                 nblc->sci[sci_offset + i].cj4_ind_start += cj4_offset;
-                nblc->sci[sci_offset + i].cj4_ind_end += cj4_offset;
+                nblc->sci[sci_offset + i].cj4_length += cj4_offset;
             }
 
             for (size_t j4 = 0; j4 < nbli.cj4.size(); j4++)
@@ -3892,11 +3891,11 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
     sort.resize(m + 1, 0);
     /* Count the entries of each size */
     unsigned int index = 0;
-    std::vector<int>& nsp(nbl->sci.size(), 0);
+    std::vector<int> nsp(nbl->sci.size(), 0);
     for (const nbnxn_sci_t& sci : nbl->sci)
     {
 #ifdef nsp_based_sort
-        for (int cj4 = sci.cj4_start; cj4 < sci.cj4_end; cj4++)
+        for (int cj4 = sci.cj4_ind_start; cj4 < sci.cj4IndEnd(); cj4++)
         {
             for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
             {
