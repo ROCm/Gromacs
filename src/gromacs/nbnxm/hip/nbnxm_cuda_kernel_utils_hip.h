@@ -727,7 +727,7 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, 
 // For float2 type
 static __forceinline__ __device__ void fetch_nbfp_c6_c12(float2& c6, float2& c12, const NBParamGpu nbparam, int2 baseIndex)
 {
-#    if DISABLE_CUDA_TEXTURES
+//#    if DISABLE_CUDA_TEXTURES
     /* Force an 8-byte fetch to save a memory instruction. */
     float2* nbfp = (float2*)nbparam.nbfp;
     float2  c6c12;
@@ -740,12 +740,12 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float2& c6, float2& c12
     c12.y   = c6c12.y;
 
 
-#    else
+//#    else
     /* NOTE: as we always do 8-byte aligned loads, we could
        fetch float2 here too just as above. */
-    c6  = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex);
+/*    c6  = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex);
     c12 = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex + 1);
-#    endif // DISABLE_CUDA_TEXTURES
+#    endif // DISABLE_CUDA_TEXTURES*/
 }
 
 
