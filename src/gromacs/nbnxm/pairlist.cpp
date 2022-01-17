@@ -3897,10 +3897,11 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
 #ifdef nsp_based_sort
         for (int cj4 = sci.cj4_ind_start; cj4 < sci.cj4IndEnd(); cj4++)
         {
-            for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
+            nsp[index] += __builtin_popcount(nbl->cj4[cj4].imei[0].imask);
+            /*for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
             {
                 nsp[index] += (nbl->cj4[cj4].imei[0].imask >> p) & 1;
-            }
+            }*/
         }
         int i = std::min(m, nsp[index]);
 #else
