@@ -903,14 +903,50 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
 static __forceinline__ __device__ void
                        reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
 {
-    for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
+    /*for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
     {
         E_lj += __shfl_down(E_lj, offset);
         E_el += __shfl_down(E_el, offset);
+    }*/
+
+    if(c_subWarp > 1)
+    {
+        E_lj += warp_move_dpp<float, 0xb1>(E_lj);
+        E_el += warp_move_dpp<float, 0xb1>(E_el);
+    }
+
+    if(c_subWarp > 2)
+    {
+        E_lj += warp_move_dpp<float, 0x4e>(E_lj);
+        E_el += warp_move_dpp<float, 0x4e>(E_el);
+    }
+
+    if(c_subWarp > 4)
+    {
+        E_lj += warp_move_dpp<float, 0x114>(E_lj);
+        E_el += warp_move_dpp<float, 0x114>(E_el);
+    }
+
+    if(c_subWarp > 8)
+    {
+        E_lj += warp_move_dpp<float, 0x118>(E_lj);
+        E_el += warp_move_dpp<float, 0x118>(E_el);
+    }
+
+    if(c_subWarp > 16)
+    {
+        E_lj += warp_move_dpp<float, 0x142>(E_lj);
+        E_el += warp_move_dpp<float, 0x142>(E_el);
+    }
+
+    if(c_subWarp > 32)
+    {
+        E_lj += warp_move_dpp<float, 0x143>(E_lj);
+        E_el += warp_move_dpp<float, 0x143>(E_el);
     }
 
     /* The first thread in the warp writes the reduced energies */
-    if ((tidx & (c_subWarp - 1)) == 0)
+    if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAddNoRet(e_lj, E_lj);
