@@ -130,11 +130,7 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
-#ifndef NTHREAD_Z_VALUE
-#    define NTHREAD_Z 1
-#else
-#    define NTHREAD_Z NTHREAD_Z_VALUE
-#endif
+#define NTHREAD_Z 1
 
 #ifdef CALC_ENERGIES
 #    define MIN_BLOCKS_PER_MP 6
@@ -146,31 +142,15 @@
 __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #ifdef PRUNE_NBL
 #    ifdef CALC_ENERGIES
-#       if NTHREAD_Z == 4
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_cuda_dimZ_4)
-#       else
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_cuda)
-#       endif
+        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_cuda)
 #    else
-#       if NTHREAD_Z == 4
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_prune_cuda_dimZ_4)
-#       else
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_prune_cuda)
-#       endif
+        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_prune_cuda)
 #    endif /* CALC_ENERGIES */
 #else
 #    ifdef CALC_ENERGIES
-#       if NTHREAD_Z == 4
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_cuda_dimZ_4)
-#       else
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_cuda)
-#       endif
+        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_cuda)
 #    else
-#       if NTHREAD_Z == 4
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda_dimZ_4)
-#       else
-            __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
-#       endif
+        __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #    endif /* CALC_ENERGIES */
 #endif     /* PRUNE_NBL */
                 (const cu_atomdata_t atdat, const NBParamGpu nbparam, const Nbnxm::gpu_plist plist, bool bCalcFshift)
@@ -389,7 +369,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
      */
+#    if NTHREAD_Z == 1
+    for (j4 = cij4_start; j4 < cij4_end; j4++)
+#    else
     for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
+#    endif
     {
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
         imask     = pl_cj4[j4].imei[widx].imask;
@@ -636,14 +620,25 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
     if (bCalcFshift)
     {
-        for (int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
+        /*for (int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
         {
             fshift_buf.x += __shfl_down(fshift_buf.x, offset);
             fshift_buf.y += __shfl_down(fshift_buf.y, offset);
             fshift_buf.z += __shfl_down(fshift_buf.z, offset);
-        }
+        }*/
+        fshift_buf.x += warp_move_dpp<float, 0xb1>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0xb1>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0xb1>(fshift_buf.z);
 
-        if (tidx == 0)
+        fshift_buf.x += warp_move_dpp<float, 0x4e>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0x4e>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0x4e>(fshift_buf.z);
+
+        fshift_buf.x += warp_move_dpp<float, 0x114>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
+
+        if (tidx == (c_clSize - 1))
         {
             const unsigned int shift_index_base = SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier);
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)

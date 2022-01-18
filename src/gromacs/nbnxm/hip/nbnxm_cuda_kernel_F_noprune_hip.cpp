@@ -47,10 +47,3 @@
 #include "nbnxm_cuda_kernels_hip.h"
 #undef FUNCTION_DECLARATION_ONLY
 #include "nbnxm_cuda_kernels_hip.h"
-
-#define NTHREAD_Z_VALUE 4
-#define FUNCTION_DECLARATION_ONLY
-#include "nbnxm_cuda_kernels_hip.h"
-#undef FUNCTION_DECLARATION_ONLY
-#include "nbnxm_cuda_kernels_hip.h"
-#undef NTHREAD_Z_VALUE
