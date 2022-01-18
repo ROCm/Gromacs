@@ -188,7 +188,7 @@ void NbvSetupUtil::setupNbnxmInstance(const size_t numParticleTypes, const NBKer
     PairlistParams pairlistParams(kernelSetup.kernelType, false, options.pairlistCutoff, false);
     Nbnxm::GridSet gridSet(PbcType::Xyz, false, nullptr, nullptr, pairlistParams.pairlistType,
                            false, numThreads, pinPolicy);
-    auto           pairlistSets = std::make_unique<PairlistSets>(pairlistParams, false, 0);
+    auto           pairlistSets = std::make_unique<PairlistSets>(pairlistParams, false, 0, INT_MAX);
     auto           pairSearch =
             std::make_unique<PairSearch>(PbcType::Xyz, false, nullptr, nullptr,
                                          pairlistParams.pairlistType, false, numThreads, pinPolicy);
