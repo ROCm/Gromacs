@@ -320,7 +320,7 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
                "The VdW type requested is not implemented in the HIP kernels.");
 
     /* assert assumptions made by the kernels */
-    GMX_ASSERT(c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit
+    GMX_ASSERT(c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize
                        == deviceInfo->prop.warpSize,
                "The HIP kernels require the "
                "cluster_size_i*cluster_size_j/nbnxn_gpu_clusterpair_split to match the warp size "
