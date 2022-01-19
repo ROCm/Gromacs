@@ -269,7 +269,7 @@ endif()
 
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
-	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -Wno-deprecated -save-temps -ffast-math -DNDEBUG -fdenormal-fp-math=ieee -fcuda-flush-denormals-to-zero -munsafe-fp-atomics" NVCC_OPTIONS)
+	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-O3 -fPIC -fno-gpu-rdc -std=c++17 -Wno-deprecated -save-temps -ffast-math -DNDEBUG -fdenormal-fp-math=ieee -fcuda-flush-denormals-to-zero -munsafe-fp-atomics" NVCC_OPTIONS)
     else()
 	hip_add_library(libgromacs ${LIBGROMACS_SOURCES} HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -Wno-deprecated -ffast-math -fdenormal-fp-math=ieee -fcuda-flush-denormals-to-zero -munsafe-fp-atomics" NVCC_OPTIONS)
     endif()
