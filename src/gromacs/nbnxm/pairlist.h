@@ -159,14 +159,15 @@ constexpr int c_nbnxnGpuJgroupSize = (32 / c_nbnxnGpuNumClusterPerSupercluster);
  */
 struct nbnxn_ci_t
 {
+    int cjIndEnd() const { return cj_ind_start + cj_length; }
     //! i-cluster
     int ci;
-    //! Shift vector index plus possible flags, see above
-    int shift;
     //! Start index into cj
     int cj_ind_start;
     //! End index into cj
-    int cj_ind_end;
+    short cj_length;
+    //! Shift vector index plus possible flags, see above
+    short shift;
 };
 
 //! Grouped pair-list i-unit
