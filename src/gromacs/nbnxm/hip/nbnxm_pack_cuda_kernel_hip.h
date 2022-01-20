@@ -220,8 +220,8 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj + 1 + bidx % c_clEnergyMemoryMultiplier;
-    float*               e_el        = atdat.e_el + 1 + bidx % c_clEnergyMemoryMultiplier;
+    float*               e_lj        = atdat.e_lj + 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
+    float*               e_el        = atdat.e_el + 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
@@ -791,7 +791,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 
         if( tidxi == 0 && tidxj < 3 )
         {
-            atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + bidx % c_clShiftMemoryMultiplier)].x) + tidxj, fshift_buf);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)))].x) + tidxj, fshift_buf);
         }
     }
 

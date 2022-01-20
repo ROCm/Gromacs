@@ -47,7 +47,7 @@
 
 //! Number of CUDA threads in a block
 // TODO Optimize this through experimentation
-constexpr static int c_bufOpsThreadsPerBlock = 512;
+constexpr static int c_bufOpsThreadsPerBlock = 64;
 
 /*! \brief CUDA kernel for transforming position coordinates from rvec to nbnxm layout.
  *
@@ -66,7 +66,7 @@ constexpr static int c_bufOpsThreadsPerBlock = 512;
  * \param[in]     numAtomsPerCell     Number of atoms per cell.
  */
 template<bool setFillerCoords>
-static __launch_bounds__(c_bufOpsThreadsPerBlock) __global__
+static __launch_bounds__(c_bufOpsThreadsPerBlock, 16) __global__
 void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
                                                     float4* __restrict__ gm_xq,
                                                     const float3* __restrict__ gm_x,
