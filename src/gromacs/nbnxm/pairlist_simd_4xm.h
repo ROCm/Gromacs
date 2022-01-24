@@ -281,6 +281,6 @@ static inline void makeClusterListSimd4xn(const Grid&       jGrid,
             nbl->cj.push_back(cjEntry);
         }
         /* Increase the closing index in the i list */
-        nbl->ci.back().cj_ind_end = nbl->cj.size();
+        nbl->ci.back().cj_length = nbl->cj.size() - nbl->ci.back().cj_ind_start;
     }
 }

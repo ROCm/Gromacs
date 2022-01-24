@@ -109,7 +109,7 @@ void nbnxn_kernel_prune_2xnn(NbnxnPairlistCpu*       nbl,
         SimdReal iz_S0 = loadU1DualHsimd(x + sciz) + shZ_S;
         SimdReal iz_S2 = loadU1DualHsimd(x + sciz + 2) + shZ_S;
 
-        for (int cjind = ciEntry->cj_ind_start; cjind < ciEntry->cj_ind_end; cjind++)
+        for (int cjind = ciEntry->cj_ind_start; cjind < ciEntry->cjIndEnd(); cjind++)
         {
             /* j-cluster index */
             int cj = cjOuter[cjind].cj;
@@ -157,7 +157,7 @@ void nbnxn_kernel_prune_2xnn(NbnxnPairlistCpu*       nbl,
 
         if (ncjInner > ciInner[nciInner].cj_ind_start)
         {
-            ciInner[nciInner].cj_ind_end = ncjInner;
+            ciInner[nciInner].cj_length = ncjInner - ciInner[nciInner].cj_ind_start;
             nciInner++;
         }
     }

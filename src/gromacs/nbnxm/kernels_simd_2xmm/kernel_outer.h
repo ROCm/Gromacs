@@ -360,7 +360,7 @@
         ish    = (ciEntry.shift & NBNXN_CI_SHIFT);
         ish3   = ish * 3;
         cjind0 = ciEntry.cj_ind_start;
-        cjind1 = ciEntry.cj_ind_end;
+        cjind1 = ciEntry.cjIndEnd();
         ci     = ciEntry.ci;
         ci_sh  = (ish == CENTRAL ? ci : -1);
 

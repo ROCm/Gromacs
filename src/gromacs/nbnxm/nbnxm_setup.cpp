@@ -296,9 +296,11 @@ static KernelSetup pick_nbnxn_kernel(const gmx::MDLogger&     mdlog,
 
 PairlistSets::PairlistSets(const PairlistParams& pairlistParams,
                            const bool            haveMultipleDomains,
-                           const int             minimumIlistCountForGpuBalancing) :
+                           const int             minimumIlistCountForGpuBalancing,
+                           const int             maximumIlistCountForGpuBalancing) :
     params_(pairlistParams),
-    minimumIlistCountForGpuBalancing_(minimumIlistCountForGpuBalancing)
+    minimumIlistCountForGpuBalancing_(minimumIlistCountForGpuBalancing),
+    maximumIlistCountForGpuBalancing_(maximumIlistCountForGpuBalancing)
 {
     localSet_ = std::make_unique<PairlistSet>(gmx::InteractionLocality::Local, params_);
 
@@ -346,6 +348,43 @@ static int getMinimumIlistCountForGpuBalancing(NbnxmGpu* nbnxmGpu)
     }
 
     return minimumIlistCount;
+}
+
+/*! \brief Gets and returns the maximum i-list count for balacing based on the GPU used or env.var. when set */
+static int getMaximumIlistCountForGpuBalancing()
+{
+    int maximumIlistCount;
+
+    if (const char* env = getenv("GMX_NB_MAX_CLUSTER_SIZE"))
+    {
+        char* end;
+
+        maximumIlistCount = strtol(env, &end, 10);
+        if (!end || (*end != 0) || maximumIlistCount < 0)
+        {
+            gmx_fatal(FARGS,
+                      "Invalid value passed in GMX_NB_MAX_CLUSTER_SIZE=%s, non-negative integer required", env);
+        }
+
+        if (debug)
+        {
+            fprintf(debug, "Neighbor-list balancing parameter: %d (passed as env. var.)\n",
+                    maximumIlistCount);
+        }
+    }
+    else
+    {
+        maximumIlistCount = INT_MAX;
+        if (debug)
+        {
+            fprintf(debug,
+                    "Neighbor-list balancing parameter: %d (auto-adjusted to the number of GPU "
+                    "multi-processors)\n",
+                    maximumIlistCount);
+        }
+    }
+
+    return maximumIlistCount;
 }
 
 std::unique_ptr<nonbonded_verlet_t> init_nb_verlet(const gmx::MDLogger& mdlog,
@@ -434,6 +473,7 @@ std::unique_ptr<nonbonded_verlet_t> init_nb_verlet(const gmx::MDLogger& mdlog,
 
     NbnxmGpu* gpu_nbv                          = nullptr;
     int       minimumIlistCountForGpuBalancing = 0;
+    int       maximumIlistCountForGpuBalancing = INT_MAX;
     if (useGpuForNonbonded)
     {
         /* init the NxN GPU data; the last argument tells whether we'll have
@@ -444,10 +484,12 @@ std::unique_ptr<nonbonded_verlet_t> init_nb_verlet(const gmx::MDLogger& mdlog,
         gpu_nbv = gpu_init(*deviceStreamManager, fr->ic, pairlistParams, nbat.get(), haveMultipleDomains);
 
         minimumIlistCountForGpuBalancing = getMinimumIlistCountForGpuBalancing(gpu_nbv);
+        maximumIlistCountForGpuBalancing = getMaximumIlistCountForGpuBalancing();
     }
 
     auto pairlistSets = std::make_unique<PairlistSets>(pairlistParams, haveMultipleDomains,
-                                                       minimumIlistCountForGpuBalancing);
+                                                       minimumIlistCountForGpuBalancing,
+                                                       maximumIlistCountForGpuBalancing);
 
     auto pairSearch = std::make_unique<PairSearch>(
             ir->pbcType, EI_TPI(ir->eI), DOMAINDECOMP(cr) ? &cr->dd->numCells : nullptr,

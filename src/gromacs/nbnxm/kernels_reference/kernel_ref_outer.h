@@ -238,7 +238,7 @@ void
         /* x, f and fshift are assumed to be stored with stride 3 */
         ishf   = ish * DIM;
         cjind0 = ciEntry.cj_ind_start;
-        cjind1 = ciEntry.cj_ind_end;
+        cjind1 = ciEntry.cjIndEnd();
         /* Currently only works super-cells equal to sub-cells */
         ci    = ciEntry.ci;
         ci_sh = (ish == CENTRAL ? ci : -1);
