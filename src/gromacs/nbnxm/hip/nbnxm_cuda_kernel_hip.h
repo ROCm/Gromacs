@@ -272,7 +272,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
     /*********************************************************************/
 
-    //if( tidxi == 0 || tidxi == warpSize )
+    //if ((tidx & (warpSize - 1)) == 0)
     //{
         nb_sci     = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
         sci        = nb_sci.sci;           /* super-cluster */
