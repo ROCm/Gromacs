@@ -123,11 +123,7 @@ static PmeGpuKernelParamsBase* pme_gpu_get_kernel_params_base_ptr(const PmeGpu* 
  * the numbers of atoms used for determining the size of the memory
  * allocation must be divisible by this.
  */
-#if GMX_GPU_CUDA
 constexpr int c_pmeAtomDataBlockSize = 64;
-#elif GMX_GPU_HIP
-constexpr int c_pmeAtomDataBlockSize = 128;
-#endif
 
 int pme_gpu_get_atom_data_block_size()
 {
@@ -694,7 +690,7 @@ static void pme_gpu_reinit_grids(PmeGpu* pmeGpu)
         kernelParamsPtr->grid.complexGridSizePadded[i] = kernelParamsPtr->grid.realGridSize[i];
     }
     /* FFT: n real elements correspond to (n / 2 + 1) complex elements in minor dimension */
-#if GMX_GPU_CUDA || GMX_GPU_OPENCL
+#if GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_OPENCL
     if (!pme_gpu_settings(pmeGpu).performGPUFFT)
 #endif
     {
