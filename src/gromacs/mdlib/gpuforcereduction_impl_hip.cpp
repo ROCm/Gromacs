@@ -62,7 +62,7 @@
 namespace gmx
 {
 
-constexpr static int c_threadsPerBlock = 128;
+constexpr static int c_threadsPerBlock = 64;
 
 typedef struct rvecDeviceForceData rvecDeviceForceData_t;
 

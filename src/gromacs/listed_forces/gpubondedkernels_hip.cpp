@@ -905,6 +905,7 @@ namespace gmx
 {
 
 template<bool calcVir, bool calcEner>
+__launch_bounds__(64)
 __global__ void exec_kernel_gpu(
 		 //! Periodic boundary data
         	 PbcAiuc pbcAiuc,

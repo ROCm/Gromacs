@@ -74,7 +74,7 @@ namespace gmx
 
 //! Number of CUDA threads in a block
 // TODO Optimize this through experimentation
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 64;
 
 template<bool usePBC>
 __launch_bounds__(c_threadsPerBlock)

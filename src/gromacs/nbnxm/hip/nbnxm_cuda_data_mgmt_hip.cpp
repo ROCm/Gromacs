@@ -311,7 +311,7 @@ NbnxmGpu* gpu_init(const gmx::DeviceStreamManager& deviceStreamManager,
 
     /* set the kernel type for the current GPU */
     /* pick L1 cache configuration */
-    cuda_set_cacheconfig();
+    //cuda_set_cacheconfig();
 
     cuda_init_const(nb, ic, listParams, nbat->params());
 
