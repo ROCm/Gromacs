@@ -50,25 +50,6 @@
 
 #include "pme_hip.h"
 
-template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
-__device__ inline
-T warp_move_dpp(const T& input) {
-    constexpr int words_no = (sizeof(T) + sizeof(int) - 1) / sizeof(int);
-
-    struct V { int words[words_no]; };
-    V a = __builtin_bit_cast(V, input);
-
-    #pragma unroll
-    for (int i = 0; i < words_no; i++) {
-        a.words[i] = __builtin_amdgcn_update_dpp(
-          0, a.words[i],
-          dpp_ctrl, row_mask, bank_mask, bound_ctrl
-        );
-    }
-
-    return __builtin_bit_cast(T, a);
-}
-
 /*! \brief
  * PME complex grid solver kernel function.
  *
@@ -267,91 +248,59 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
     /* Optional energy/virial reduction */
     if (computeEnergyAndVirial)
     {
+        /* A tricky shuffle reduction inspired by reduce_force_j_warp_shfl.
+         * The idea is to reduce 7 energy/virial components into a single variable (aligned by 8).
+         * We will reduce everything into virxx.
+         */
+
         /* We can only reduce warp-wise */
         const int          width      = warp_size;
         const unsigned long activeMask = c_fullWarpMask;
 
-        /*for (int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+        /* Making pair sums */
+        virxx += __shfl_down(virxx, 1, width);
+        viryy += __shfl_up(viryy, 1, width);
+        virzz += __shfl_down(virzz, 1, width);
+        virxy += __shfl_up(virxy, 1, width);
+        virxz += __shfl_down(virxz, 1, width);
+        viryz += __shfl_up(viryz, 1, width);
+        energy += __shfl_down(energy, 1, width);
+        if (threadLocalId & 1)
         {
-            virxx += __shfl_down(virxx, offset);
-            viryy += __shfl_down(viryy, offset);
-            virzz += __shfl_down(virzz, offset);
-            virxy += __shfl_down(virxy, offset);
-            virxz += __shfl_down(virxz, offset);
-            viryz += __shfl_down(viryz, offset);
-            energy += __shfl_down(energy, offset);
-        }*/
-
-        if(warpSize > 1)
-        {
-            virxx += warp_move_dpp<float, 0xb1>(virxx);
-            viryy += warp_move_dpp<float, 0xb1>(viryy);
-            virzz += warp_move_dpp<float, 0xb1>(virzz);
-            virxy += warp_move_dpp<float, 0xb1>(virxy);
-            virxz += warp_move_dpp<float, 0xb1>(virxz);
-            viryz += warp_move_dpp<float, 0xb1>(viryz);
-            energy += warp_move_dpp<float, 0xb1>(energy);
+            virxx = viryy; // virxx now holds virxx and viryy pair sums
+            virzz = virxy; // virzz now holds virzz and virxy pair sums
+            virxz = viryz; // virxz now holds virxz and viryz pair sums
         }
 
-        if(warpSize > 2)
+        /* Making quad sums */
+        virxx += __shfl_down(virxx, 2, width);
+        virzz += __shfl_up(virzz, 2, width);
+        virxz += __shfl_down(virxz, 2, width);
+        energy += __shfl_up(energy, 2, width);
+        if (threadLocalId & 2)
         {
-            virxx += warp_move_dpp<float, 0x4e>(virxx);
-            viryy += warp_move_dpp<float, 0x4e>(viryy);
-            virzz += warp_move_dpp<float, 0x4e>(virzz);
-            virxy += warp_move_dpp<float, 0x4e>(virxy);
-            virxz += warp_move_dpp<float, 0x4e>(virxz);
-            viryz += warp_move_dpp<float, 0x4e>(viryz);
-            energy += warp_move_dpp<float, 0x4e>(energy);
+            virxx = virzz;  // virxx now holds quad sums of virxx, virxy, virzz and virxy
+            virxz = energy; // virxz now holds quad sums of virxz, viryz, energy and unused paddings
         }
 
-        if(warpSize > 4)
+        /* Making octet sums */
+        virxx += __shfl_down(virxx, 4, width);
+        virxz += __shfl_up(virxz, 4, width);
+        if (threadLocalId & 4)
         {
-            virxx += warp_move_dpp<float, 0x114>(virxx);
-            viryy += warp_move_dpp<float, 0x114>(viryy);
-            virzz += warp_move_dpp<float, 0x114>(virzz);
-            virxy += warp_move_dpp<float, 0x114>(virxy);
-            virxz += warp_move_dpp<float, 0x114>(virxz);
-            viryz += warp_move_dpp<float, 0x114>(viryz);
-            energy += warp_move_dpp<float, 0x114>(energy);
+            virxx = virxz; // virxx now holds all 7 components' octet sums + unused paddings
         }
 
-        if(warpSize > 8)
+        /* We only need to reduce virxx now */
+#pragma unroll
+        for (int delta = 8; delta < width; delta <<= 1)
         {
-            virxx += warp_move_dpp<float, 0x118>(virxx);
-            viryy += warp_move_dpp<float, 0x118>(viryy);
-            virzz += warp_move_dpp<float, 0x118>(virzz);
-            virxy += warp_move_dpp<float, 0x118>(virxy);
-            virxz += warp_move_dpp<float, 0x118>(virxz);
-            viryz += warp_move_dpp<float, 0x118>(viryz);
-            energy += warp_move_dpp<float, 0x118>(energy);
+            virxx += __shfl_down(virxx, delta, width);
         }
-
-        if(warpSize > 16)
-        {
-            virxx += warp_move_dpp<float, 0x142>(virxx);
-            viryy += warp_move_dpp<float, 0x142>(viryy);
-            virzz += warp_move_dpp<float, 0x142>(virzz);
-            virxy += warp_move_dpp<float, 0x142>(virxy);
-            virxz += warp_move_dpp<float, 0x142>(virxz);
-            viryz += warp_move_dpp<float, 0x142>(viryz);
-            energy += warp_move_dpp<float, 0x142>(energy);
-        }
-
-        if(warpSize > 32)
-        {
-            virxx += warp_move_dpp<float, 0x143>(virxx);
-            viryy += warp_move_dpp<float, 0x143>(viryy);
-            virzz += warp_move_dpp<float, 0x143>(virzz);
-            virxy += warp_move_dpp<float, 0x143>(virxy);
-            virxz += warp_move_dpp<float, 0x143>(virxz);
-            viryz += warp_move_dpp<float, 0x143>(viryz);
-            energy += warp_move_dpp<float, 0x143>(energy);
-        }
-
         /* Now first 7 threads of each warp have the full output contributions in virxx */
 
         const int  componentIndex      = threadLocalId & (warp_size - 1);
-        const bool validComponentIndex = (componentIndex == (warp_size - 1));
+        const bool validComponentIndex = (componentIndex < c_virialAndEnergyCount);
         /* Reduce 7 outputs per warp in the shared memory */
         const int stride =
                 8; // this is c_virialAndEnergyCount==7 rounded up to power of 2 for convenience, hence the assert
@@ -362,7 +311,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         if (validComponentIndex)
         {
             const int warpIndex                                     = threadLocalId / warp_size;
-            sm_virialAndEnergy[warpIndex * stride + componentIndex] = (virxx + viryy + virzz + virxy + virxz + viryz + energy);
+            sm_virialAndEnergy[warpIndex * stride + componentIndex] = virxx;
         }
         __syncthreads();
 
@@ -391,13 +340,12 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         {
             float output = sm_virialAndEnergy[threadLocalId];
 #pragma unroll
-            //for (int delta = stride; delta < warp_size; delta <<= 1)
-            for (int delta = (warp_size >> 1); delta > stride; delta >>= 1)
+            for (int delta = stride; delta < warp_size; delta <<= 1)
             {
                 output += __shfl_down(output, delta, warp_size);
             }
             /* Final output */
-            if (componentIndex == 0)
+            if (validComponentIndex)
             {
                 assert(isfinite(output));
                 atomicAddNoRet(gm_virialAndEnergy + componentIndex, output);
