@@ -196,8 +196,8 @@ static inline SimdFloat gmx_simdcall operator*(SimdFloat a, SimdFloat b)
 #if GMX_SIMD_X86_AVX_256
 static inline SimdFloat gmx_simdcall fma(SimdFloat a, SimdFloat b, SimdFloat c)
 {
-    return { _mm256_add_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_) };
-    //return { _mm256_fmadd_ps(a.simdInternal_, b.simdInternal_, c.simdInternal_) };
+    //return { _mm256_add_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_) };
+    return { _mm256_fmadd_ps(a.simdInternal_, b.simdInternal_, c.simdInternal_) };
 }
 
 static inline SimdFloat gmx_simdcall fms(SimdFloat a, SimdFloat b, SimdFloat c)
