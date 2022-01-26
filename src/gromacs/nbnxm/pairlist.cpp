@@ -556,10 +556,8 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
         dz_S1 = iz_S0 - jz1_S;
 
         /* rsq = dx*dx+dy*dy+dz*dz */
-        //rsq_S0 = norm2(dx_S0, dy_S0, dz_S0);
-        //rsq_S1 = norm2(dx_S1, dy_S1, dz_S1);
-        rsq_S0 = fma(dz_S0, dz_S0, fma(dy_S0, dy_S0, dx_S0 + dx_S0));
-        rsq_S1 = fma(dz_S1, dz_S1, fma(dy_S1, dy_S1, dx_S1 + dx_S1));
+        rsq_S0 = norm2(dx_S0, dy_S0, dz_S0);
+        rsq_S1 = norm2(dx_S1, dy_S1, dz_S1);
 
         wco_S0 = (rsq_S0 < rc2_S);
         wco_S1 = (rsq_S1 < rc2_S);
