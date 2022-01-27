@@ -334,7 +334,7 @@ GpuEventSynchronizer* GpuHaloExchange::Impl::communicateHaloCoordinates(const ma
 
     // wait for remote co-ordinates is implicit with process-MPI as non-local stream is synchronized before MPI calls
     // and MPI_Waitall call makes sure both neighboring ranks' non-local stream is synchronized before data transfer is initiated
-    if (GMX_THREAD_MPI && dimIndex_ == 0 && pulse_ == 0)
+    if (GMX_THREAD_MPI && pulse_ == 0)
     {
         enqueueWaitRemoteCoordinatesReadyEvent(dependencyEvent);
     }
