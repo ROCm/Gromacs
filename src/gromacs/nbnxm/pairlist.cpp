@@ -2123,7 +2123,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
     const int cj4_end   = nbl->sci.back().cj4IndEnd();
     const int j4len     = nbl->sci.back().cj4_length;
 #if GMX_GPU_HIP
-    if (j4len >= cj4len_max)
+    if (j4len > cj4len_max)
 #else
     if (j4len > 1 && j4len * c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize > nsp_max)
 #endif
@@ -3897,7 +3897,12 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
 #ifdef nsp_based_sort
         for (int cj4 = sci.cj4_ind_start; cj4 < sci.cj4IndEnd(); cj4++)
         {
-            nsp[index] += __builtin_popcount(nbl->cj4[cj4].imei[0].imask);
+            unsigned int mask = nbl->cj4[cj4].imei[0].imask;
+            for (int part = 1; part < c_nbnxnGpuClusterpairSplit; part++)
+            {
+                mask = mask | nbl->cj4[cj4].imei[part].imask;
+            }
+            nsp[index] += __builtin_popcount(mask);
         }
         int i = std::min(m, nsp[index]);
 #else
@@ -4025,13 +4030,21 @@ void PairlistSet::constructPairlists(const Nbnxm::GridSet&         gridSet,
         // The max cluster length in a block
         if( length_limit == INT_MAX)
         {
-            if(nsubpair_tot_est < 173238.0f)
+            if(nsubpair_tot_est < 50000.0f)
+            {
+                length_limit = 1;
+            }
+            else if(nsubpair_tot_est < 173238.0f)
             {
                 length_limit = 2;
             }
-            else if(nsubpair_tot_est < 8214000.0f)
+            else if(nsubpair_tot_est < 5476000.0f)
             {
-                length_limit = std::max(2, static_cast<int>(-4.36513679971916E-13 * gmx::square(nsubpair_tot_est) + 4.986422319562E-06 * nsubpair_tot_est + 1.49640163887637) );
+                length_limit = std::max(2, static_cast<int>(floor(5.22655114560176E-06 * nsubpair_tot_est + 0.863629662481255f + 0.5f)));
+            }
+            else if(nsubpair_tot_est < 25000000.0f)
+            {
+                length_limit = std::max(2, static_cast<int>(floor(3.36749200427678E-07 * nsubpair_tot_est + 28.2141791151241f + 0.5f)));
             }
         }
     }
