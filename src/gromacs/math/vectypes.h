@@ -46,6 +46,10 @@
 
 #include "gromacs/utility/real.h"
 
+#ifdef __HIPCC__
+#include <hip/hip_runtime.h>
+#endif
+
 #define XX 0 /* Defines for indexing in */
 #define YY 1 /* vectors                 */
 #define ZZ 2
@@ -100,8 +104,14 @@ public:
                   "BasicVector value type must not be a pointer.");
 
     //! Constructs default (uninitialized) vector.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector() {}
     //! Constructs a vector from given values.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector(ValueType x, ValueType y, ValueType z) : x_{ x, y, z } {}
     /*! \brief
      * Constructs a vector from given values.
@@ -110,10 +120,19 @@ public:
      * that allow, e.g., calling `std::vector<RVec>:``:push_back()` directly
      * with an `rvec` parameter.
      */
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector(const RawArray x) : x_{ x[XX], x[YY], x[ZZ] } {}
     //! Default copy constructor.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector(const BasicVector& src) = default;
     //! Default copy assignment operator.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector& operator=(const BasicVector& v) = default;
     //! Default move constructor.
     BasicVector(BasicVector&& src) noexcept = default;
