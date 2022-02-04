@@ -315,7 +315,23 @@ void GpuHaloExchange::Impl::communicateHaloForces(bool accumulateForces)
         if (!accumulateForces)
         {
             // Clear local portion of force array (in local stream)
-            hipMemsetAsync(d_f, 0, numHomeAtoms_ * sizeof(rvec), localStream_.stream());
+            //hipMemsetAsync(d_f, 0, numHomeAtoms_ * sizeof(rvec), localStream_.stream());
+
+            KernelLaunchConfig config;
+            constexpr unsigned int blockSize = 256;
+            constexpr unsigned int itemsPerThread = 12;
+            constexpr unsigned int itemsPerBlock = blockSize * itemsPerThread;
+
+            config.blockSize[0] = blockSize;
+            config.blockSize[1] = 1;
+            config.blockSize[2] = 1;
+            config.gridSize[0]  = (numHomeAtoms_ + itemsPerBlock) / itemsPerBlock;
+            config.gridSize[1]  = 1;
+            config.gridSize[2]  = 1;
+
+            auto kernelPtr            = kernel_fill<blockSize,itemsPerThread, float3>;
+            launchGpuKernel(kernelPtr, config, localStream_, nullptr, "kernel_fill_gpu_halo", d_f, float3{0.f, 0.f, 0.f}, size_t(numHomeAtoms_));
+
         }
 
         // ensure non-local stream waits for local stream, due to dependence on
