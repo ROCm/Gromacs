@@ -1329,7 +1329,8 @@ int Mdrunner::mdrunner()
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
 
-    const bool canUseDirectGpuComm = decideWhetherDirectGpuCommunicationCanBeUsed(devFlags, mdlog);
+    const bool canUseDirectGpuComm = decideWhetherDirectGpuCommunicationCanBeUsed(
+            devFlags, inputrec->useMts, (inputrec->eSwapCoords != SwapType::No), mdlog);
 
     bool useGpuDirectHalo = false;
 
