@@ -108,7 +108,7 @@ public:
     __host__ __device__
 #endif
     BasicVector() {}
-    //! Constructs a vector from given values.
+    //! Constructs a vector from given values.        
 #ifdef __HIPCC__
     __host__ __device__
 #endif

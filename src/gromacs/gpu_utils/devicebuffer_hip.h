@@ -213,7 +213,7 @@ template<
 __device__ inline
 void block_store_direct_striped(unsigned int flat_id,
                                 T* block_output,
-                                T* items,
+                                T (&items)[ItemsPerThread],
                                 unsigned int valid)
 {
     T* thread_iter = block_output + flat_id;
@@ -236,7 +236,7 @@ template<
 __device__ inline
 void block_store_direct_striped(unsigned int flat_id,
                                 T* block_output,
-                                T* items)
+                                T (&items)[ItemsPerThread])
 {
     T* thread_iter = block_output + flat_id;
     #pragma unroll
@@ -262,8 +262,8 @@ __global__ void kernel_fill(
     const unsigned int flat_id = threadIdx.x;
     const unsigned int flat_block_id = blockIdx.x;
     const unsigned int block_offset = flat_block_id * items_per_block;
-    const unsigned int number_of_blocks = gridDim.x;
-    const unsigned int valid_in_last_block = size - block_offset;
+    const unsigned int number_of_blocks = (size + items_per_block - 1)/items_per_block;
+    const auto valid_in_last_block = size - items_per_block * (number_of_blocks - 1);
 
     T values[ItemsPerThread];
 
@@ -302,14 +302,15 @@ __global__ void kernel_fill(
  * \param[in]     deviceStream    GPU stream.
  */
 template<typename ValueType>
+__forceinline__
 void clearDeviceBufferAsync(DeviceBuffer<ValueType>* buffer,
                             size_t                   startingOffset,
                             size_t                   numValues,
                             const DeviceStream&      deviceStream)
 {
     GMX_ASSERT(buffer, "needs a buffer pointer");
-    const size_t bytes   = numValues * sizeof(ValueType);
-    const int pattern = 0;
+    //const size_t bytes   = numValues * sizeof(ValueType);
+    //const int pattern = 0;
 
     //hipError_t stat = hipMemsetAsync(*((ValueType**)buffer) + startingOffset, pattern, bytes,
     //                                   deviceStream.stream());
@@ -322,12 +323,45 @@ void clearDeviceBufferAsync(DeviceBuffer<ValueType>* buffer,
     config.blockSize[0] = blockSize;
     config.blockSize[1] = 1;
     config.blockSize[2] = 1;
-    config.gridSize[0]  = (numValues + itemsPerBlock) / itemsPerBlock;
+    config.gridSize[0]  = (numValues + itemsPerBlock - 1) / itemsPerBlock;
     config.gridSize[1]  = 1;
     config.gridSize[2]  = 1;
 
     auto kernelPtr            = kernel_fill<blockSize,itemsPerThread, ValueType>;
     launchGpuKernel(kernelPtr, config, deviceStream, nullptr, "kernel_fill", *((ValueType**)buffer) + startingOffset, ValueType(0), numValues);
+
+    //GMX_RELEASE_ASSERT(stat == hipSuccess,
+    //                   ("Couldn't clear the device buffer. " + gmx::getDeviceErrorString(stat)).c_str());
+}
+
+template<>
+__forceinline__
+void clearDeviceBufferAsync(DeviceBuffer<gmx::BasicVector<float>>* buffer,
+                            size_t                                 startingOffset,
+                            size_t                                 numValues,
+                            const DeviceStream&                    deviceStream)
+{
+    GMX_ASSERT(buffer, "needs a buffer pointer");
+    //const size_t bytes   = numValues * sizeof(ValueType);
+    //const int pattern = 0;
+
+    //hipError_t stat = hipMemsetAsync(*((ValueType**)buffer) + startingOffset, pattern, bytes,
+    //                                   deviceStream.stream());
+
+    KernelLaunchConfig config;
+    constexpr unsigned int blockSize = 256;
+    constexpr unsigned int itemsPerThread = 12;
+    constexpr unsigned int itemsPerBlock = blockSize * itemsPerThread;
+
+    config.blockSize[0] = blockSize;
+    config.blockSize[1] = 1;
+    config.blockSize[2] = 1;
+    config.gridSize[0]  = (numValues + itemsPerBlock - 1) / itemsPerBlock;
+    config.gridSize[1]  = 1;
+    config.gridSize[2]  = 1;
+
+    auto kernelPtr            = kernel_fill<blockSize,itemsPerThread, gmx::BasicVector<float>>;
+    launchGpuKernel(kernelPtr, config, deviceStream, nullptr, "kernel_fill", *((gmx::BasicVector<float>**)buffer) + startingOffset, gmx::BasicVector<float>(0.f, 0.f, 0.f), numValues);
 
     //GMX_RELEASE_ASSERT(stat == hipSuccess,
     //                   ("Couldn't clear the device buffer. " + gmx::getDeviceErrorString(stat)).c_str());
