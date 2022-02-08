@@ -55,7 +55,6 @@
 
 #    include "state_propagator_data_gpu_impl.h"
 
-
 namespace gmx
 {
 

@@ -325,7 +325,7 @@ void GpuHaloExchange::Impl::communicateHaloForces(bool accumulateForces)
             config.blockSize[0] = blockSize;
             config.blockSize[1] = 1;
             config.blockSize[2] = 1;
-            config.gridSize[0]  = (numHomeAtoms_ + itemsPerBlock) / itemsPerBlock;
+            config.gridSize[0]  = (numHomeAtoms_ + itemsPerBlock - 1) / itemsPerBlock;
             config.gridSize[1]  = 1;
             config.gridSize[2]  = 1;
 
