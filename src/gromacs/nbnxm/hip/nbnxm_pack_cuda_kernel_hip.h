@@ -220,8 +220,13 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj + 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
-    float*               e_el        = atdat.e_el + 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
+#        ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+    const unsigned int energy_index_base = 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
+#        else
+    const unsigned int energy_index_base = 0;
+#        endif     /* GMX_ENABLE_MEMORY_MULTIPLIER */
+    float*               e_lj            = atdat.e_lj + energy_index_base;
+    float*               e_el            = atdat.e_el + energy_index_base;
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
@@ -791,7 +796,12 @@ __launch_bounds__(THREADS_PER_BLOCK)
 
         if( tidxi == 0 && tidxj < 3 )
         {
-            atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)))].x) + tidxj, fshift_buf);
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+            const unsigned int shift_index_base = SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+#else
+            const unsigned int shift_index_base = 0;
+#endif
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].x) + tidxj, fshift_buf);
         }
     }
 
