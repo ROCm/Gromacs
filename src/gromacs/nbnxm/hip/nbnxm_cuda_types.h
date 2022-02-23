@@ -76,9 +76,17 @@ const int c_cudaPruneKernelJ4Concurrency = GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
 /*! \brief cluster size = number of atoms per cluster. */
 static constexpr int c_clSize = c_nbnxnGpuClusterSize;
 
-// The memory multiplier can be turned off with values 0
-static constexpr unsigned int c_clEnergyMemoryMultiplier = 64U;
-static constexpr unsigned int c_clShiftMemoryMultiplier = 64U;
+// The memory multiplier feature
+#define GMX_ENABLE_MEMORY_MULTIPLIER
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+    static constexpr unsigned int c_clEnergyMemoryMultiplier = 64U;
+    static constexpr unsigned int c_clShiftMemoryMultiplier  = 64U;
+#else
+    static constexpr unsigned int c_clEnergyMemoryMultiplier = 1U;
+    static constexpr unsigned int c_clShiftMemoryMultiplier  = 1U;
+#endif
+static constexpr unsigned int c_clEnergyMemorySize = c_clEnergyMemoryMultiplier == 1U ? 1U : c_clEnergyMemoryMultiplier + 1U;
+static constexpr unsigned int c_clShiftMemorySize = c_clShiftMemoryMultiplier == 1U ? 1U : c_clShiftMemoryMultiplier + 1U;
 
 /* All structs prefixed with "cu_" hold data used in GPU calculations and
  * are passed to the kernels, except cu_timers_t. */

@@ -203,8 +203,14 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj + 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
-    float*               e_el        = atdat.e_el + 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
+
+#        ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+    const unsigned int energy_index_base = 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
+#        else
+    const unsigned int energy_index_base = 0;
+#        endif     /* GMX_ENABLE_MEMORY_MULTIPLIER */
+    float*               e_lj            = atdat.e_lj + energy_index_base;
+    float*               e_el            = atdat.e_el + energy_index_base;
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
@@ -656,7 +662,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
         if (tidx == (c_clSize - 1))
         {
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
             const unsigned int shift_index_base = SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+#else
+            const unsigned int shift_index_base = 0;
+#endif
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
             atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
             atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
