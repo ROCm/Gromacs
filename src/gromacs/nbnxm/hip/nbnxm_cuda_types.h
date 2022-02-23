@@ -77,6 +77,7 @@ const int c_cudaPruneKernelJ4Concurrency = GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
 static constexpr int c_clSize = c_nbnxnGpuClusterSize;
 
 // The memory multiplier feature
+#define GMX_ENABLE_MEMORY_MULTIPLIER
 #ifdef GMX_ENABLE_MEMORY_MULTIPLIER
     static constexpr unsigned int c_clEnergyMemoryMultiplier = 64U;
     static constexpr unsigned int c_clShiftMemoryMultiplier  = 64U;
