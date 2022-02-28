@@ -111,7 +111,7 @@ int __device__ __forceinline__ pme_gpu_check_atom_charge(const float coefficient
 }
 
 //! Controls if the atom and charge data is prefeched into shared memory or loaded per thread from global
-static const bool c_useAtomDataPrefetch = false;
+static const bool c_useAtomDataPrefetch = true;
 
 /*! \brief Asserts if the argument is finite.
  *
@@ -184,7 +184,7 @@ __device__ __forceinline__ void pme_gpu_stage_atom_data(T* __restrict__ sm_desti
  * \param[out] sm_gridlineIndices   Atom gridline indices in the shared memory.
  */
 
-template<int order, int atomsPerBlock, int atomsPerWarp, bool writeSmDtheta, bool writeGlobal, ThreadsPerAtom threadsPerAtom>
+template<int order, int atomsPerBlock, int atomsPerWarp, bool writeSmDtheta, bool writeGlobal>
 __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams kernelParams,
                                                   const int                    atomIndexOffset,
                                                   const float3                 atomX,
@@ -212,16 +212,17 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
     const int atomIndexLocal = warpIndex * atomsPerWarp + atomWarpIndex;
 
     /* Spline contribution index in one dimension */
-    const int orderIndex      = threadIdx.y;
+    const int threadLocalIdXY = (threadIdx.y * blockDim.x) + threadIdx.x;
+    const int orderIndex      = threadLocalIdXY / DIM;
     /* Dimension index */
-    const int dimIndex = threadIdx.x;
+    const int dimIndex = threadLocalIdXY % DIM;
 
     /* Multi-purpose index of rvec/ivec atom data */
     const int sharedMemoryIndex = atomIndexLocal * DIM + dimIndex;
 
     float splineData[order];
 
-    const int localCheck = dimIndex < DIM;
+    const int localCheck = (dimIndex < DIM) && (orderIndex < 1);
 
     /* we have 4 threads per atom, but can only use 3 here for the dimensions */
     if (localCheck)
@@ -288,7 +289,6 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
                         sm_gridlineIndices[sharedMemoryIndex];
             }
         }
-	__syncthreads();
 
         /* B-spline calculation */
 
@@ -327,8 +327,6 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             if (writeSmDtheta || writeGlobal)
             {
                 /* Differentiation and storing the spline derivatives (dtheta) */
-		const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
-                const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
 #pragma unroll
                 for (o = 0; o < order; o++)
                 {
@@ -362,8 +360,6 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             splineData[0] = div * (1.0f - dr) * splineData[0];
 
             /* Storing the spline values (theta) */
-	    const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
-            const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
 #pragma unroll
             for (o = 0; o < order; o++)
             {
