@@ -45,6 +45,7 @@
 
 #include <array>
 #include <vector>
+#include <roctx.h>
 
 #include "gromacs/math/functions.h"
 #include "gromacs/mdtypes/commrec.h"
@@ -338,6 +339,9 @@ static void debug_stop_check(gmx_wallcycle_t wc, int ewc)
 void wallcycle_start(gmx_wallcycle_t wc, int ewc)
 {
     gmx_cycles_t cycle;
+    char message[256];
+    sprintf(message, "%s\0", wcn[ewc]);
+    roctxRangePush(message);
 
     if (wc == nullptr)
     {
@@ -444,6 +448,7 @@ double wallcycle_stop(gmx_wallcycle_t wc, int ewc)
         }
     }
 
+    roctxRangePop();
     return last;
 }
 
