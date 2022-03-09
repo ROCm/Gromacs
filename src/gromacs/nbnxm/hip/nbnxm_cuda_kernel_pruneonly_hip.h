@@ -159,24 +159,24 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
     /*********************************************************************/
 
 
-    nbnxn_sci_t nb_sci;// =
-    //        pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
-    int sci       ;// = nb_sci.sci;           /* super-cluster */
-    int cij4_start;// = nb_sci.cj4_ind_start; /* first ...*/
-    int cij4_end  ;// = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+    nbnxn_sci_t nb_sci =
+            pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
+    int sci        = nb_sci.sci;           /* super-cluster */
+    int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
+    int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
-    if ((tidx & (warpSize - 1)) == 0)
+    /*if ((tidx & (warpSize - 1)) == 0)
     {
-        nb_sci     = pl_sci[bidx * numParts + part];         /* my i super-cluster's index = current bidx */
-        sci        = nb_sci.sci;           /* super-cluster */
-        cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-        cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
+        nb_sci     = pl_sci[bidx * numParts + part];
+        sci        = nb_sci.sci;
+        cij4_start = nb_sci.cj4_ind_start;
+        cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;
     }
 
     sci          = __shfl(sci, 0, warpSize);
     nb_sci.shift = __shfl(nb_sci.shift, 0, warpSize);
     cij4_start   = __shfl(cij4_start, 0, warpSize);
-    cij4_end     = __shfl(cij4_end, 0, warpSize);
+    cij4_end     = __shfl(cij4_end, 0, warpSize);*/
 
 
     if (tidxz == 0 && tidxj == 0)
@@ -280,6 +280,8 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4[j4].imei[widx].imask = imaskNew;
         }
+        // avoid shared memory WAR hazards between loop iterations
+        __builtin_amdgcn_wave_barrier();
     }
 }
 #endif /* FUNCTION_DECLARATION_ONLY */

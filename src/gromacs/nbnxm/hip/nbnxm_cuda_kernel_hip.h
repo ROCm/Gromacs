@@ -287,6 +287,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     if (tidxz == 0)
     {
         i = tidxj;
+        {
 #else
     if (tidxz == 0 && tidxj == 0)
     {
@@ -623,6 +624,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         pl_cj4[j4].imei[widx].imask = imask;
 #    endif
     }
+    // avoid shared memory WAR hazards between loop iterations
+    __builtin_amdgcn_wave_barrier();
 
     /* skip central shifts when summing shift forces */
     if (nb_sci.shift == CENTRAL)
@@ -660,7 +663,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
         fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
 
+#ifndef __gfx1030__
         if (tidx == (c_clSize - 1))
+#else
+        if ( tidx == (c_clSize - 1) || tidx == (c_subWarp + c_clSize - 1) )
+#endif
         {
 #ifdef GMX_ENABLE_MEMORY_MULTIPLIER
             const unsigned int shift_index_base = SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
@@ -668,9 +675,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             const unsigned int shift_index_base = 0;
 #endif
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-            atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
-            atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
-            atomicAddNoRet(&(atdat.fshift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
 #else
             atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
             atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);

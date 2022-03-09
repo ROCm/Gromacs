@@ -45,8 +45,8 @@ if(GMX_GPU_HIP)
 
     file(GLOB NBNXM_HIP_SOURCES
          nbnxm_cuda_hip.cpp
-	 nbnxm_cuda_data_mgmt_hip.cpp
+         nbnxm_cuda_data_mgmt_hip.cpp
          nbnxm_cuda_jit_support_hip.cppp
-	 ${NBNXM_HIP_KERNEL_SOURCES})
+         ${NBNXM_HIP_KERNEL_SOURCES})
     set(NBNXM_SOURCES ${NBNXM_SOURCES} ${NBNXM_HIP_SOURCES} PARENT_SCOPE)
 endif()

@@ -133,7 +133,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
     const int gridLineIndex     = threadLocalId / gridLineSize;
     const int gridLineCellIndex = threadLocalId - gridLineSize * gridLineIndex;
     const int gridLinesPerBlock = max(blockDim.x / gridLineSize, 1);
-    const int activeWarps       = (blockDim.x / warp_size);
+    const int activeWarps       = (blockDim.x / warpSize);
     const int indexMinor        = blockIdx.x * blockDim.x + gridLineCellIndex;
     const int indexMiddle       = blockIdx.y * gridLinesPerBlock + gridLineIndex;
     const int indexMajor        = blockIdx.z;
@@ -300,6 +300,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         viryz += warp_move_dpp<float, 0x118>(viryz);
         energy += warp_move_dpp<float, 0x118>(energy);
 
+#ifndef __gfx1030__
         virxx += warp_move_dpp<float, 0x142>(virxx);
         viryy += warp_move_dpp<float, 0x142>(viryy);
         virzz += warp_move_dpp<float, 0x142>(virzz);
@@ -307,7 +308,17 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         virxz += warp_move_dpp<float, 0x142>(virxz);
         viryz += warp_move_dpp<float, 0x142>(viryz);
         energy += warp_move_dpp<float, 0x142>(energy);
+#else
+        virxx += __shfl(virxx, 15, warpSize);
+        viryy += __shfl(viryy, 15, warpSize);
+        virzz += __shfl(virzz, 15, warpSize);
+        virxy += __shfl(virxy, 15, warpSize);
+        virxz += __shfl(virxz, 15, warpSize);
+        viryz += __shfl(viryz, 15, warpSize);
+        energy += __shfl(energy, 15, warpSize);
+#endif
 
+#ifndef __gfx1030__
         if (warpSize > 32)
         {
             virxx += warp_move_dpp<float, 0x143>(virxx);
@@ -318,16 +329,15 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
             viryz += warp_move_dpp<float, 0x143>(viryz);
             energy += warp_move_dpp<float, 0x143>(energy);
         }
-
-        const int componentIndex = threadLocalId & (warp_size - 1);
-        const int warpIndex      = threadLocalId / warp_size;
+#endif
+        const int componentIndex = threadLocalId & (warpSize - 1);
 
         assert(c_virialAndEnergyCount == 7);
-        __shared__ float sm_virialAndEnergy[c_virialAndEnergyCount][warp_size];
+        __shared__ float sm_virialAndEnergy[c_virialAndEnergyCount][warpSize];
 
-        if (componentIndex == (warp_size - 1))
+        if (componentIndex == (warpSize - 1))
         {
-            const int warpIndex              = threadLocalId / warp_size;
+            const int warpIndex              = threadLocalId / warpSize;
             sm_virialAndEnergy[0][warpIndex] = virxx;
             sm_virialAndEnergy[1][warpIndex] = viryy;
             sm_virialAndEnergy[2][warpIndex] = virzz;
@@ -341,7 +351,7 @@ __launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUT
         /* Now use shuffle again for each component */
         /* NOTE: This reduction assumes that activeWarps is a power of two
          */
-         assert(activeWarps * stride >= warp_size);
+         //assert(activeWarps * stride >= warpSize);
          if (threadLocalId < activeWarps)
          {
              virxx = sm_virialAndEnergy[0][threadLocalId];

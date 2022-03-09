@@ -23,16 +23,38 @@ constexpr float c_nbnxnMinDistanceSquared = 3.82e-07F; // r > 6.2e-4
 #define N_IVEC (N_BOX_Z * N_BOX_Y * N_BOX_X)
 #define CENTRAL (N_IVEC / 2)
 
+#define DISABLE_CUDA_TEXTURES
+
+#ifndef M_FLOAT_1_SQRTPI /* used in GPU kernels */
+/* 1.0 / sqrt(M_PI) */
+#    define M_FLOAT_1_SQRTPI 0.564189583547756f
+#endif
+
 static constexpr int c_nbnxnGpuClusterSize = 8;
-static constexpr int c_nbnxnGpuClusterpairSplit = 1;
+static constexpr int c_nbnxnGpuClusterpairSplit = 2;
 static const int c_clSize = c_nbnxnGpuClusterSize;
 static const int c_numClPerSupercl = c_nbnxnGpuNumClusterPerSupercluster;
 static constexpr int c_nbnxnGpuExclSize =
         c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit;
+
+constexpr int c_subWarp = 64 / c_nbnxnGpuClusterpairSplit;
+/*! \brief Log of the i and j cluster size.
+ *  change this together with c_clSize !*/
+static const int __device__ c_clSizeLog2 = 3;
+/*! \brief Square of cluster size. */
+static const int __device__ c_clSizeSq = c_clSize * c_clSize;
+/*! \brief j-cluster size after split (4 in the current implementation). */
+static const int __device__ c_splitClSize = c_clSize / c_nbnxnGpuClusterpairSplit;
+/*! \brief Stride in the force accumualation buffer */
+static const int __device__ c_fbufStride = c_clSizeSq;
+/*! \brief i-cluster interaction mask for a super-cluster with all c_nbnxnGpuNumClusterPerSupercluster=8 bits set */
+static const unsigned __device__ superClInteractionMask =
+        ((1U << c_nbnxnGpuNumClusterPerSupercluster) - 1U);
+
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
-static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
-static const int warp_size_log2 = 6;
+
+static const unsigned int c_fullWarpMask = 0xffffffff;
 
 struct shift_consts_t
 {
@@ -157,6 +179,36 @@ typedef struct gpu_plist
     int  rollingPruningPart; /**< the next part to which the roling pruning needs to be applied */
 }cu_plist_t;
 
+template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
+__device__ inline
+T warp_move_dpp(const T& input) {
+    constexpr int words_no = (sizeof(T) + sizeof(int) - 1) / sizeof(int);
+
+    struct V { int words[words_no]; };
+    V a = __builtin_bit_cast(V, input);
+    #pragma unroll
+    for (int i = 0; i < words_no; i++) {
+        a.words[i] = __builtin_amdgcn_update_dpp(
+          0, a.words[i],
+          dpp_ctrl, row_mask, bank_mask, bound_ctrl
+        );
+    }
+
+    return __builtin_bit_cast(T, a);
+}
+
+__device__ __forceinline__ int __nb_any(int predicate,int widx)
+{
+    if (c_subWarp == warpSize)
+    {
+        return __any(predicate);
+    }
+    else
+    {
+        return (int)(__ballot(predicate) >> (widx * c_subWarp));
+    }
+}
+
 __forceinline__ __host__ __device__ float norm2(float3 a)
 {
     return (a.x * a.x + a.y * a.y + a.z * a.z);
@@ -184,6 +236,17 @@ static __forceinline__ __device__ void
     *c12   = *c6 * sigma6;
 }
 
+static __forceinline__ __device__ void
+                       convert_sigma_epsilon_to_c6_c12(const float2 sigma, const float2 epsilon, float2* c6, float2* c12)
+{
+    float2 sigma2, sigma6;
+
+    sigma2 = sigma * sigma;
+    sigma6 = sigma2 * sigma2 * sigma2;
+    *c6    = epsilon * sigma6;
+    *c12   = *c6 * sigma6;
+}
+
 static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, const cu_nbparam_t nbparam, int baseIndex)
 {
     float2* nbfp = (float2*)nbparam.nbfp;
@@ -193,95 +256,188 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, 
     c12   = c6c12.y;
 }
 
-static __forceinline__ __device__ void
-                       reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx)
+/*! Calculate analytical Ewald correction term. */
+static __forceinline__ __device__ float pmecorrF(float z2)
 {
-    f.x += __shfl_down(f.x, 1);
-    f.y += __shfl_up(f.y, 1);
-    f.z += __shfl_down(f.z, 1);
+    constexpr float FN6 = -1.7357322914161492954e-8f;
+    constexpr float FN5 = 1.4703624142580877519e-6f;
+    constexpr float FN4 = -0.000053401640219807709149f;
+    constexpr float FN3 = 0.0010054721316683106153f;
+    constexpr float FN2 = -0.019278317264888380590f;
+    constexpr float FN1 = 0.069670166153766424023f;
+    constexpr float FN0 = -0.75225204789749321333f;
 
-    if (tidxi & 1)
-    {
-        f.x = f.y;
-    }
+    constexpr float FD4 = 0.0011193462567257629232f;
+    constexpr float FD3 = 0.014866955030185295499f;
+    constexpr float FD2 = 0.11583842382862377919f;
+    constexpr float FD1 = 0.50736591960530292870f;
+    constexpr float FD0 = 1.0f;
 
-    f.x += __shfl_down(f.x, 2);
-    f.z += __shfl_up(f.z, 2);
+    float z4;
+    float polyFN0, polyFN1, polyFD0, polyFD1;
 
-    if (tidxi & 2)
-    {
-        f.x = f.z;
-    }
+    z4 = z2 * z2;
 
-    f.x += __shfl_down(f.x, 4);
+    polyFD0 = FD4 * z4 + FD2;
+    polyFD1 = FD3 * z4 + FD1;
+    polyFD0 = polyFD0 * z4 + FD0;
+    polyFD0 = polyFD1 * z2 + polyFD0;
 
-    if (tidxi < 3)
-    {
-        atomicAdd((&fout[aidx].x) + tidxi, f.x);
-    }
+    polyFD0 = 1.0f / polyFD0;
+
+    polyFN0 = FN6 * z4 + FN4;
+    polyFN1 = FN5 * z4 + FN3;
+    polyFN0 = polyFN0 * z4 + FN2;
+    polyFN1 = polyFN1 * z4 + FN1;
+    polyFN0 = polyFN0 * z4 + FN0;
+    polyFN0 = polyFN1 * z2 + polyFN0;
+
+    return polyFN0 * polyFD0;
 }
 
+/*! Final j-force reduction; this implementation only with power of two
+ *  array sizes.
+ */
+static __forceinline__ __device__ void
+                       reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
+{
+    /*for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
+    {
+        f.x += __shfl_down(f.x, offset);
+        f.y += __shfl_down(f.y, offset);
+        f.z += __shfl_down(f.z, offset);
+    }*/
+
+    f.x += warp_move_dpp<float, 0xb1>(f.x);
+    f.y += warp_move_dpp<float, 0xb1>(f.y);
+    f.z += warp_move_dpp<float, 0xb1>(f.z);
+
+    f.x += warp_move_dpp<float, 0x4e>(f.x);
+    f.y += warp_move_dpp<float, 0x4e>(f.y);
+    f.z += warp_move_dpp<float, 0x4e>(f.z);
+
+    f.x += warp_move_dpp<float, 0x114>(f.x);
+    f.y += warp_move_dpp<float, 0x114>(f.y);
+    f.z += warp_move_dpp<float, 0x114>(f.z);
+
+    //if (tidxi == 0)
+    if (tidxi == c_clSize - 1)
+    {
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAdd((&fout[aidx].x), f.x);
+        atomicAdd((&fout[aidx].y), f.y);
+        atomicAdd((&fout[aidx].z), f.z);
+#else
+        atomicAddOverWriteForFloat((&fout[aidx].x), f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].y), f.y);
+        atomicAddOverWriteForFloat((&fout[aidx].z), f.z);
+#endif
+    }
+}
 static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
                                                                 float3*            fout,
-                                                                float*             fshift_buf,
+                                                                float3&            fshift_buf,
                                                                 bool               bCalcFshift,
                                                                 int                tidxj,
-                                                                int                aidx)
+                                                                int                aidx,
+                                                                const unsigned long activemask)
 {
-    fin.x += __shfl_down(fin.x, c_clSize);
-    fin.y += __shfl_up(fin.y, c_clSize);
-    fin.z += __shfl_down(fin.z, c_clSize);
-
-    if (tidxj & 1)
+    #pragma unroll
+    for (int offset = warpSize >> 1; offset >= c_clSize; offset >>= 1)
     {
-        fin.x = fin.y;
+        fin.x += __shfl_down(fin.x, offset);
+        fin.y += __shfl_down(fin.y, offset);
+        fin.z += __shfl_down(fin.z, offset);
     }
 
-    fin.x += __shfl_down(fin.x, 2 * c_clSize);
-    fin.z += __shfl_up(fin.z, 2 * c_clSize);
-
-    if (tidxj & 2)
+    if (tidxj % (warpSize / c_clSize) == 0)
     {
-        fin.x = fin.z;
-    }
-
-    fin.x += __shfl_down(fin.x, 4*c_clSize);
-
-    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-    if (tidxj < 3)
-    {
-        atomicAdd(&fout[aidx].x + tidxj, fin.x);
+        atomicAdd((&fout[aidx].x), fin.x);
+        atomicAdd((&fout[aidx].y), fin.y);
+        atomicAdd((&fout[aidx].z), fin.z);
 
         if (bCalcFshift)
         {
-            *fshift_buf += fin.x;
+            fshift_buf.x += fin.x;
+            fshift_buf.y += fin.y;
+            fshift_buf.z += fin.z;
         }
     }
 }
 
+/*! Energy reduction; this implementation works only with power of two
+ *  array sizes.
+ */
 static __forceinline__ __device__ void
                        reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
 {
-    int i, sh;
-
-    sh = 1;
-#pragma unroll warp_size_log2
-    for (i = 0; i < warp_size_log2; i++)
+    /*for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
     {
-        E_lj += __shfl_down(E_lj, sh);
-        E_el += __shfl_down(E_el, sh);
-        sh += sh;
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
+    }*/
+
+    if(c_subWarp > 1)
+    {
+        E_lj += warp_move_dpp<float, 0xb1>(E_lj);
+        E_el += warp_move_dpp<float, 0xb1>(E_el);
+    }
+
+    if(c_subWarp > 2)
+    {
+        E_lj += warp_move_dpp<float, 0x4e>(E_lj);
+        E_el += warp_move_dpp<float, 0x4e>(E_el);
+    }
+
+    if(c_subWarp > 4)
+    {
+        E_lj += warp_move_dpp<float, 0x114>(E_lj);
+        E_el += warp_move_dpp<float, 0x114>(E_el);
+    }
+
+    if(c_subWarp > 8)
+    {
+        E_lj += warp_move_dpp<float, 0x118>(E_lj);
+        E_el += warp_move_dpp<float, 0x118>(E_el);
+    }
+
+    if(c_subWarp > 16)
+    {
+#ifndef __gfx1030__
+        E_lj += warp_move_dpp<float, 0x142>(E_lj);
+        E_el += warp_move_dpp<float, 0x142>(E_el);
+#else
+        E_lj += __shfl(E_lj, 15, warpSize);
+        E_el += __shfl(E_el, 15, warpSize);
+#endif
+    }
+
+    if(c_subWarp > 32)
+    {
+#ifndef __gfx1030__
+        E_lj += warp_move_dpp<float, 0x143>(E_lj);
+        E_el += warp_move_dpp<float, 0x143>(E_el);
+#else
+        E_lj += __shfl_up(E_lj, 16, warpSize);
+        E_el += __shfl_up(E_el, 16, warpSize);
+#endif
     }
 
     /* The first thread in the warp writes the reduced energies */
-    if (tidx == 0)
+    //if ((tidx & (c_subWarp - 1)) == 0)
+    if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
     {
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
         atomicAdd(e_lj, E_lj);
         atomicAdd(e_el, E_el);
+#else
+        atomicAddOverWriteForFloat(e_lj, E_lj);
+        atomicAddOverWriteForFloat(e_el, E_el);
+#endif
     }
 }
 
-#define EL_RF
+#define EL_EWALD_ANA
 #define LJ_COMB_LB
 #define CALC_ENERGIES
 
@@ -290,22 +446,32 @@ static __forceinline__ __device__ void
 #    define EL_EWALD_ANY
 #endif
 
-#if defined EL_EWALD_ANY || defined EL_RF || defined LJ_EWALD \
-        || (defined EL_CUTOFF && defined CALC_ENERGIES)
-
-#    define EXCLUSION_FORCES
+#if defined LJ_EWALD_COMB_GEOM || defined LJ_EWALD_COMB_LB
+/* Note: convenience macro, needs to be undef-ed at the end of the file. */
+#    define LJ_EWALD
 #endif
 
-#if defined LJ_EWALD_COMB_GEOM || defined LJ_EWALD_COMB_LB
-#    define LJ_EWALD
+#if defined EL_EWALD_ANY || defined EL_RF || defined LJ_EWALD \
+        || (defined EL_CUTOFF && defined CALC_ENERGIES)
+/* Macro to control the calculation of exclusion forces in the kernel
+ * We do that with Ewald (elec/vdw) and RF. Cut-off only has exclusion
+ * energy terms.
+ *
+ * Note: convenience macro, needs to be undef-ed at the end of the file.
+ */
+#    define EXCLUSION_FORCES
 #endif
 
 #if defined LJ_COMB_GEOM || defined LJ_COMB_LB
 #    define LJ_COMB
 #endif
+#define NTHREAD_Z 1
 
-#define NTHREAD_Z (1)
-#define MIN_BLOCKS_PER_MP (16)
+#ifdef CALC_ENERGIES
+#    define MIN_BLOCKS_PER_MP 6
+#else
+#    define MIN_BLOCKS_PER_MP 8
+#endif
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
 //#ifdef PRUNE_NBL
@@ -322,8 +488,7 @@ static __forceinline__ __device__ void
 //#    endif /* CALC_ENERGIES */
 //#endif     /* PRUNE_NBL */
 
-//__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
-__launch_bounds__(THREADS_PER_BLOCK)
+__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbparam, const cu_plist_t plist, bool bCalcFshift)
 {
     /* convenience variables */
@@ -362,6 +527,8 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
     float                rlist_sq    = nbparam.rlistOuter_sq;
 #    endif
 
+    unsigned int bidx = blockIdx.x;
+
 #    ifdef CALC_ENERGIES
 #        ifdef EL_EWALD_ANY
     float                beta        = nbparam.ewald_beta;
@@ -369,20 +536,27 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj;
-    float*               e_el        = atdat.e_el;
+
+#        ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+    const unsigned int energy_index_base = 1 + (bidx & (c_clEnergyMemoryMultiplier - 1));
+#        else
+    const unsigned int energy_index_base = 0;
+#        endif     /* GMX_ENABLE_MEMORY_MULTIPLIER */
+    float*               e_lj            = atdat.e_lj + energy_index_base;
+    float*               e_el            = atdat.e_el + energy_index_base;
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
     unsigned int tidxi = threadIdx.x;
     unsigned int tidxj = threadIdx.y;
-    unsigned int tidx  = threadIdx.y * blockDim.x + threadIdx.x;
+    unsigned int tidx  = threadIdx.y * c_clSize + threadIdx.x;
 #    if NTHREAD_Z == 1
     unsigned int tidxz = 0;
 #    else
     unsigned int  tidxz = threadIdx.z;
 #    endif
-    unsigned int bidx  = blockIdx.x;
+
+    unsigned int widx  = tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -426,12 +600,6 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
     float4* xqib = (float4*)sm_nextSlotPtr;
     sm_nextSlotPtr += (c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(*xqib));
 
-    /* shmem buffer for cj, for each warp separately */
-    int* cjs = (int*)(sm_nextSlotPtr);
-    /* the cjs buffer's use expects a base pointer offset for pairs of warps in the j-concurrent execution */
-    cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-    sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
-
 #    ifndef LJ_COMB
     /* shmem buffer for i atom-type pre-loading */
     int* atib = (int*)sm_nextSlotPtr;
@@ -448,24 +616,34 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
     cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
 
+#if c_nbnxnGpuNumClusterPerSupercluster == 8
     if (tidxz == 0)
     {
-        /* Pre-load i-atom x and q into shared memory */
-        ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
-        ai = ci * c_clSize + tidxi;
+        i = tidxj;
+        {
+#else
+    if (tidxz == 0 && tidxj == 0)
+    {
+        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+        {
+#endif
+            /* Pre-load i-atom x and q into shared memory */
+            ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
+            ai = ci * c_clSize + tidxi;
 
-        float* shiftptr = (float*)&shift_vec[nb_sci.shift];
-        xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0f);
-        xqbuf.w *= nbparam.epsfac;
-        xqib[tidxj * c_clSize + tidxi] = xqbuf;
+            float* shiftptr = (float*)&shift_vec[nb_sci.shift];
+            xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0f);
+            xqbuf.w *= nbparam.epsfac;
+            xqib[i * c_clSize + tidxi] = xqbuf;
 
-#    ifndef LJ_COMB
-        /* Pre-load the i-atom types into shared memory */
-        atib[tidxj * c_clSize + tidxi] = atom_types[ai];
-#    else
-        /* Pre-load the LJ combination parameters into shared memory */
-        ljcpib[tidxj * c_clSize + tidxi] = lj_comb[ai];
-#    endif
+    #    ifndef LJ_COMB
+            /* Pre-load the i-atom types into shared memory */
+            atib[i * c_clSize + tidxi] = atom_types[ai];
+    #    else
+            /* Pre-load the LJ combination parameters into shared memory */
+            ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
+    #    endif
+        }
     }
     __syncthreads();
 
@@ -486,7 +664,7 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
     E_el         = 0.0f;
 
 #        ifdef EXCLUSION_FORCES /* Ewald or RF */
-    if (nb_sci.shift == CENTRAL && pl_cj4[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
+    if ((int)nb_sci.shift == CENTRAL && pl_cj4[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
     {
         /* we have the diagonal: add the charge and LJ self interaction energy term */
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
@@ -537,142 +715,142 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
      */
-     for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
-    {
-        wexcl_idx = pl_cj4[j4].imei[0].excl_ind;
-        imask     = pl_cj4[j4].imei[0].imask;
-        wexcl     = excl[wexcl_idx].pair[(tidx) & (warpSize - 1)];
-
-#    ifndef PRUNE_NBL
-        if (imask)
-#    endif
-        {
-            /* Pre-load cj into shared memory on both warps separately */
-            if (((tidxj * hipBlockDim_x) % warpSize == 0) & (tidxi < c_nbnxnGpuJgroupSize))
-            {
-                cjs[tidxi] = pl_cj4[j4].cj[tidxi];
-            }
-            //__syncwarp(c_fullWarpMask);
-            __all(1);
-
-            /* Unrolling this loop
-               - with pruning leads to register spilling;
-               - on Kepler and later it is much slower;
-               Tested with up to nvcc 7.5 */
-            for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
-            {
-                if (imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
-                {
-                    mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
-
-                    cj = cjs[jm];
-                    aj = cj * c_clSize + tidxj;
-
-                    /* load j atom data */
-                    xqbuf = xq[aj];
-                    xj    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
-                    qj_f  = xqbuf.w;
-#    ifndef LJ_COMB
-                    typej = atom_types[aj];
+#    if NTHREAD_Z == 1
+    for (j4 = cij4_start; j4 < cij4_end; j4++)
 #    else
-                    ljcp_j = lj_comb[aj];
+    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
+#    endif
+    {
+        imask     = pl_cj4[j4].imei[widx].imask;
+#    ifndef PRUNE_NBL
+        if (!imask)
+        {
+            continue;
+        }
+#    endif
+        wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
+        wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
+
+#    if DO_JM_UNROLL
+#        pragma unroll 2
+#    endif
+        for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
+        {
+            const bool maskSet = imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster));
+            if (!maskSet)
+            {
+                continue;
+            }
+
+            mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
+
+            cj = pl_cj4[j4].cj[jm];
+            aj = cj * c_clSize + tidxj;
+
+            /* load j atom data */
+            xqbuf = xq[aj];
+            xj    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
+            qj_f  = xqbuf.w;
+#    ifndef LJ_COMB
+            typej = atom_types[aj];
+#    else
+            ljcp_j = lj_comb[aj];
 #    endif
 
-                    fcj_buf = make_float3(0.0f);
-
+            fcj_buf = make_float3(0.0f);
 #    if !defined PRUNE_NBL
-#        pragma unroll 8
+#        pragma unroll c_nbnxnGpuNumClusterPerSupercluster
 #    endif
-                    for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
-                    {
-                        if (imask & mask_ji)
-                        {
-                            ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i; /* i cluster index */
+            for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+            {
+                if (imask & mask_ji)
+                {
+                    ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i; /* i cluster index */
 
-                            /* all threads load an atom from i cluster ci into shmem! */
-                            xqbuf = xqib[i * c_clSize + tidxi];
-                            xi    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
+                    /* all threads load an atom from i cluster ci into shmem! */
+                    xqbuf = xqib[i * c_clSize + tidxi];
+                    xi    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
 
-                            /* distance between i and j atoms */
-                            rv = xi - xj;
-                            r2 = norm2(rv);
+                    /* distance between i and j atoms */
+                    rv = xi - xj;
+                    r2 = norm2(rv);
 
 #    ifdef PRUNE_NBL
-                            /* If _none_ of the atoms pairs are in cutoff range,
-                               the bit corresponding to the current
-                               cluster-pair in imask gets set to 0. */
-                            if (!__any(r2 < rlist_sq))
-                            {
-                                imask &= ~mask_ji;
-                            }
+                    /* If _none_ of the atoms pairs are in cutoff range,
+                       the bit corresponding to the current
+                       cluster-pair in imask gets set to 0. */
+                    if (!__nb_any(r2 < rlist_sq, widx))
+                    {
+                        imask &= ~mask_ji;
+                    }
 #    endif
 
-                            int_bit = (wexcl & mask_ji) ? 1.0f : 0.0f;
+                    int_bit = (wexcl & mask_ji) ? 1.0f : 0.0f;
 
-                            /* cutoff & exclusion check */
+                    /* cutoff & exclusion check */
 #    ifdef EXCLUSION_FORCES
-                            if ((r2 < rcoulomb_sq) * (nonSelfInteraction | (ci != cj)))
+                    if ((r2 < rcoulomb_sq) * (nonSelfInteraction | (ci != cj)))
 #    else
-                            if ((r2 < rcoulomb_sq) * int_bit)
+                    if ((r2 < rcoulomb_sq) * int_bit)
 #    endif
-                            {
-                                /* load the rest of the i-atom parameters */
-                                qi = xqbuf.w;
+                    {
+                        /* load the rest of the i-atom parameters */
+                        qi = xqbuf.w;
 
 #    ifndef LJ_COMB
-                                /* LJ 6*C6 and 12*C12 */
-                                typei = atib[i * c_clSize + tidxi];
-                                fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
+                        /* LJ 6*C6 and 12*C12 */
+                        typei = atib[i * c_clSize + tidxi];
+                        fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
 #    else
-                                ljcp_i       = ljcpib[i * c_clSize + tidxi];
+                        ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM
-                                c6           = ljcp_i.x * ljcp_j.x;
-                                c12          = ljcp_i.y * ljcp_j.y;
+                        c6           = ljcp_i.x * ljcp_j.x;
+                        c12          = ljcp_i.y * ljcp_j.y;
 #        else
-                                /* LJ 2^(1/6)*sigma and 12*epsilon */
-                                sigma   = ljcp_i.x + ljcp_j.x;
-                                epsilon = ljcp_i.y * ljcp_j.y;
+                        /* LJ 2^(1/6)*sigma and 12*epsilon */
+                        sigma   = ljcp_i.x + ljcp_j.x;
+                        epsilon = ljcp_i.y * ljcp_j.y;
 #            if defined CALC_ENERGIES || defined LJ_FORCE_SWITCH || defined LJ_POT_SWITCH
-                                convert_sigma_epsilon_to_c6_c12(sigma, epsilon, &c6, &c12);
+                        convert_sigma_epsilon_to_c6_c12(sigma, epsilon, &c6, &c12);
 #            endif
 #        endif /* LJ_COMB_GEOM */
 #    endif     /* LJ_COMB */
 
-                                // Ensure distance do not become so small that r^-12 overflows
-                                r2 = fmax(r2, c_nbnxnMinDistanceSquared);
+                        // Ensure distance do not become so small that r^-12 overflows
+                        r2 = fmax(r2, c_nbnxnMinDistanceSquared);
 
-                                inv_r  = __frsqrt_rn(r2);
-                                inv_r2 = inv_r * inv_r;
+                        inv_r  = rsqrt(r2);
+                        inv_r2 = inv_r * inv_r;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
-                                inv_r6 = inv_r2 * inv_r2 * inv_r2;
+                        inv_r6 = inv_r2 * inv_r2 * inv_r2;
 #        ifdef EXCLUSION_FORCES
-                                /* We could mask inv_r2, but with Ewald
-                                 * masking both inv_r6 and F_invr is faster */
-                                inv_r6 *= int_bit;
+                        /* We could mask inv_r2, but with Ewald
+                         * masking both inv_r6 and F_invr is faster */
+                        inv_r6 *= int_bit;
 #        endif /* EXCLUSION_FORCES */
 
-                                F_invr = inv_r6 * (c12 * inv_r6 - c6) * inv_r2;
+                        F_invr = inv_r6 * (c12 * inv_r6 - c6) * inv_r2;
 #        if defined CALC_ENERGIES || defined LJ_POT_SWITCH
-                                E_lj_p = int_bit
-                                         * (c12 * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
-                                            - c6 * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
+                        E_lj_p = int_bit
+                                 * (c12 * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
+                                    - c6 * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
 #        endif
 #    else /* !LJ_COMB_LB || CALC_ENERGIES */
-                                float sig_r  = sigma * inv_r;
-                                float sig_r2 = sig_r * sig_r;
-                                float sig_r6 = sig_r2 * sig_r2 * sig_r2;
+                        float sig_r  = sigma * inv_r;
+                        float sig_r2 = sig_r * sig_r;
+                        float sig_r6 = sig_r2 * sig_r2 * sig_r2;
 #        ifdef EXCLUSION_FORCES
-                                sig_r6 *= int_bit;
+                        sig_r6 *= int_bit;
 #        endif /* EXCLUSION_FORCES */
 
-                                F_invr = epsilon * sig_r6 * (sig_r6 - 1.0f) * inv_r2;
+                        F_invr = epsilon * sig_r6 * (sig_r6 - 1.0f) * inv_r2;
 #    endif     /* !LJ_COMB_LB || CALC_ENERGIES */
 
 #    ifdef LJ_FORCE_SWITCH
 #        ifdef CALC_ENERGIES
-                                calculate_force_switch_F_E(nbparam, c6, c12, inv_r, r2, &F_invr, &E_lj_p);
+                        calculate_force_switch_F_E(nbparam, c6, c12, inv_r, r2, &F_invr, &E_lj_p);
 #        else
-                                calculate_force_switch_F(nbparam, c6, c12, inv_r, r2, &F_invr);
+                        calculate_force_switch_F(nbparam, c6, c12, inv_r, r2, &F_invr);
 #        endif /* CALC_ENERGIES */
 #    endif     /* LJ_FORCE_SWITCH */
 
@@ -680,110 +858,107 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
 #    ifdef LJ_EWALD
 #        ifdef LJ_EWALD_COMB_GEOM
 #            ifdef CALC_ENERGIES
-                                calculate_lj_ewald_comb_geom_F_E(nbparam, typei, typej, r2, inv_r2,
-                                                                 lje_coeff2, lje_coeff6_6, int_bit,
-                                                                 &F_invr, &E_lj_p);
+                        calculate_lj_ewald_comb_geom_F_E(nbparam, typei, typej, r2, inv_r2,
+                                                         lje_coeff2, lje_coeff6_6, int_bit,
+                                                         &F_invr, &E_lj_p);
 #            else
-                                calculate_lj_ewald_comb_geom_F(nbparam, typei, typej, r2, inv_r2,
-                                                               lje_coeff2, lje_coeff6_6, &F_invr);
+                        calculate_lj_ewald_comb_geom_F(nbparam, typei, typej, r2, inv_r2,
+                                                       lje_coeff2, lje_coeff6_6, &F_invr);
 #            endif /* CALC_ENERGIES */
 #        elif defined LJ_EWALD_COMB_LB
-                                calculate_lj_ewald_comb_LB_F_E(nbparam, typei, typej, r2, inv_r2,
-                                                               lje_coeff2, lje_coeff6_6,
+                        calculate_lj_ewald_comb_LB_F_E(nbparam, typei, typej, r2, inv_r2,
+                                                       lje_coeff2, lje_coeff6_6,
 #            ifdef CALC_ENERGIES
-                                                               int_bit, &F_invr, &E_lj_p
+                                                       int_bit, &F_invr, &E_lj_p
 #            else
-                                                               0, &F_invr, nullptr
+                                                       0, &F_invr, nullptr
 #            endif /* CALC_ENERGIES */
-                                );
+                        );
 #        endif     /* LJ_EWALD_COMB_GEOM */
 #    endif         /* LJ_EWALD */
 
 #    ifdef LJ_POT_SWITCH
 #        ifdef CALC_ENERGIES
-                                calculate_potential_switch_F_E(nbparam, inv_r, r2, &F_invr, &E_lj_p);
+                        calculate_potential_switch_F_E(nbparam, inv_r, r2, &F_invr, &E_lj_p);
 #        else
-                                calculate_potential_switch_F(nbparam, inv_r, r2, &F_invr, &E_lj_p);
+                        calculate_potential_switch_F(nbparam, inv_r, r2, &F_invr, &E_lj_p);
 #        endif /* CALC_ENERGIES */
 #    endif     /* LJ_POT_SWITCH */
 
 #    ifdef VDW_CUTOFF_CHECK
-                                /* Separate VDW cut-off check to enable twin-range cut-offs
-                                 * (rvdw < rcoulomb <= rlist)
-                                 */
-                                vdw_in_range = (r2 < rvdw_sq) ? 1.0f : 0.0f;
-                                F_invr *= vdw_in_range;
+                        /* Separate VDW cut-off check to enable twin-range cut-offs
+                         * (rvdw < rcoulomb <= rlist)
+                         */
+                        vdw_in_range = (r2 < rvdw_sq) ? 1.0f : 0.0f;
+                        F_invr *= vdw_in_range;
 #        ifdef CALC_ENERGIES
-                                E_lj_p *= vdw_in_range;
+                        E_lj_p *= vdw_in_range;
 #        endif
 #    endif /* VDW_CUTOFF_CHECK */
 
 #    ifdef CALC_ENERGIES
-                                E_lj += E_lj_p;
+                        E_lj += E_lj_p;
 #    endif
 
 
 #    ifdef EL_CUTOFF
 #        ifdef EXCLUSION_FORCES
-                                F_invr += qi * qj_f * int_bit * inv_r2 * inv_r;
+                        F_invr += qi * qj_f * int_bit * inv_r2 * inv_r;
 #        else
-                                F_invr += qi * qj_f * inv_r2 * inv_r;
+                        F_invr += qi * qj_f * inv_r2 * inv_r;
 #        endif
 #    endif
 #    ifdef EL_RF
-                                F_invr += qi * qj_f * (int_bit * inv_r2 * inv_r - two_k_rf);
+                        F_invr += qi * qj_f * (int_bit * inv_r2 * inv_r - two_k_rf);
 #    endif
 #    if defined   EL_EWALD_ANA
-                                F_invr += qi * qj_f
-                                          * (int_bit * inv_r2 * inv_r + pmecorrF(beta2 * r2) * beta3);
+                        F_invr += qi * qj_f
+                                  * (int_bit * inv_r2 * inv_r + pmecorrF(beta2 * r2) * beta3);
 #    elif defined EL_EWALD_TAB
-                                F_invr += qi * qj_f
-                                          * (int_bit * inv_r2
-                                             - interpolate_coulomb_force_r(nbparam, r2 * inv_r))
-                                          * inv_r;
+                        F_invr += qi * qj_f
+                                  * (int_bit * inv_r2
+                                     - interpolate_coulomb_force_r(nbparam, r2 * inv_r))
+                                  * inv_r;
 #    endif /* EL_EWALD_ANA/TAB */
 
 #    ifdef CALC_ENERGIES
 #        ifdef EL_CUTOFF
-                                E_el += qi * qj_f * (int_bit * inv_r - c_rf);
+                        E_el += qi * qj_f * (int_bit * inv_r - c_rf);
 #        endif
 #        ifdef EL_RF
-                                E_el += qi * qj_f * (int_bit * inv_r + 0.5f * two_k_rf * r2 - c_rf);
+                        E_el += qi * qj_f * (int_bit * inv_r + 0.5f * two_k_rf * r2 - c_rf);
 #        endif
 #        ifdef EL_EWALD_ANY
-                                /* 1.0f - erff is faster than erfcf */
-                                E_el += qi * qj_f
-                                        * (inv_r * (int_bit - erff(r2 * inv_r * beta)) - int_bit * ewald_shift);
+                        /* 1.0f - erff is faster than erfcf */
+                        E_el += qi * qj_f
+                                * (inv_r * (int_bit - erff(r2 * inv_r * beta)) - int_bit * ewald_shift);
 #        endif /* EL_EWALD_ANY */
 #    endif
-                                f_ij = rv * F_invr;
+                        f_ij = rv * F_invr;
 
-                                /* accumulate j forces in registers */
-                                fcj_buf = fcj_buf - f_ij;
+                        /* accumulate j forces in registers */
+                        fcj_buf = fcj_buf - f_ij;
 
-                                /* accumulate i forces in registers */
-                                fci_buf[i] = fci_buf[i] + f_ij;
-                            }
-                        }
-
-                        /* shift the mask bit by 1 */
-                        mask_ji += mask_ji;
+                        /* accumulate i forces in registers */
+                        fci_buf[i] = fci_buf[i] + f_ij;
                     }
-
-                    /* reduce j forces */
-                    reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj);
                 }
+
+                /* shift the mask bit by 1 */
+                mask_ji += mask_ji;
             }
-#    ifdef PRUNE_NBL
-            /* Update the imask with the new one which does not contain the
-               out of range clusters anymore. */
-            pl_cj4[j4].imei[0].imask = imask;
-#    endif
+
+            /* reduce j forces */
+            reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj, c_fullWarpMask);
         }
-        // avoid shared memory WAR hazards between loop iterations
-        //__syncwarp(c_fullWarpMask);
-	__all(1);
+#    ifdef PRUNE_NBL
+        /* Update the imask with the new one which does not contain the
+           out of range clusters anymore. */
+        pl_cj4[j4].imei[widx].imask = imask;
+#    endif
     }
+    // avoid shared memory WAR hazards between loop iterations
+    __builtin_amdgcn_wave_barrier();
 
     /* skip central shifts when summing shift forces */
     if (nb_sci.shift == CENTRAL)
@@ -791,19 +966,57 @@ __global__ void nbnxn_kernel(const cu_atomdata_t atdat, const cu_nbparam_t nbpar
         bCalcFshift = false;
     }
 
-    float fshift_buf = 0.0f;
+    float3 fshift_buf = make_float3(0.0f);
 
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, &fshift_buf, bCalcFshift, tidxj, ai);
+        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai, c_fullWarpMask);
     }
 
-/* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && tidxj < 3)
+    /* add up local shift forces into global mem, tidxj indexes x,y,z */
+    if (bCalcFshift)
     {
-        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+        /*for (int offset = (c_clSize >> 1); offset > 0; offset >>= 1)
+        {
+            fshift_buf.x += __shfl_down(fshift_buf.x, offset);
+            fshift_buf.y += __shfl_down(fshift_buf.y, offset);
+            fshift_buf.z += __shfl_down(fshift_buf.z, offset);
+        }*/
+        fshift_buf.x += warp_move_dpp<float, 0xb1>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0xb1>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0xb1>(fshift_buf.z);
+
+        fshift_buf.x += warp_move_dpp<float, 0x4e>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0x4e>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0x4e>(fshift_buf.z);
+
+        fshift_buf.x += warp_move_dpp<float, 0x114>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
+
+        #ifndef __gfx1030__
+                if (tidx == (c_clSize - 1))
+        #else
+                if ( tidx == (c_clSize - 1) || tidx == (c_subWarp + c_clSize - 1) )
+        #endif
+        {
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+            const unsigned int shift_index_base = SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+#else
+            const unsigned int shift_index_base = 0;
+#endif
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
+            atomicAdd(&(atdat.fshift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
+#else
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
+            atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
+#endif
+        }
     }
 
 #    ifdef CALC_ENERGIES
@@ -901,6 +1114,55 @@ void dump_xq(cu_atomdata_t *adat) {
     myfile.close();
 
     delete []xq;
+}
+
+void dump_force(cu_atomdata_t *adat) {
+    std::ofstream myfile("force_verify.txt", std::ofstream::out);
+    int natoms = adat->natoms;
+
+    float3 *force   = new float3[natoms];
+    hipMemcpyDtoH(force, adat->f, natoms * sizeof(float3));
+
+    for (int i = 0; i < natoms; i++)
+    {
+        myfile << force[i].x << ", " << force[i].y << ", " << force[i].z << std::endl;
+    }
+
+    myfile.close();
+
+    delete []force;
+}
+
+void dump_fshift(cu_atomdata_t *adat) {
+    std::ofstream myfile("fshift_verify.txt", std::ofstream::out);
+    int natoms = adat->natoms;
+
+    float3 *fshift   = new float3[natoms];
+    hipMemcpyDtoH(fshift, adat->fshift, natoms * sizeof(float3));
+
+    for (int i = 0; i < natoms; i++)
+    {
+        myfile << fshift[i].x << ", " << fshift[i].y << ", " << fshift[i].z << std::endl;
+    }
+
+    myfile.close();
+
+    delete []fshift;
+}
+
+void dump_energy(cu_atomdata_t *adat) {
+    std::ofstream myfile("energy_verify.txt", std::ofstream::out);
+
+    float *e_lj   = new float[1];
+    float *e_el   = new float[1];
+    hipMemcpyDtoH(e_lj, adat->e_lj, sizeof(float));
+    hipMemcpyDtoH(e_el, adat->e_el, sizeof(float));
+
+    myfile << e_lj[0] << ", " << e_el[0] << std::endl;
+    myfile.close();
+
+    delete []e_lj;
+    delete []e_el;
 }
 
 void copy_energy_to_gpu(cu_atomdata_t *adat) {
@@ -1257,6 +1519,9 @@ int main (int argc, char* argv[]) {
     hipMalloc((void**)&adat->f, adat->natoms * sizeof(float3));
     hipMalloc((void**)&adat->fshift, adat->natoms * sizeof(float3));
 
+    hipMemsetAsync((void**)&adat->f, 0, adat->natoms * sizeof(float3));
+    hipMemsetAsync((void**)&adat->fshift, 0, adat->natoms * sizeof(float3));
+
     // cu_plist_t
     cu_plist_t *plist;
     plist = (cu_plist_t*)calloc(1, sizeof(cu_plist_t));
@@ -1284,13 +1549,16 @@ int main (int argc, char* argv[]) {
     int num_threads_z = 1;
     size_t sharedMemorySize = calc_shmem_required_nonbonded(num_threads_z, nbparam);
 
-    for (int iter=0; iter<1000; iter++) {
+    //for (int iter=0; iter<1000; iter++) {
         hipLaunchKernelGGL(nbnxn_kernel, dim3(plist->nsci, 1, 1),
         	    dim3(c_clSize, c_clSize, num_threads_z), sharedMemorySize, 0
                     , *adat, *nbparam, *plist, bCalcFshift);
-    }
+    //}
     hipStreamSynchronize(0);
 
+    dump_force(adat);
+    dump_fshift(adat);
+    dump_energy(adat);
 
     return 0;
 }
