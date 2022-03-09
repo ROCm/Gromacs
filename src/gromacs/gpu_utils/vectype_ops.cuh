@@ -206,6 +206,7 @@ __forceinline__ __device__ float3 cprod(const float3 a, const float3 b)
     return c;
 }
 
+
 /* \brief Cosine of an angle between two vectors.
  *
  * Computes cosine using the following formula:

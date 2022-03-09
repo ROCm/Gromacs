@@ -3900,7 +3900,12 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
             unsigned int mask = nbl->cj4[cj4].imei[0].imask;
             for (int part = 1; part < c_nbnxnGpuClusterpairSplit; part++)
             {
-                mask = mask | nbl->cj4[cj4].imei[part].imask;
+                #ifdef GMX_NAVI_BUILD
+                    nsp[index] += __builtin_popcount(nbl->cj4[cj4].imei[part].imask);
+                #else
+                    mask = mask | nbl->cj4[cj4].imei[part].imask;
+                #endif
+
             }
             nsp[index] += __builtin_popcount(mask);
         }

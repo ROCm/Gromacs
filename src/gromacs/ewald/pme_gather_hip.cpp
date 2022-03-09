@@ -100,8 +100,8 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
         // A tricky shuffle reduction inspired by reduce_force_j_warp_shfl
         // TODO: find out if this is the best in terms of transactions count
         static_assert(order == 4, "Only order of 4 is implemented");
-        static_assert(atomDataSize <= warp_size,
-                      "TODO: rework for atomDataSize > warp_size (order 8 or larger)");
+        static_assert(atomDataSize <= warpSize,
+                      "TODO: rework for atomDataSize > warpSize (order 8 or larger)");
         const int width = atomDataSize;
 
         fx += __shfl_down(fx, 1, width);
@@ -142,7 +142,7 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
     {
         // We use blockSize shared memory elements to read fx, or fy, or fz, and then reduce them to
         // fit into smemPerDim elements which are stored separately (first 2 dimensions only)
-        const int         smemPerDim   = warp_size;
+        const int         smemPerDim   = warpSize;
         const int         smemReserved = (DIM)*smemPerDim;
         __shared__ float  sm_forceReduction[smemReserved + blockSize];
         __shared__ float* sm_forceTemp[DIM];
@@ -181,16 +181,16 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
             __syncthreads();
         }
 
-        assert((blockSize / warp_size) >= DIM);
-        // assert (atomsPerBlock <= warp_size);
+        assert((blockSize / warpSize) >= DIM);
+        // assert (atomsPerBlock <= warpSize);
 
-        const int warpIndex = lineIndex / warp_size;
+        const int warpIndex = lineIndex / warpSize;
         const int dimIndex  = warpIndex;
 
         // First 3 warps can now process 1 dimension each
         if (dimIndex < DIM)
         {
-            int sourceIndex = lineIndex % warp_size;
+            int sourceIndex = lineIndex % warpSize;
 #pragma unroll
             for (int redStride = minStride / 2; redStride > 1; redStride >>= 1)
             {
@@ -201,7 +201,7 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
             }
 
             //__syncwarp();
-	    __all(1);
+            __builtin_amdgcn_wave_barrier();
 
             const float n         = read_grid_size(realGridSizeFP, dimIndex);
             const int   atomIndex = sourceIndex / minStride;
@@ -369,7 +369,7 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
     const int atomDataSize        = threadsPerAtomValue;
     const int atomsPerBlock       = c_gatherMaxThreadsPerBlock / atomDataSize;
     // Number of atoms processed by a single warp in spread and gather
-    const int atomsPerWarp = warp_size / atomDataSize;
+    const int atomsPerWarp = warpSize / atomDataSize;
 
     const int blockSize = atomsPerBlock * atomDataSize;
     assert(blockSize == blockDim.x * blockDim.y * blockDim.z);
@@ -461,10 +461,10 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
             atomX      = gm_coordinates[atomIndexGlobal];
             atomCharge = gm_coefficientsA[atomIndexGlobal];
         }
-        calculate_splines<order, atomsPerBlock, atomsPerWarp, true, false, ThreadsPerAtom::Order>(
+        calculate_splines<order, atomsPerBlock, atomsPerWarp, true, false>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, sm_dtheta, sm_gridlineIndices);
         //__syncwarp();
-	__all(1);
+        __builtin_amdgcn_wave_barrier();
     }
     float fx = 0.0f;
     float fy = 0.0f;
@@ -518,12 +518,12 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
     }
 
     //__syncwarp();
-    __all(1);
-    assert(atomsPerBlock <= warp_size);
+    __builtin_amdgcn_wave_barrier();
+    assert(atomsPerBlock <= warpSize);
 
     /* Writing or adding the final forces component-wise, single warp */
     const int blockForcesSize = atomsPerBlock * DIM;
-    const int numIter         = (blockForcesSize + warp_size - 1) / warp_size;
+    const int numIter         = (blockForcesSize + warpSize - 1) / warpSize;
     const int iterThreads     = blockForcesSize / numIter;
     if (threadLocalId < iterThreads)
     {
@@ -565,7 +565,7 @@ __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
         }
 
         //__syncwarp();
-	__all(1);
+        __builtin_amdgcn_wave_barrier();
 
         /* Writing or adding the final forces component-wise, single warp */
         if (threadLocalId < iterThreads)

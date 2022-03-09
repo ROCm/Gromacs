@@ -1373,7 +1373,8 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     {
         cellsPerBlock = (gridLineSize + blocksPerGridLine - 1) / blocksPerGridLine;
     }
-    const int blockSize = (cellsPerBlock + c_pmeAtomDataBlockSize - 1) / c_pmeAtomDataBlockSize * c_pmeAtomDataBlockSize;
+    const int active_warp_size  = pmeGpu->programHandle_->warpSize();
+    const int blockSize = (cellsPerBlock + active_warp_size - 1) / active_warp_size * active_warp_size;
 
     static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
                   "The CUDA solve energy kernels needs at least 4 warps. "

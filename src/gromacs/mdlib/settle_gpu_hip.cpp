@@ -353,6 +353,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             {
                 __syncthreads();
             }
+            else
+            {
+                //__syncwarp();
+                __builtin_amdgcn_wave_barrier();
+            }
         }
         // First 6 threads in the block add the 6 components of virial to the global memory address
         if (tib < 6)

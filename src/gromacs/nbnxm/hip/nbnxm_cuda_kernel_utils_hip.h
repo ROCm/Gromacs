@@ -59,7 +59,7 @@
 #ifndef NBNXM_CUDA_KERNEL_UTILS_CUH
 #    define NBNXM_CUDA_KERNEL_UTILS_CUH
 
-constexpr int c_subWarp = warpSize / c_nbnxnGpuClusterpairSplit;
+constexpr int c_subWarp = 64 / c_nbnxnGpuClusterpairSplit;
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
 static const int __device__ c_clSizeLog2 = 3;
@@ -83,7 +83,6 @@ T warp_move_dpp(const T& input) {
 
     struct V { int words[words_no]; };
     V a = __builtin_bit_cast(V, input);
-
     #pragma unroll
     for (int i = 0; i < words_no; i++) {
         a.words[i] = __builtin_amdgcn_update_dpp(
@@ -127,9 +126,9 @@ void float3_reduce_final(float3* input_ptr, const unsigned int size)
 
     if( flat_id == 0 || flat_id == warpSize )
     {
-        atomicAddNoRet(&(input_ptr[0].x)    , input.x);
-        atomicAddNoRet(&(input_ptr[0].x) + 1, input.y);
-        atomicAddNoRet(&(input_ptr[0].x) + 2, input.z);
+        atomicAdd(&(input_ptr[0].x)    , input.x);
+        atomicAdd(&(input_ptr[0].x) + 1, input.y);
+        atomicAdd(&(input_ptr[0].x) + 2, input.z);
     }
 }
 
@@ -150,8 +149,8 @@ void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
 
     if( flat_id == 0 || flat_id == warpSize )
     {
-        atomicAddNoRet(e_lj_ptr, E_lj);
-        atomicAddNoRet(e_el_ptr, E_el);
+        atomicAdd(e_lj_ptr, E_lj);
+        atomicAdd(e_el_ptr, E_el);
     }
 }
 
@@ -813,12 +812,13 @@ static __forceinline__ __device__ void
     f.y += warp_move_dpp<float, 0x114>(f.y);
     f.z += warp_move_dpp<float, 0x114>(f.z);
 
+    //if (tidxi == 0)
     if (tidxi == c_clSize - 1)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet((&fout[aidx].x), f.x);
-        atomicAddNoRet((&fout[aidx].y), f.y);
-        atomicAddNoRet((&fout[aidx].z), f.z);
+        atomicAdd((&fout[aidx].x), f.x);
+        atomicAdd((&fout[aidx].y), f.y);
+        atomicAdd((&fout[aidx].z), f.z);
 #else
         atomicAddOverWriteForFloat((&fout[aidx].x), f.x);
         atomicAddOverWriteForFloat((&fout[aidx].y), f.y);
@@ -858,7 +858,7 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if ((tidxj & 3) < 3)
     {
-        atomicAddNoRet(&fout[aidx].x + (tidxj & 3), fin.x);
+        atomicAdd(&fout[aidx].x + (tidxj & 3), fin.x);
 
         if (bCalcFshift)
         {
@@ -875,18 +875,19 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
                                                                 int                aidx,
                                                                 const unsigned long activemask)
 {
-    for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
+    #pragma unroll
+    for (int offset = warpSize >> 1; offset >= c_clSize; offset >>= 1)
     {
-        fin.x += __shfl_down(fin.x, offset * c_clSize);
-        fin.y += __shfl_down(fin.y, offset * c_clSize);
-        fin.z += __shfl_down(fin.z, offset * c_clSize);
+        fin.x += __shfl_down(fin.x, offset);
+        fin.y += __shfl_down(fin.y, offset);
+        fin.z += __shfl_down(fin.z, offset);
     }
 
-    if (tidxj == 0)
+    if (tidxj % (warpSize / c_clSize) == 0)
     {
-        atomicAddNoRet((&fout[aidx].x), fin.x);
-        atomicAddNoRet((&fout[aidx].y), fin.y);
-        atomicAddNoRet((&fout[aidx].z), fin.z);
+        atomicAdd((&fout[aidx].x), fin.x);
+        atomicAdd((&fout[aidx].y), fin.y);
+        atomicAdd((&fout[aidx].z), fin.z);
 
         if (bCalcFshift)
         {
@@ -935,27 +936,48 @@ static __forceinline__ __device__ void
 
     if(c_subWarp > 16)
     {
+#ifndef __gfx1030__
         E_lj += warp_move_dpp<float, 0x142>(E_lj);
         E_el += warp_move_dpp<float, 0x142>(E_el);
+#else
+        E_lj += __shfl(E_lj, 15, warpSize);
+        E_el += __shfl(E_el, 15, warpSize);
+#endif
     }
 
+#ifndef __gfx1030__
     if(c_subWarp > 32)
     {
+
         E_lj += warp_move_dpp<float, 0x143>(E_lj);
         E_el += warp_move_dpp<float, 0x143>(E_el);
     }
 
-    /* The first thread in the warp writes the reduced energies */
+    /* The last thread in the subWarp writes the reduced energies */
     if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
     {
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(e_lj, E_lj);
-        atomicAddNoRet(e_el, E_el);
-#else
-        atomicAddOverWriteForFloat(e_lj, E_lj);
-        atomicAddOverWriteForFloat(e_el, E_el);
-#endif
+        atomicAdd(e_lj, E_lj);
+        atomicAdd(e_el, E_el);
     }
+#else
+    if(c_subWarp > 32)
+    {
+        if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
+        {
+            atomicAdd(e_lj, E_lj);
+            atomicAdd(e_el, E_el);
+        }
+    }
+    else
+    {
+        if ((tidx & (warpSize - 1)) == (warpSize - 1))
+        {
+            atomicAdd(e_lj, E_lj);
+            atomicAdd(e_el, E_el);
+        }
+    }
+    return;
+#endif
 }
 
 #endif /* NBNXN_CUDA_KERNEL_UTILS_CUH */

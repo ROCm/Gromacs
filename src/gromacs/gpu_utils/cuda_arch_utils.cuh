@@ -75,6 +75,7 @@ static const unsigned int c_fullWarpMask = 0xffffffff;
  *  to have fallback for texture-less reads (direct/LDG loads), all new code needs
  *  to provide fallback code.
  */
+
 #if defined(GMX_DISABLE_CUDA_TEXTURES) || (defined(__clang__) && defined(__CUDA__)) \
         || (GMX_PTX_ARCH == 700) || (GMX_PTX_ARCH == 800)
 #    define DISABLE_CUDA_TEXTURES 1
