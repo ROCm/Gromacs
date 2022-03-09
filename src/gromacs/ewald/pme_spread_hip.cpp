@@ -65,6 +65,34 @@
  */
 #define PME_GPU_PARALLEL_SPLINE 0
 
+__device__ __forceinline__ float hipHeadSegmentedSum(float &input, const bool &flag)
+{
+
+    uint64_t warp_flags = __ballot(flag);
+
+    warp_flags >>= 1;
+    uint32_t lane_id = __lane_id();
+
+    warp_flags &= uint64_t(-1) ^ ((uint64_t(1) << lane_id) - 1U);
+    warp_flags >>= (lane_id / warp_size) * warp_size;
+    warp_flags |= uint64_t(1) << (warp_size - 1U);
+    uint32_t valid_items = __lastbit_u32_u64(warp_flags) + 1U;
+
+    float output = input;
+    float value = 0.0f;
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warp_size; offset *= 2)
+    {
+        value = __shfl_down(output, offset, warp_size);
+        lane_id = __lane_id() & (warp_size - 1);
+        if (lane_id + offset < valid_items)
+        {
+            output += value;
+        }
+    }
+    return output;
+}
+
 /*! \brief
  * Charge spreading onto the grid.
  * This corresponds to the CPU function spread_coefficients_bsplines_thread().
@@ -129,6 +157,8 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
         /* loop not used if order*order threads per atom */
         const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
         const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
+	const int threadLocalId =
+            (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
         for (int ithy = ithyMin; ithy < ithyMax; ithy++)
         {
             int iy = iyBase + ithy;
@@ -157,7 +187,17 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
                 const float thetaX = sm_theta[splineIndexX];
                 assert(isfinite(thetaX));
                 assert(isfinite(gm_grid[gridIndexGlobal]));
-                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
+
+		const int prev_lane_gridIndexGlobal = __shfl_up(gridIndexGlobal, 1);
+
+
+		const bool headi = threadLocalId % warp_size == 0 || gridIndexGlobal != prev_lane_gridIndexGlobal;
+		float input = thetaX * Val;
+
+		const float sum = hipHeadSegmentedSum(input, headi);
+
+                if (headi)
+                atomicAddNoRet(gm_grid + gridIndexGlobal, sum);
             }
         }
     }
