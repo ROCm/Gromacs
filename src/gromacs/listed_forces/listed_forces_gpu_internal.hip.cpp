@@ -75,9 +75,6 @@
 
 #define HIP_DEG2RAD_F (HIPRT_PI_F / 180.0F)
 
-static const int warp_size      = 64;
-static const int warp_size_log2 = 6;
-
 /*---------------- BONDED HIP kernels--------------*/
 
 template<typename T>
@@ -125,17 +122,17 @@ __device__ __forceinline__ float hipHeadSegmentedSum(float &input, const bool &f
     uint32_t lane_id = __lane_id();
 
     warp_flags &= uint64_t(-1) ^ ((uint64_t(1) << lane_id) - 1U);
-    warp_flags >>= (lane_id / warp_size) * warp_size;
-    warp_flags |= uint64_t(1) << (warp_size - 1U);
+    warp_flags >>= (lane_id / warpSize) * warpSize;
+    warp_flags |= uint64_t(1) << (warpSize - 1U);
     uint32_t valid_items = __lastbit_u32_u64(warp_flags) + 1U;
 
     float output = input;
     float value = 0.0f;
     #pragma unroll
-    for(unsigned int offset = 1; offset < warp_size; offset *= 2)
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
     {
-        value = __shfl_down(output, offset, warp_size);
-        lane_id = __lane_id() & (warp_size - 1);
+        value = __shfl_down(output, offset, warpSize);
+        lane_id = __lane_id() & (warpSize - 1);
         if (lane_id + offset < valid_items)
         {
             output += value;
@@ -201,7 +198,7 @@ __device__ void bonds_gpu(const int       i,
 
         if (dr2 != 0.0F)
         {
-            fbond *= rsqrtf(dr2);
+            fbond *= __frsqrt_rn(dr2);
 
             float3 fij = fbond * dx;
             atomicAdd(&gm_f[ai], fij);
@@ -279,13 +276,13 @@ __device__ void angles_gpu(const int       i,
         float cos_theta2 = cos_theta * cos_theta;
         if (cos_theta2 < 1.0F)
         {
-            float st    = dVdt * rsqrtf(1.0F - cos_theta2);
+            float st    = dVdt * __frsqrt_rn(1.0F - cos_theta2);
             float sth   = st * cos_theta;
             float nrij2 = norm2(r_ij);
             float nrkj2 = norm2(r_kj);
 
-            float nrij_1 = rsqrtf(nrij2);
-            float nrkj_1 = rsqrtf(nrkj2);
+            float nrij_1 = __frsqrt_rn(nrij2);
+            float nrkj_1 = __frsqrt_rn(nrkj2);
 
             float cik = st * nrij_1 * nrkj_1;
             float cii = sth * nrij_1 * nrij_1;
@@ -354,7 +351,7 @@ __device__ void urey_bradley_gpu(const int       i,
         int    ki = pbcDxAiuc<calcVir>(pbcAiuc, gm_xq[ai], gm_xq[ak], r_ik);
 
         float dr2 = norm2(r_ik);
-        float dr  = dr2 * rsqrtf(dr2);
+        float dr  = dr2 * __frsqrt_rn(dr2);
 
         float vbond;
         float fbond;
@@ -363,13 +360,13 @@ __device__ void urey_bradley_gpu(const int       i,
         float cos_theta2 = cos_theta * cos_theta;
         if (cos_theta2 < 1.0F)
         {
-            float st  = dVdt * rsqrtf(1.0F - cos_theta2);
+            float st  = dVdt * __frsqrt_rn(1.0F - cos_theta2);
             float sth = st * cos_theta;
 
             float nrkj2 = norm2(r_kj);
             float nrij2 = norm2(r_ij);
 
-            float cik = st * rsqrtf(nrkj2 * nrij2);
+            float cik = st * __frsqrt_rn(nrkj2 * nrij2);
             float cii = sth / nrij2;
             float ckk = sth / nrkj2;
 
@@ -397,7 +394,7 @@ __device__ void urey_bradley_gpu(const int       i,
                 *vtot_loc += vbond;
             }
 
-            fbond *= rsqrtf(dr2);
+            fbond *= __frsqrt_rn(dr2);
 
             float3 fik = fbond * r_ik;
             atomicAdd(&gm_f[ai], fik);
@@ -448,8 +445,8 @@ dopdihs_gpu(const float cpA, const float phiA, const int mult, const float phi, 
     float mdphi, sdphi;
 
     mdphi = mult * phi - phiA * HIP_DEG2RAD_F;
-    sdphi = sinf(mdphi);
-    *v    = cpA * (1.0F + cosf(mdphi));
+    sdphi = __sinf(mdphi);
+    *v    = cpA * (1.0F + __cosf(mdphi));
     *f    = -cpA * mult * sdphi;
 }
 
@@ -478,7 +475,7 @@ __device__ static void do_dih_fup_gpu(const int            i,
     float toler = nrkj2 * GMX_REAL_EPS;
     if ((iprm > toler) && (iprn > toler))
     {
-        float  nrkj_1 = rsqrtf(nrkj2); // replacing std::invsqrt call
+        float  nrkj_1 = __frsqrt_rn(nrkj2); // replacing std::invsqrt call
         float  nrkj_2 = nrkj_1 * nrkj_1;
         float  nrkj   = nrkj2 * nrkj_1;
         float  a      = -ddphi * nrkj / iprm;
@@ -500,10 +497,10 @@ __device__ static void do_dih_fup_gpu(const int            i,
         const int prev_lane_j = __shfl_up(j, 1);
         const int prev_lane_k = __shfl_up(k, 1);
         const int prev_lane_l = __shfl_up(l, 1);
-        const bool headi = threadIdx.x % warp_size == 0 || i != prev_lane_i;
-        const bool headj = threadIdx.x % warp_size == 0 || j != prev_lane_j;
-        const bool headk = threadIdx.x % warp_size == 0 || k != prev_lane_k;
-        const bool headl = threadIdx.x % warp_size == 0 || l != prev_lane_l;
+        const bool headi = (threadIdx.x & (warpSize - 1)) == 0 || i != prev_lane_i;
+        const bool headj = (threadIdx.x & (warpSize - 1)) == 0 || j != prev_lane_j;
+        const bool headk = (threadIdx.x & (warpSize - 1)) == 0 || k != prev_lane_k;
+        const bool headl = (threadIdx.x & (warpSize - 1)) == 0 || l != prev_lane_l;
 
         if (b_ == ~(unsigned long long int)0)
         {
@@ -667,9 +664,9 @@ __device__ void rbdihs_gpu(const int       i,
         {
             phi -= HIPRT_PI_F;
         }
-        float cos_phi = cosf(phi);
+        float cos_phi = __cosf(phi);
         /* Beware of accuracy loss, cannot use 1-sqrt(cos^2) ! */
-        float sin_phi = sinf(phi);
+        float sin_phi = __sinf(phi);
 
         float parm[NR_RBDIHS];
         for (int j = 0; j < NR_RBDIHS; j++)
@@ -831,7 +828,7 @@ __device__ void pairs_gpu(const int       i,
         int    fshift_index = pbcDxAiuc<calcVir>(pbcAiuc, gm_xq[ai], gm_xq[aj], dr);
 
         float r2    = norm2(dr);
-        float rinv  = rsqrtf(r2);
+        float rinv  = __frsqrt_rn(r2);
         float rinv2 = rinv * rinv;
         float rinv6 = rinv2 * rinv2 * rinv2;
 
@@ -923,7 +920,7 @@ __global__ void exec_kernel_gpu(
             const t_iatom* iatoms   = d_iatoms[j];
             fType                   = fTypesOnGpu[j];
             fType_shared_index      = j;
-            
+
             switch (fType)
             {
                 case F_BONDS:
@@ -1020,28 +1017,28 @@ __global__ void exec_kernel_gpu(
             {
                 float vtot_shuffle = j == fType_shared_index ? vtot_loc : 0.0f;
                 #pragma unroll
-                for (unsigned int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+                for (unsigned int offset = (warpSize >> 1); offset > 0; offset >>= 1)
                 {
                     vtot_shuffle += __shfl_down(vtot_shuffle, offset);
                 }
-                if(threadIdx.x % warp_size == 0)
+                if((threadIdx.x & (warpSize - 1)) == 0)
                 {
                     fType = fTypesOnGpu[j];
                     hipGlobalAtomicAdd((d_vTot + fType), vtot_shuffle);
                 }
             }
         }
-        
+
         float vtotVdw_shuffle = vtotVdw_loc;
         float vtotElec_shuffle = vtotElec_loc;
         #pragma unroll
-        for (unsigned int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+        for (unsigned int offset = (warpSize >> 1); offset > 0; offset >>= 1)
         {
             vtotVdw_shuffle += __shfl_down(vtotVdw_shuffle, offset);
             vtotElec_shuffle += __shfl_down(vtotElec_shuffle, offset);
         }
 
-        if (threadIdx.x % warp_size == 0)
+        if((threadIdx.x & (warpSize - 1)) == 0)
         { // One thread per warp accumulates partial sum into global sum
             hipGlobalAtomicAdd(d_vTot + F_LJ14, vtotVdw_shuffle);
             hipGlobalAtomicAdd(d_vTot + F_COUL14, vtotElec_shuffle);

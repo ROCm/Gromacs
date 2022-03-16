@@ -57,9 +57,11 @@
 #include "gromacs/gpu_utils/hip_arch_utils.hpp"
 #include "gromacs/gpu_utils/hip_kernel_utils.hpp"
 #include "gromacs/gpu_utils/vectype_ops.hpp"
+#include "gromacs/gpu_utils/typecasts.hpp"
 
 #include "nbnxm_hip_types.h"
 
+constexpr int c_subWarp = 64 / c_nbnxnGpuClusterpairSplit;
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
 static const int __device__ c_clSizeLog2 = 3;
@@ -76,6 +78,127 @@ static const unsigned __device__ superClInteractionMask =
 static const float __device__ c_oneSixth    = 0.16666667F;
 static const float __device__ c_oneTwelveth = 0.08333333F;
 
+template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
+__device__ inline
+T warp_move_dpp(const T& input) {
+    constexpr int words_no = (sizeof(T) + sizeof(int) - 1) / sizeof(int);
+
+    struct V { int words[words_no]; };
+    V a = __builtin_bit_cast(V, input);
+    #pragma unroll
+    for (int i = 0; i < words_no; i++) {
+        a.words[i] = __builtin_amdgcn_update_dpp(
+          0, a.words[i],
+          dpp_ctrl, row_mask, bank_mask, bound_ctrl
+        );
+    }
+
+    return __builtin_bit_cast(T, a);
+}
+
+__device__ __forceinline__ int __nb_any(int predicate,int widx)
+{
+    if (c_subWarp == warpSize)
+    {
+        return __any(predicate);
+    }
+    else
+    {
+        return (int)(__ballot(predicate) >> (widx * c_subWarp));
+    }
+}
+
+static __forceinline__ __device__
+void float3_reduce_final(float3* input_ptr, const unsigned int size)
+{
+    const unsigned int flat_id = threadIdx.x;
+
+    float3 input;
+    input.x = atomicExch(&(input_ptr[size * (flat_id + 1)].x)    , 0.0f);
+    input.y = atomicExch(&(input_ptr[size * (flat_id + 1)].x) + 1, 0.0f);
+    input.z = atomicExch(&(input_ptr[size * (flat_id + 1)].x) + 2, 0.0f);
+
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
+    {
+        input.x = input.x + __shfl_down(input.x, offset);
+        input.y = input.y + __shfl_down(input.y, offset);
+        input.z = input.z + __shfl_down(input.z, offset);
+    }
+
+    if( flat_id == 0 || flat_id == warpSize )
+    {
+        atomicAdd(&(input_ptr[0].x)    , input.x);
+        atomicAdd(&(input_ptr[0].x) + 1, input.y);
+        atomicAdd(&(input_ptr[0].x) + 2, input.z);
+    }
+}
+
+static __forceinline__ __device__
+void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
+{
+    const unsigned int flat_id = threadIdx.x;
+
+    float E_lj = atomicExch(e_lj_ptr + (flat_id + 1), 0.0f);
+    float E_el = atomicExch(e_el_ptr + (flat_id + 1), 0.0f);
+
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
+    {
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
+    }
+
+    if( flat_id == 0 || flat_id == warpSize )
+    {
+        atomicAdd(e_lj_ptr, E_lj);
+        atomicAdd(e_el_ptr, E_el);
+    }
+}
+
+template<
+    unsigned int BlockSize
+>
+__launch_bounds__(BlockSize) __global__
+void nbnxn_kernel_sum_up(
+    NBAtomDataGpu atdat,
+    int size,
+    bool computeEnergy,
+    bool computeVirial)
+{
+    unsigned int bidx = blockIdx.x;
+
+    // Sum up fshifts
+    if(computeVirial)
+    {
+        float3* values_ptr = asFloat3(atdat.fShift) + bidx;
+        float3_reduce_final(values_ptr, size);
+    }
+
+    // Sum up energies
+    if(computeEnergy && bidx == 0)
+    {
+        float* e_lj_ptr = atdat.eLJ;
+        float* e_el_ptr = atdat.eElec;
+
+        energy_reduce_final(e_lj_ptr, e_el_ptr);
+    }
+}
+
+static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
+  const int* address_as_ull = (int*)address;
+  int old = *address_as_ull;
+  int assumed;
+
+  do {
+    assumed = old;
+    old = atomicCAS((int*)address_as_ull, assumed,
+                    __float_as_int(val +
+                    __int_as_float(assumed)));
+  } while (assumed != old);
+
+}
+
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
 static __forceinline__ __device__ void
 convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon, float* c6, float* c12)
@@ -88,6 +211,16 @@ convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon, float* c
     *c12   = *c6 * sigma6;
 }
 
+static __forceinline__ __device__ void
+                       convert_sigma_epsilon_to_c6_c12(const float2 sigma, const float2 epsilon, float2* c6, float2* c12)
+{
+    float2 sigma2, sigma6;
+
+    sigma2 = sigma * sigma;
+    sigma6 = sigma2 * sigma2 * sigma2;
+    *c6    = epsilon * sigma6;
+    *c12   = *c6 * sigma6;
+}
 /*! Apply force switch,  force + energy version. */
 static __forceinline__ __device__ void
 calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float inv_r, float r2, float* F_invr)
@@ -108,6 +241,26 @@ calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float in
                + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
 }
 
+// For float2 type
+static __forceinline__ __device__ void
+                       calculate_force_switch_F(const NBParamGpu nbparam, float2 c6, float2 c12, float2 inv_r, float2 r2, float2* F_invr)
+{
+    float2 r, r_switch;
+
+    /* force switch constants */
+    float2 disp_shift_V2 = {nbparam.dispersion_shift.c2, nbparam.dispersion_shift.c2};
+    float2 disp_shift_V3 = {nbparam.dispersion_shift.c3, nbparam.dispersion_shift.c3};
+    float2 repu_shift_V2 = {nbparam.repulsion_shift.c2, nbparam.repulsion_shift.c2};
+    float2 repu_shift_V3 = {nbparam.repulsion_shift.c3, nbparam.repulsion_shift.c3};
+
+    r        = r2 * inv_r;
+    r_switch = {r.x - nbparam.rvdw_switch, r.y - nbparam.rvdw_switch};
+    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
+    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
+
+    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
+               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
+}
 /*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
                                                                   float            c6,
@@ -140,6 +293,37 @@ static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamG
              - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
 }
 
+static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
+                                                                  float2            c6,
+                                                                  float2            c12,
+                                                                  float2            inv_r,
+                                                                  float2            r2,
+                                                                  float2*           F_invr,
+                                                                  float2*           E_lj)
+{
+    float2 r, r_switch;
+
+    /* force switch constants */
+    float disp_shift_V2 = nbparam.dispersion_shift.c2;
+    float disp_shift_V3 = nbparam.dispersion_shift.c3;
+    float repu_shift_V2 = nbparam.repulsion_shift.c2;
+    float repu_shift_V3 = nbparam.repulsion_shift.c3;
+
+    float disp_shift_F2 = nbparam.dispersion_shift.c2 / 3;
+    float disp_shift_F3 = nbparam.dispersion_shift.c3 / 4;
+    float repu_shift_F2 = nbparam.repulsion_shift.c2 / 3;
+    float repu_shift_F3 = nbparam.repulsion_shift.c3 / 4;
+
+    r        = r2 * inv_r;
+    r_switch = r - nbparam.rvdw_switch;
+    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
+    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
+
+    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
+               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
+    *E_lj += c6 * (disp_shift_F2 + disp_shift_F3 * r_switch) * r_switch * r_switch * r_switch
+             - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
+}
 /*! Apply potential switch, force-only version. */
 static __forceinline__ __device__ void calculate_potential_switch_F(const NBParamGpu& nbparam,
                                                                     float             inv_r,
@@ -206,14 +390,12 @@ calculate_potential_switch_F_E(const NBParamGpu nbparam, float inv_r, float r2, 
  */
 static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, int typei, int typej)
 {
-#    if DISABLE_HIP_TEXTURES
-    float c6_i = LDG(&nbparam.nbfp_comb[typei]).x;
-    float c6_j = LDG(&nbparam.nbfp_comb[typej]).x;
+#    if DISABLE_CUDA_TEXTURES
+    return LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej]);
 #    else
-    float c6_i = tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, typei).x;
-    float c6_j = tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, typej).x;
-#    endif /* DISABLE_HIP_TEXTURES */
-    return c6_i * c6_j;
+    return tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typei)
+           * tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typej);
+#    endif /* DISABLE_CUDA_TEXTURES */
 }
 
 
@@ -236,7 +418,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F(const NBPa
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = expf(-cr2);
+    expmcr2   = __expf(-cr2);
     poly      = 1.0F + cr2 + 0.5F * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -265,7 +447,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NB
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = expf(-cr2);
+    expmcr2   = __expf(-cr2);
     poly      = 1.0F + cr2 + 0.5F * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -323,7 +505,7 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_LB_F_E(const NBPa
     /* Recalculate inv_r6 without exclusion mask */
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
-    expmcr2   = expf(-cr2);
+    expmcr2   = __expf(-cr2);
     poly      = 1.0F + cr2 + 0.5F * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -374,6 +556,11 @@ __forceinline__ __host__ __device__ T lerp(T d0, T d1, T t)
     return fma(t, d1, fma(-t, d0, d0));
 }
 
+__forceinline__ __device__ float flerp(float d0, float d1, float t)
+{
+    return __fmaf_rn(t, d1, __fmaf_rn(-t, d0, d0));
+}
+
 /*! Interpolate Ewald coulomb force correction using the F*r table.
  */
 static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBParamGpu nbparam, float r)
@@ -384,7 +571,7 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
-    return lerp(d01.x, d01.y, fraction);
+    return flerp(d01.x, d01.y, fraction);
 }
 
 /*! Fetch C6 and C12 from the parameter table.
@@ -409,19 +596,19 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, 
 /*! Calculate analytical Ewald correction term. */
 static __forceinline__ __device__ float pmecorrF(float z2)
 {
-    const float FN6 = -1.7357322914161492954e-8F;
-    const float FN5 = 1.4703624142580877519e-6F;
-    const float FN4 = -0.000053401640219807709149F;
-    const float FN3 = 0.0010054721316683106153F;
-    const float FN2 = -0.019278317264888380590F;
-    const float FN1 = 0.069670166153766424023F;
-    const float FN0 = -0.75225204789749321333F;
+    constexpr float FN6 = -1.7357322914161492954e-8f;
+    constexpr float FN5 = 1.4703624142580877519e-6f;
+    constexpr float FN4 = -0.000053401640219807709149f;
+    constexpr float FN3 = 0.0010054721316683106153f;
+    constexpr float FN2 = -0.019278317264888380590f;
+    constexpr float FN1 = 0.069670166153766424023f;
+    constexpr float FN0 = -0.75225204789749321333f;
 
-    const float FD4 = 0.0011193462567257629232F;
-    const float FD3 = 0.014866955030185295499F;
-    const float FD2 = 0.11583842382862377919F;
-    const float FD1 = 0.50736591960530292870F;
-    const float FD0 = 1.0F;
+    constexpr float FD4 = 0.0011193462567257629232f;
+    constexpr float FD3 = 0.014866955030185295499f;
+    constexpr float FD2 = 0.11583842382862377919f;
+    constexpr float FD1 = 0.50736591960530292870f;
+    constexpr float FD0 = 1.0f;
 
     float z4;
     float polyFN0, polyFN1, polyFD0, polyFD1;
@@ -469,34 +656,37 @@ reduce_force_j_generic(const float* f_buf, float3* fout, int tidxi, int tidxj, i
 static __forceinline__ __device__ void
 reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
 {
-    // f.x += __shfl_down_sync(activemask, f.x, 1);
-    // f.y += __shfl_up_sync(activemask, f.y, 1);
-    // f.z += __shfl_down_sync(activemask, f.z, 1);
-    f.x += __shfl_down(f.x, 1);
-    f.y += __shfl_up(f.y, 1);
-    f.z += __shfl_down(f.z, 1);
-
-    if (tidxi & 1)
+    /*for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
     {
-        f.x = f.y;
-    }
+        f.x += __shfl_down(f.x, offset);
+        f.y += __shfl_down(f.y, offset);
+        f.z += __shfl_down(f.z, offset);
+    }*/
 
-    // f.x += __shfl_down_sync(activemask, f.x, 2);
-    // f.z += __shfl_up_sync(activemask, f.z, 2);
-    f.x += __shfl_down(f.x, 2);
-    f.z += __shfl_up(f.z, 2);
+    f.x += warp_move_dpp<float, 0xb1>(f.x);
+    f.y += warp_move_dpp<float, 0xb1>(f.y);
+    f.z += warp_move_dpp<float, 0xb1>(f.z);
 
-    if (tidxi & 2)
+    f.x += warp_move_dpp<float, 0x4e>(f.x);
+    f.y += warp_move_dpp<float, 0x4e>(f.y);
+    f.z += warp_move_dpp<float, 0x4e>(f.z);
+
+    f.x += warp_move_dpp<float, 0x114>(f.x);
+    f.y += warp_move_dpp<float, 0x114>(f.y);
+    f.z += warp_move_dpp<float, 0x114>(f.z);
+
+    //if (tidxi == 0)
+    if (tidxi == c_clSize - 1)
     {
-        f.x = f.z;
-    }
-
-    // f.x += __shfl_down_sync(activemask, f.x, 4);
-    f.x += __shfl_down(f.x, 4);
-
-    if (tidxi < 3)
-    {
-        atomicAdd((&fout[aidx].x) + tidxi, f.x);
+#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+        atomicAdd((&fout[aidx].x), f.x);
+        atomicAdd((&fout[aidx].y), f.y);
+        atomicAdd((&fout[aidx].z), f.z);
+#else
+        atomicAddOverWriteForFloat((&fout[aidx].x), f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].y), f.y);
+        atomicAddOverWriteForFloat((&fout[aidx].z), f.z);
+#endif
     }
 }
 
@@ -629,7 +819,7 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
         fin.x = fin.z;
     }
     fin.x += __shfl_down(fin.x, 4*c_clSize);
-    
+
     /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
     if (tidxj < 3)
     {
@@ -638,6 +828,37 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
         if (bCalcFshift)
         {
             *fshift_buf += fin.x;
+        }
+    }
+}
+
+static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
+                                                                float3*            fout,
+                                                                float3&            fshift_buf,
+                                                                bool               bCalcFshift,
+                                                                int                tidxj,
+                                                                int                aidx,
+                                                                const unsigned long activemask)
+{
+    #pragma unroll
+    for (int offset = warpSize >> 1; offset >= c_clSize; offset >>= 1)
+    {
+        fin.x += __shfl_down(fin.x, offset);
+        fin.y += __shfl_down(fin.y, offset);
+        fin.z += __shfl_down(fin.z, offset);
+    }
+
+    if (tidxj % (warpSize / c_clSize) == 0)
+    {
+        atomicAdd((&fout[aidx].x), fin.x);
+        atomicAdd((&fout[aidx].y), fin.y);
+        atomicAdd((&fout[aidx].z), fin.z);
+
+        if (bCalcFshift)
+        {
+            fshift_buf.x += fin.x;
+            fshift_buf.y += fin.y;
+            fshift_buf.z += fin.z;
         }
     }
 }
@@ -683,25 +904,80 @@ reduce_energy_pow2(volatile float* buf, float* e_lj, float* e_el, unsigned int t
 static __forceinline__ __device__ void
 reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
 {
-    int i, sh;
-
-    sh = 1;
-#    pragma unroll warp_size_log2
-    for (i = 0; i < warp_size_log2; i++)
+    /*for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
     {
-        // E_lj += __shfl_down_sync(activemask, E_lj, sh);
-        // E_el += __shfl_down_sync(activemask, E_el, sh);
-        E_lj += __shfl_down(E_lj, sh);
-        E_el += __shfl_down(E_el, sh);
-        sh += sh;
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
+    }*/
+
+    if(c_subWarp > 1)
+    {
+        E_lj += warp_move_dpp<float, 0xb1>(E_lj);
+        E_el += warp_move_dpp<float, 0xb1>(E_el);
     }
 
-    /* The first thread in the warp writes the reduced energies */
-    if (tidx == 0)
+    if(c_subWarp > 2)
+    {
+        E_lj += warp_move_dpp<float, 0x4e>(E_lj);
+        E_el += warp_move_dpp<float, 0x4e>(E_el);
+    }
+
+    if(c_subWarp > 4)
+    {
+        E_lj += warp_move_dpp<float, 0x114>(E_lj);
+        E_el += warp_move_dpp<float, 0x114>(E_el);
+    }
+
+    if(c_subWarp > 8)
+    {
+        E_lj += warp_move_dpp<float, 0x118>(E_lj);
+        E_el += warp_move_dpp<float, 0x118>(E_el);
+    }
+
+    if(c_subWarp > 16)
+    {
+#ifndef __gfx1030__
+        E_lj += warp_move_dpp<float, 0x142>(E_lj);
+        E_el += warp_move_dpp<float, 0x142>(E_el);
+#else
+        E_lj += __shfl(E_lj, 15, warpSize);
+        E_el += __shfl(E_el, 15, warpSize);
+#endif
+    }
+
+#ifndef __gfx1030__
+    if(c_subWarp > 32)
+    {
+
+        E_lj += warp_move_dpp<float, 0x143>(E_lj);
+        E_el += warp_move_dpp<float, 0x143>(E_el);
+    }
+
+    /* The last thread in the subWarp writes the reduced energies */
+    if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
     {
         atomicAdd(e_lj, E_lj);
         atomicAdd(e_el, E_el);
     }
+#else
+    if(c_subWarp > 32)
+    {
+        if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
+        {
+            atomicAdd(e_lj, E_lj);
+            atomicAdd(e_el, E_el);
+        }
+    }
+    else
+    {
+        if ((tidx & (warpSize - 1)) == (warpSize - 1))
+        {
+            atomicAdd(e_lj, E_lj);
+            atomicAdd(e_el, E_el);
+        }
+    }
+    return;
+#endif
 }
 
 #endif /* NBNXN_HIP_KERNEL_UTILS_HPP */

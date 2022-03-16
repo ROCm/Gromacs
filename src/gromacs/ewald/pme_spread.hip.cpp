@@ -92,7 +92,7 @@ __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kern
 
     // Number of atoms processed by a single warp in spread and gather
     const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
-    const int atomsPerWarp        = warp_size / threadsPerAtomValue;
+    const int atomsPerWarp        = warpSize/ threadsPerAtomValue;
 
     const int nx  = kernelParams.grid.realGridSize[XX];
     const int ny  = kernelParams.grid.realGridSize[YY];
@@ -188,7 +188,7 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
     const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
     const int atomsPerBlock       = c_spreadMaxThreadsPerBlock / threadsPerAtomValue;
     // Number of atoms processed by a single warp in spread and gather
-    const int atomsPerWarp = warp_size / threadsPerAtomValue;
+    const int atomsPerWarp = warpSize/ threadsPerAtomValue;
     // Gridline indices, ivec
     __shared__ int sm_gridlineIndices[atomsPerBlock * DIM];
     // Charges
@@ -257,7 +257,7 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
         calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, numGrids>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
         // __syncwarp();
-        __all(1);
+        __builtin_amdgcn_wave_barrier();
     }
     else
     {

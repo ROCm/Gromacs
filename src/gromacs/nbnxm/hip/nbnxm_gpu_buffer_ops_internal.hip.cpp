@@ -50,6 +50,10 @@
 #include "gromacs/nbnxm/nbnxm_gpu_buffer_ops_internal.h"
 #include "gromacs/nbnxm/hip/nbnxm_hip_types.h"
 
+//! Number of HIP threads in a block
+// TODO Optimize this through experimentation
+constexpr static int c_bufOpsThreadsPerBlock = 64;
+
 /*! \brief HIP kernel for transforming position coordinates from rvec to nbnxm layout.
  *
  * TODO:
@@ -65,7 +69,8 @@
  * \param[in]     cellOffset          First cell.
  * \param[in]     numAtomsPerCell     Number of atoms per cell.
  */
-static __global__ void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
+static __launch_bounds__(c_bufOpsThreadsPerBlock, 16) __global__
+void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
                                                     float4* __restrict__ gm_xq,
                                                     const float3* __restrict__ gm_x,
                                                     const int* __restrict__ gm_atomIndex,
@@ -86,7 +91,7 @@ static __global__ void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
         const int numAtoms = gm_numAtoms[cxy];
         const int offset   = (cellOffset + gm_cellIndex[cxy]) * numAtomsPerCell;
 
-        const int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+        const int threadIndex = blockIdx.x * c_bufOpsThreadsPerBlock + threadIdx.x;
 
         // Destination address where x should be stored in nbnxm layout. We use this cast here to
         // save only x, y and z components, not touching the w (q) component, which is pre-defined.
@@ -110,10 +115,6 @@ static __global__ void nbnxn_gpu_x_to_nbat_x_kernel(int numColumns,
 
 namespace Nbnxm
 {
-
-//! Number of HIP threads in a block
-// TODO Optimize this through experimentation
-constexpr static int c_bufOpsThreadsPerBlock = 512;
 
 void launchNbnxmKernelTransformXToXq(const Grid&          grid,
                                      NbnxmGpu*            nb,

@@ -55,7 +55,7 @@ namespace gmx
 struct LincsGpuKernelParameters;
 
 //! Number of threads in a GPU block
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 64;
 
 /*! \brief Backend-specific function to launch LINCS kernel.
  *

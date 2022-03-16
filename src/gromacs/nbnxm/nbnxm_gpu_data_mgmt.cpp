@@ -53,7 +53,9 @@
 #endif
 
 #if GMX_GPU_HIP
+#    include "gromacs/gpu_utils/hiputils.hpp"
 #    include "hip/nbnxm_hip_types.h"
+#    include "hip/nbnxm_hip_kernel_utils.hpp"
 #endif
 
 #if GMX_GPU_OPENCL
@@ -258,13 +260,13 @@ static inline void initAtomdataFirst(NBAtomDataGpu*       atomdata,
     allocateDeviceBuffer(&atomdata->shiftVec, gmx::c_numShiftVectors, deviceContext);
     atomdata->shiftVecUploaded = false;
 
-    allocateDeviceBuffer(&atomdata->fShift, gmx::c_numShiftVectors, deviceContext);
-    allocateDeviceBuffer(&atomdata->eLJ, 1, deviceContext);
-    allocateDeviceBuffer(&atomdata->eElec, 1, deviceContext);
+    allocateDeviceBuffer(&atomdata->fShift, c_clShiftMemorySize * gmx::c_numShiftVectors, deviceContext);
+    allocateDeviceBuffer(&atomdata->eLJ, c_clEnergyMemorySize, deviceContext);
+    allocateDeviceBuffer(&atomdata->eElec, c_clEnergyMemorySize, deviceContext);
 
-    clearDeviceBufferAsync(&atomdata->fShift, 0, gmx::c_numShiftVectors, localStream);
-    clearDeviceBufferAsync(&atomdata->eElec, 0, 1, localStream);
-    clearDeviceBufferAsync(&atomdata->eLJ, 0, 1, localStream);
+    clearDeviceBufferAsync(&atomdata->fShift, 0, c_clShiftMemorySize * gmx::c_numShiftVectors, localStream);
+    clearDeviceBufferAsync(&atomdata->eElec, 0, c_clEnergyMemorySize, localStream);
+    clearDeviceBufferAsync(&atomdata->eLJ, 0, c_clEnergyMemorySize, localStream);
 
     /* initialize to nullptr pointers to data that is not allocated here and will
        need reallocation in later */
@@ -713,9 +715,9 @@ void gpu_clear_outputs(NbnxmGpu* nb, bool computeVirial)
     // Clear shift force array and energies if the outputs were used in the current step
     if (computeVirial)
     {
-        clearDeviceBufferAsync(&adat->fShift, 0, gmx::c_numShiftVectors, localStream);
-        clearDeviceBufferAsync(&adat->eLJ, 0, 1, localStream);
-        clearDeviceBufferAsync(&adat->eElec, 0, 1, localStream);
+        clearDeviceBufferAsync(&adat->fShift, 0, c_clShiftMemorySize * gmx::c_numShiftVectors, localStream);
+        clearDeviceBufferAsync(&adat->eLJ, 0, c_clEnergyMemorySize, localStream);
+        clearDeviceBufferAsync(&adat->eElec, 0, c_clEnergyMemorySize, localStream);
     }
     issueClFlushInStream(localStream);
 }
@@ -847,6 +849,42 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
     /* only transfer energies in the local stream */
     if (iloc == InteractionLocality::Local)
     {
+/*#if GMX_GPU_HIP
+        bool sumUpEnergy = (stepWork.computeEnergy && c_clEnergyMemoryMultiplier > 1);
+        bool sumUpShifts = (stepWork.computeVirial && c_clShiftMemoryMultiplier > 1);
+
+        if ( sumUpEnergy || sumUpShifts )
+        {
+            constexpr unsigned int block_size = 64U;
+
+            KernelLaunchConfig configSumUp;
+            configSumUp.blockSize[0] = block_size;
+            configSumUp.blockSize[1] = 1;
+            configSumUp.blockSize[2] = 1;
+            configSumUp.gridSize[0]  = sumUpShifts ? gmx::c_numShiftVectors : 1;
+            configSumUp.sharedMemorySize = 0;
+
+            const auto kernelSumUp = nbnxn_kernel_sum_up<block_size>;
+            const auto kernelSumUpArgs =
+                    prepareGpuKernelArguments(
+                        kernelSumUp,
+                        configSumUp,
+                        adat,
+                        &gmx::c_numShiftVectors,
+                        &sumUpEnergy,
+                        &sumUpShifts
+                    );
+
+            launchGpuKernel(
+                kernelSumUp,
+                configSumUp,
+                deviceStream,
+                nullptr,
+                "nbnxn_kernel_sum_up",
+                kernelSumUpArgs
+            );
+        }
+#endif*/
         /* DtoH fshift when virial is needed */
         if (stepWork.computeVirial)
         {

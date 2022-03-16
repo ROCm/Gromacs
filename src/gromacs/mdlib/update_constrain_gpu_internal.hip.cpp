@@ -54,7 +54,7 @@ namespace gmx
  *
  * \todo Check if using smaller block size will lead to better performance.
  */
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 64;
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
 
@@ -63,7 +63,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
                                             float3* __restrict__ gm_x,
                                             const ScalingMatrix scalingMatrix)
 {
-    int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
     if (threadIndex < numAtoms)
     {
         float3 x = gm_x[threadIndex];

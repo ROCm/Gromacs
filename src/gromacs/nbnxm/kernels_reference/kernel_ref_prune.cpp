@@ -97,7 +97,7 @@ void nbnxn_kernel_prune_ref(NbnxnPairlistCpu*              nbl,
             }
         }
 
-        for (int cjind = ciEntry->cj_ind_start; cjind < ciEntry->cj_ind_end; cjind++)
+        for (int cjind = ciEntry->cj_ind_start; cjind < ciEntry->cjIndEnd(); cjind++)
         {
             /* j-cluster index */
             int cj = cjOuter[cjind].cj;
@@ -132,7 +132,7 @@ void nbnxn_kernel_prune_ref(NbnxnPairlistCpu*              nbl,
         /* Check if there are any j's in the list, if so, add the i-entry */
         if (ncjInner > ciInner[nciInner].cj_ind_start)
         {
-            ciInner[nciInner].cj_ind_end = ncjInner;
+            ciInner[nciInner].cj_length = ncjInner - ciInner[nciInner].cj_ind_start;
             nciInner++;
         }
     }

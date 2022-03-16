@@ -86,7 +86,7 @@
 #define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 // we want 100% occupancy, so max threads/block
-#define MIN_BLOCKS_PER_MP (GMX_HIP_MAX_THREADS_PER_MP / THREADS_PER_BLOCK)
+#define MIN_BLOCKS_PER_MP 4
 /**@}*/
 
 /*! \brief Nonbonded list pruning kernel.
@@ -106,10 +106,10 @@
 template<bool haveFreshList>
 __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__
         void nbnxn_kernel_prune_hip(NBAtomDataGpu    atdat,
-                                     NBParamGpu       nbparam,
-                                     Nbnxm::gpu_plist plist,
-                                     int              numParts,
-                                     int              part)
+                                    NBParamGpu       nbparam,
+                                    Nbnxm::gpu_plist plist,
+                                    int              numParts,
+                                    int              part)
 #ifdef FUNCTION_DECLARATION_ONLY
                 ; /* Only do function declaration, omit the function body. */
 
@@ -139,13 +139,10 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
 #    else
     unsigned int tidxz = threadIdx.z;
 #    endif
-    unsigned int bidx  = blockIdx.x;
+    unsigned int tidx  = tidxi + c_clSize * tidxj;
 
-    // cj preload is off in the following cases:
-    // - sm_70 (V100), sm_8x (A100, GA100), sm_75 (TU102)
-    // - for future arch (> 8.6 at the time of writing) we assume it is better to keep it off
-    // constexpr bool c_preloadCj = (GMX_PTX_ARCH < 700);
-    constexpr bool c_preloadCj = true;
+    unsigned int bidx  = blockIdx.x;
+    unsigned int widx  = (threadIdx.y * c_clSize) / c_subWarp; /* warp index */
 
     /*********************************************************************
      * Set up shared memory pointers.
@@ -161,14 +158,6 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     float4* xib = reinterpret_cast<float4*>(sm_nextSlotPtr);
     sm_nextSlotPtr += (c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(*xib));
 
-    /* shmem buffer for cj, for each warp separately */
-    int* cjs = reinterpret_cast<int*>(sm_nextSlotPtr);
-    if (c_preloadCj)
-    {
-        /* the cjs buffer's use expects a base pointer offset for each sub-group (one or more warps) in the j-concurrent execution */
-        cjs += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-        sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
-    }
     /*********************************************************************/
 
 
@@ -176,19 +165,22 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
             pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
     int sci        = nb_sci.sci;           /* super-cluster */
     int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-    int cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+    int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
-    if (tidxz == 0)
+    if (tidxz == 0 && tidxj == 0)
     {
-        /* Pre-load i-atom x and q into shared memory */
-        int ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
-        int ai = ci * c_clSize + tidxi;
+        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+        {
+            /* Pre-load i-atom x and q into shared memory */
+            int ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
+            int ai = ci * c_clSize + tidxi;
 
-        /* We don't need q, but using float4 in shmem avoids bank conflicts.
-           (but it also wastes L2 bandwidth). */
-        float4 tmp                    = xq[ai];
-        float4 xi                     = tmp + shift_vec[nb_sci.shift];
-        xib[tidxj * c_clSize + tidxi] = xi;
+            /* We don't need q, but using float4 in shmem avoids bank conflicts.
+               (but it also wastes L2 bandwidth). */
+            float4 tmp                    = xq[ai];
+            float4 xi                     = tmp + shift_vec[nb_sci.shift];
+            xib[i * c_clSize + tidxi] = xi;
+        }
     }
     __syncthreads();
 
@@ -203,7 +195,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
         if (haveFreshList)
         {
             /* Read the mask from the list transferred from the CPU */
-            imaskFull = pl_cj4[j4].imei[0].imask;
+            imaskFull = pl_cj4[j4].imei[widx].imask;
             /* We attempt to prune all pairs present in the original list */
             imaskCheck = imaskFull;
             imaskNew   = 0;
@@ -211,41 +203,30 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
         else
         {
             /* Read the mask from the "warp-pruned" by rlistOuter mask array */
-            imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit];
+            imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
             /* Read the old rolling pruned mask, use as a base for new */
-            imaskNew = pl_cj4[j4].imei[0].imask;
+            imaskNew = pl_cj4[j4].imei[widx].imask;
             /* We only need to check pairs with different mask */
             imaskCheck = (imaskNew ^ imaskFull);
         }
 
         if (imaskCheck)
         {
-            if (c_preloadCj)
-            {
-                /* Pre-load cj into shared memory on both warps separately */
-                if (((tidxj * hipBlockDim_x) % warp_size == 0) && tidxi < c_nbnxnGpuJgroupSize)
-                {
-                    cjs[tidxi] = pl_cj4[j4].cj[tidxi];
-                }
-                // __syncwarp(c_fullWarpMask);
-                __all(1);
-            }
-
-#    pragma unroll 4
+#    pragma unroll c_nbnxnGpuJgroupSize
             for (int jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imaskCheck & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
                     unsigned int mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
-                    int cj = c_preloadCj ? cjs[jm]
-                                         : pl_cj4[j4].cj[jm];
+
+                    int cj = pl_cj4[j4].cj[jm];
                     int aj = cj * c_clSize + tidxj;
 
                     /* load j atom data */
                     float4 tmp = xq[aj];
                     float3 xj  = make_float3(tmp.x, tmp.y, tmp.z);
 
-#    pragma unroll 8
+#    pragma unroll c_nbnxnGpuNumClusterPerSupercluster
                     for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
                     {
                         if (imaskCheck & mask_ji)
@@ -261,15 +242,13 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
                             /* If _none_ of the atoms pairs are in rlistOuter
                                range, the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            // if (haveFreshList && !__any_sync(c_fullWarpMask, r2 < rlistOuter_sq))
-                            if (haveFreshList && !__any(r2 < rlistOuter_sq))
+                            if (haveFreshList && !__nb_any(r2 < rlistOuter_sq, widx))
                             {
                                 imaskFull &= ~mask_ji;
                             }
                             /* If any atom pair is within range, set the bit
                                corresponding to the current cluster-pair. */
-                            // if (__any_sync(c_fullWarpMask, r2 < rlistInner_sq))
-                            if (__any(r2 < rlistInner_sq))
+                            if (__nb_any(r2 < rlistInner_sq, widx))
                             {
                                 imaskNew |= mask_ji;
                             }
@@ -284,17 +263,13 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
             if (haveFreshList)
             {
                 /* copy the list pruned to rlistOuter to a separate buffer */
-                plist.imask[j4 * c_nbnxnGpuClusterpairSplit] = imaskFull;
+                plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
             }
             /* update the imask with only the pairs up to rlistInner */
-            plist.cj4[j4].imei[0].imask = imaskNew;
+            plist.cj4[j4].imei[widx].imask = imaskNew;
         }
-        if (c_preloadCj)
-        {
-            // avoid shared memory WAR hazards on sm_cjs between loop iterations
-            // __syncwarp(c_fullWarpMask);
-            __all(1);
-        }
+        // avoid shared memory WAR hazards between loop iterations
+        __builtin_amdgcn_wave_barrier();
     }
 }
 #endif /* FUNCTION_DECLARATION_ONLY */

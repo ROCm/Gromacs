@@ -54,9 +54,10 @@
 namespace gmx
 {
 
-constexpr static int c_threadsPerBlock = 128;
+constexpr static int c_threadsPerBlock = 64;
 
 template<bool addRvecForce, bool accumulateForce>
+__launch_bounds__(c_threadsPerBlock)
 static __global__ void reduceKernel(const float3* __restrict__ gm_nbnxmForce,
                                     const float3* __restrict__ rvecForceToAdd,
                                     float3*    gm_fTotal,
@@ -65,7 +66,7 @@ static __global__ void reduceKernel(const float3* __restrict__ gm_nbnxmForce,
 {
 
     // map particle-level parallelism to 1D HIP thread and block index
-    const int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    const int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
 
     // perform addition for each particle
     if (threadIndex < numAtoms)

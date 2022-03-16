@@ -191,7 +191,7 @@ elseif(GMX_GPU_HIP)
             set(ROCM_PATH $ENV{ROCM_PATH})
         endif()
     endif()
-    # set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
     # set(HIP_LIBRARIES PRIVATE ${HIP_LIBRARIES})
     if(NOT GMX_THREAD_MPI)
         find_package(MPI)
@@ -218,7 +218,7 @@ elseif(GMX_GPU_HIP)
     endif()
 
     check_hip_path()
-    
+
     get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
 
 	if(NOT HIP_ADD_LIBRARY_FOUND)
@@ -232,7 +232,7 @@ elseif(GMX_GPU_HIP)
             message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
         endif()
     endif()
-    
+
     foreach(hip_file ${LIBGROMACS_SOURCES})
        if(${hip_file} MATCHES "\\.hip.cpp$")
            set_source_files_properties(${hip_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)

@@ -108,7 +108,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     const float* __restrict__ gm_inverseMasses           = kernelParams.d_inverseMasses;
     float* __restrict__ gm_virialScaled                  = kernelParams.d_virialScaled;
 
-    const int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    const int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
 
     // numConstraintsThreads should be a integer multiple of blockSize (numConstraintsThreads = numBlocks*blockSize).
     // This is to ensure proper synchronizations and reduction. All array are padded to the required size.
@@ -155,14 +155,14 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         targetLength    = gm_constraintsTargetLengths[threadIndex];
         inverseMassi    = gm_inverseMasses[i];
         inverseMassj    = gm_inverseMasses[j];
-        sqrtReducedMass = rsqrt(inverseMassi + inverseMassj);
+        sqrtReducedMass = __frsqrt_rn(inverseMassi + inverseMassj);
 
         xi = gm_x[i];
         xj = gm_x[j];
 
         float3 dx = pbcDxAiuc(pbcAiuc, xi, xj);
 
-        float rlen = rsqrtf(dx.x * dx.x + dx.y * dx.y + dx.z * dx.z);
+        float rlen = __frsqrt_rn(dx.x * dx.x + dx.y * dx.y + dx.z * dx.z);
         rc         = rlen * dx;
     }
 
@@ -221,11 +221,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             int c1    = gm_coupledConstraintsIndices[index];
             // Convolute current right-hand-side with A
             // Different, non overlapping parts of sm_rhs[..] are read during odd and even iterations
-            mvb = mvb + gm_matrixA[index] * sm_rhs[c1 + blockDim.x * (rec % 2)];
+            mvb = mvb + gm_matrixA[index] * sm_rhs[c1 + c_threadsPerBlock * (rec % 2)];
         }
         // 'Switch' rhs vectors, save current result
         // These values will be accessed in the loop above during the next iteration.
-        sm_rhs[threadIdx.x + blockDim.x * ((rec + 1) % 2)] = mvb;
+        sm_rhs[threadIdx.x + c_threadsPerBlock * ((rec + 1) % 2)] = mvb;
         sol                                                = sol + mvb;
     }
 
@@ -263,11 +263,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         float dlen2 = 2.0F * len2 - norm2(dx);
 
         // TODO A little bit more effective but slightly less readable version of the below would be:
-        //      float proj = sqrtReducedMass*(targetLength - (dlen2 > 0.0f ? 1.0f : 0.0f)*dlen2*rsqrt(dlen2));
+        //      float proj = sqrtReducedMass*(targetLength - (dlen2 > 0.0f ? 1.0f : 0.0f)*dlen2*__frsqrt_rn(dlen2));
         float proj;
         if (dlen2 > 0.0F)
         {
-            proj = sqrtReducedMass * (targetLength - dlen2 * rsqrt(dlen2));
+            proj = sqrtReducedMass * (targetLength - dlen2 * __frsqrt_rn(dlen2));
         }
         else
         {
@@ -291,9 +291,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
                 int index = n * numConstraintsThreads + threadIndex;
                 int c1    = gm_coupledConstraintsIndices[index];
 
-                mvb = mvb + gm_matrixA[index] * sm_rhs[c1 + blockDim.x * (rec % 2)];
+                mvb = mvb + gm_matrixA[index] * sm_rhs[c1 + c_threadsPerBlock * (rec % 2)];
             }
-            sm_rhs[threadIdx.x + blockDim.x * ((rec + 1) % 2)] = mvb;
+            sm_rhs[threadIdx.x + c_threadsPerBlock * ((rec + 1) % 2)] = mvb;
             sol                                                = sol + mvb;
         }
 
@@ -341,12 +341,12 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         __syncthreads();
         extern __shared__ float sm_threadVirial[];
         float                   mult                  = targetLength * lagrangeScaled;
-        sm_threadVirial[0 * blockDim.x + threadIdx.x] = mult * rc.x * rc.x;
-        sm_threadVirial[1 * blockDim.x + threadIdx.x] = mult * rc.x * rc.y;
-        sm_threadVirial[2 * blockDim.x + threadIdx.x] = mult * rc.x * rc.z;
-        sm_threadVirial[3 * blockDim.x + threadIdx.x] = mult * rc.y * rc.y;
-        sm_threadVirial[4 * blockDim.x + threadIdx.x] = mult * rc.y * rc.z;
-        sm_threadVirial[5 * blockDim.x + threadIdx.x] = mult * rc.z * rc.z;
+        sm_threadVirial[0 * c_threadsPerBlock + threadIdx.x] = mult * rc.x * rc.x;
+        sm_threadVirial[1 * c_threadsPerBlock + threadIdx.x] = mult * rc.x * rc.y;
+        sm_threadVirial[2 * c_threadsPerBlock + threadIdx.x] = mult * rc.x * rc.z;
+        sm_threadVirial[3 * c_threadsPerBlock + threadIdx.x] = mult * rc.y * rc.y;
+        sm_threadVirial[4 * c_threadsPerBlock + threadIdx.x] = mult * rc.y * rc.z;
+        sm_threadVirial[5 * c_threadsPerBlock + threadIdx.x] = mult * rc.z * rc.z;
 
         __syncthreads();
 
@@ -355,15 +355,15 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // half of it sums two values. This procedure is repeated until only one thread is left.
         // Only works if the threads per blocks is a power of two (hence static_assert
         // in the beginning of the kernel).
-        for (int divideBy = 2; divideBy <= static_cast<int>(blockDim.x); divideBy *= 2)
+        for (int divideBy = 2; divideBy <= static_cast<int>(c_threadsPerBlock); divideBy *= 2)
         {
-            int dividedAt = blockDim.x / divideBy;
+            int dividedAt = c_threadsPerBlock / divideBy;
             if (static_cast<int>(threadIdx.x) < dividedAt)
             {
                 for (int d = 0; d < 6; d++)
                 {
-                    sm_threadVirial[d * blockDim.x + threadIdx.x] +=
-                            sm_threadVirial[d * blockDim.x + (threadIdx.x + dividedAt)];
+                    sm_threadVirial[d * c_threadsPerBlock + threadIdx.x] +=
+                            sm_threadVirial[d * c_threadsPerBlock + (threadIdx.x + dividedAt)];
                 }
             }
             // Syncronize if not within one warp
@@ -375,7 +375,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // First 6 threads in the block add the results of 6 tensor components to the global memory address.
         if (threadIdx.x < 6)
         {
-            atomicAdd(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
+            atomicAdd(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * c_threadsPerBlock]);
         }
     }
 }

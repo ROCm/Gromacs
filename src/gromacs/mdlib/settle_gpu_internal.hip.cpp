@@ -68,7 +68,7 @@ namespace gmx
 {
 
 //! Number of HIP threads in a block
-constexpr static int sc_threadsPerBlock = 256;
+constexpr static int sc_threadsPerBlock = 64;
 
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int sc_maxThreadsPerBlock = sc_threadsPerBlock;
@@ -92,7 +92,7 @@ constexpr static int sc_maxThreadsPerBlock = sc_threadsPerBlock;
  * \param [in]      pbcAiuc          Periodic boundary conditions data.
  */
 template<bool updateVelocities, bool computeVirial>
-__launch_bounds__(sc_maxThreadsPerBlock) __global__
+__launch_bounds__(sc_threadsPerBlock) __global__
         void settle_kernel(const int numSettles,
                            const WaterMolecule* __restrict__ gm_settles,
                            const SettleParameters pars,
@@ -123,7 +123,7 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
 
     extern __shared__ float sm_threadVirial[];
 
-    int tid = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    int tid = static_cast<int>(blockIdx.x * sc_threadsPerBlock + threadIdx.x);
 
     if (tid < numSettles)
     {
@@ -163,9 +163,9 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
         float yaksyd = zakszd * xaksxd - xakszd * zaksxd;
         float zaksyd = xakszd * yaksxd - yakszd * xaksxd;
 
-        float axlng = rsqrt(xaksxd * xaksxd + yaksxd * yaksxd + zaksxd * zaksxd);
-        float aylng = rsqrt(xaksyd * xaksyd + yaksyd * yaksyd + zaksyd * zaksyd);
-        float azlng = rsqrt(xakszd * xakszd + yakszd * yakszd + zakszd * zakszd);
+        float axlng = __frsqrt_rn(xaksxd * xaksxd + yaksxd * yaksxd + zaksxd * zaksxd);
+        float aylng = __frsqrt_rn(xaksyd * xaksyd + yaksyd * yaksyd + zaksyd * zaksyd);
+        float azlng = __frsqrt_rn(xakszd * xakszd + yakszd * yakszd + zakszd * zakszd);
 
         // TODO {1,2,3} indexes should be swapped with {.x, .y, .z} components.
         //      This way, we will be able to use vector ops more.
@@ -205,7 +205,7 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
         c1d.z = trns1.z * c1.x + trns2.z * c1.y + trns3.z * c1.z;
 
 
-        float sinphi = a1d_z * rsqrt(pars.ra * pars.ra);
+        float sinphi = a1d_z * __frsqrt_rn(pars.ra * pars.ra);
         float tmp2   = 1.0F - sinphi * sinphi;
 
         if (almost_zero > tmp2)
@@ -213,12 +213,12 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
             tmp2 = almost_zero;
         }
 
-        float tmp    = rsqrt(tmp2);
+        float tmp    = __frsqrt_rn(tmp2);
         float cosphi = tmp2 * tmp;
         float sinpsi = (b1d.z - c1d.z) * pars.irc2 * tmp;
         tmp2         = 1.0F - sinpsi * sinpsi;
 
-        float cospsi = tmp2 * rsqrt(tmp2);
+        float cospsi = tmp2 * __frsqrt_rn(tmp2);
 
         float a2d_y = pars.ra * cosphi;
         float b2d_x = -pars.rc * cospsi;
@@ -233,11 +233,11 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
         float gamma  = b0d.x * b1d.y - b1d.x * b0d.y + c0d.x * c1d.y - c1d.x * c0d.y;
         float al2be2 = alpha * alpha + beta * beta;
         tmp2         = (al2be2 - gamma * gamma);
-        float sinthe = (alpha * gamma - beta * tmp2 * rsqrt(tmp2)) * rsqrt(al2be2 * al2be2);
+        float sinthe = (alpha * gamma - beta * tmp2 * __frsqrt_rn(tmp2)) * __frsqrt_rn(al2be2 * al2be2);
 
         /*  --- Step4  A3' --- */
         tmp2         = 1.0F - sinthe * sinthe;
-        float costhe = tmp2 * rsqrt(tmp2);
+        float costhe = tmp2 * __frsqrt_rn(tmp2);
 
         float3 a3d, b3d, c3d;
 
@@ -298,17 +298,17 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
             float3 mdc = pars.mH * dxHw3;
             float3 mdo = pars.mO * dxOw1 + mdb + mdc;
 
-            sm_threadVirial[0 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[0 * sc_threadsPerBlock + threadIdx.x] =
                     -(x_ow1.x * mdo.x + dist21.x * mdb.x + dist31.x * mdc.x);
-            sm_threadVirial[1 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[1 * sc_threadsPerBlock + threadIdx.x] =
                     -(x_ow1.x * mdo.y + dist21.x * mdb.y + dist31.x * mdc.y);
-            sm_threadVirial[2 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[2 * sc_threadsPerBlock + threadIdx.x] =
                     -(x_ow1.x * mdo.z + dist21.x * mdb.z + dist31.x * mdc.z);
-            sm_threadVirial[3 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[3 * sc_threadsPerBlock + threadIdx.x] =
                     -(x_ow1.y * mdo.y + dist21.y * mdb.y + dist31.y * mdc.y);
-            sm_threadVirial[4 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[4 * sc_threadsPerBlock + threadIdx.x] =
                     -(x_ow1.y * mdo.z + dist21.y * mdb.z + dist31.y * mdc.z);
-            sm_threadVirial[5 * blockDim.x + threadIdx.x] =
+            sm_threadVirial[5 * sc_threadsPerBlock + threadIdx.x] =
                     -(x_ow1.z * mdo.z + dist21.z * mdb.z + dist31.z * mdc.z);
         }
     }
@@ -319,7 +319,7 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
         {
             for (int d = 0; d < 6; d++)
             {
-                sm_threadVirial[d * blockDim.x + threadIdx.x] = 0.0F;
+                sm_threadVirial[d * sc_threadsPerBlock + threadIdx.x] = 0.0F;
             }
         }
     }
@@ -331,7 +331,7 @@ __launch_bounds__(sc_maxThreadsPerBlock) __global__
         __syncthreads();
         // This casts unsigned into signed integers to avoid clang warnings
         int tib       = static_cast<int>(threadIdx.x);
-        int blockSize = static_cast<int>(blockDim.x);
+        int blockSize = static_cast<int>(sc_threadsPerBlock);
         // Reduce up to one virial per thread block
         // All blocks are divided by half, the first half of threads sums
         // two virials. Then the first half is divided by two and the first half

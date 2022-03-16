@@ -94,6 +94,7 @@ public:
                             nbnxn_atomdata_t*             nbat,
                             const gmx::ListOfLists<int>&  exclusions,
                             int                           minimumIlistCountForGpuBalancing,
+                            int                           maximumIlistCountForGpuBalancing,
                             t_nrnb*                       nrnb,
                             SearchCycleCounting*          searchCycleCounting);
 

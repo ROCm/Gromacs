@@ -95,7 +95,7 @@ void gpu_init_platform_specific(NbnxmGpu* /* nb */)
 {
     /* set the kernel type for the current GPU */
     /* pick L1 cache configuration */
-    hip_set_cacheconfig();
+    //hip_set_cacheconfig();
 }
 
 void gpu_free_platform_specific(NbnxmGpu* /* nb */)

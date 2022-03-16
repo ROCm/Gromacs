@@ -171,7 +171,7 @@ function (gmx_add_gtest_executable EXENAME)
                         set(ROCM_PATH $ENV{ROCM_PATH})
                     endif()
                 endif()
-	        # set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+	        set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
             if(NOT GMX_THREAD_MPI)
                 find_package(MPI)
 	        message (STATUS "MPI_C_FOUND:" ${MPI_C_FOUND})
@@ -192,10 +192,10 @@ function (gmx_add_gtest_executable EXENAME)
                        endif()
                    else()
                        include_directories(SYSTEM ${MPI_C_INCLUDE_DIRS})
-                   endif() 
+                   endif()
                 endif()
             endif()
-	        
+
             check_hip_path()
 
             get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
@@ -215,10 +215,10 @@ function (gmx_add_gtest_executable EXENAME)
  	        endif()
 	        set_source_files_properties(${ARG_HIP_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
 	        set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
-	        hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS} 
-	            ${ARG_CPP_SOURCE_FILES} 
-	            ${ARG_HIP_CPP_SOURCE_FILES} 
-	    	    ${ARG_GPU_CPP_SOURCE_FILES} 
+	        hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
+	            ${ARG_CPP_SOURCE_FILES}
+	            ${ARG_HIP_CPP_SOURCE_FILES}
+	    	    ${ARG_GPU_CPP_SOURCE_FILES}
                 HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ggdb -ffast-math -DNDEBUG" CLANG_OPTIONS "" NVCC_OPTIONS)
         else()
             add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}

@@ -47,13 +47,13 @@
 template<typename T>
 __device__ __forceinline__ T LDG(const T* ptr)
 {
-#if GMX_PTX_ARCH >= 350
+//#if GMX_PTX_ARCH >= 350
     /* CC >=3.5 supports constant loads through texture or L1 */
     return __ldg(ptr);
-#else
+//#else
     /* Device does not have LDG support, fall back to direct load. */
-    return *ptr;
-#endif
+//    return *ptr;
+//#endif
 }
 
 /*! \brief Fetch the value by \p index from the texture object.
