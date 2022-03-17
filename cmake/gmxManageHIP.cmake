@@ -34,6 +34,7 @@
 # the research papers on the package. Check out http://www.gromacs.org.
 
 IF (NOT DEFINED ROCM_PATH)
+    set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
     IF(NOT DEFINED ENV{ROCM_PATH})
         set(ROCM_PATH "/opt/rocm")
     else()
