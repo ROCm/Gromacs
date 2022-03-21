@@ -2151,7 +2151,11 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             /* If adding the current cj4 with nsp_cj4 pairs get us further
              * away from our target nsp_max, split the list before this cj4.
              */
+#if GMX_GPU_HIP
             if (nsp > 0 && (cj4 - nbl->sci.back().cj4_ind_start) >= cj4len_max)
+#else
+            if (nsp > 0 && nsp_max - nsp < nsp + nsp_cj4 - nsp_max)
+#endif
             {
                 /* Split the list at cj4 */
                 nbl->sci.back().cj4_length = cj4 - nbl->sci.back().cj4_ind_start;
@@ -2186,6 +2190,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             nbl->sci[nbl->sci.size() - 2].cj4_length--;
             nbl->sci[nbl->sci.size() - 1].cj4_length++;
             nbl->sci[nbl->sci.size() - 1].cj4_ind_start--;
+            nbl->sci[nbl->sci.size() - 1].cj4_length++;
         }
 #endif
     }
