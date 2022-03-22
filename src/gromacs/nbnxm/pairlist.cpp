@@ -2184,6 +2184,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
         {
             GMX_ASSERT(nbl->sci.size() >= 2, "We expect at least two elements");
             nbl->sci[nbl->sci.size() - 2].cj4_length--;
+            nbl->sci[nbl->sci.size() - 1].cj4_length++;
             nbl->sci[nbl->sci.size() - 1].cj4_ind_start--;
         }
 #endif
