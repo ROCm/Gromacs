@@ -385,16 +385,16 @@ void clearDeviceBufferAsync(DeviceBuffer<ValueType>* buffer,
     constexpr unsigned int itemsPerThread = 12;
     constexpr unsigned int itemsPerBlock = blockSize * itemsPerThread;
 
-    config.blockSize[0] = blockSize;
-    config.blockSize[1] = 1;
-    config.blockSize[2] = 1;
-    config.gridSize[0]  = (numValues + itemsPerBlock - 1) / itemsPerBlock;
-    config.gridSize[1]  = 1;
-    config.gridSize[2]  = 1;
-
-    auto kernelPtr            = kernel_fill<blockSize,itemsPerThread, ValueType>;
-    launchGpuKernel(kernelPtr, config, deviceStream, nullptr, "kernel_fill", *((ValueType**)buffer) + startingOffset, ValueType(0), numValues);*/
-
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(kernel_fill<blockSize,itemsPerThread, ValueType>),
+        dim3((numValues + itemsPerBlock - 1) / itemsPerBlock, 1, 1),
+        dim3(blockSize, 1, 1),
+        0,
+        deviceStream.stream(),
+        *reinterpret_cast<ValueType**>(buffer) + startingOffset,
+        ValueType(0),
+        numValues
+    );*/
 
     GMX_RELEASE_ASSERT(stat == hipSuccess,
                        ("Couldn't clear the device buffer. " + gmx::getDeviceErrorString(stat)).c_str());

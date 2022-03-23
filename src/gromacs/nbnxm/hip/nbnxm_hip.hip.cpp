@@ -527,43 +527,42 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
             prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
 
-#if GMX_GPU_HIP
-        bool sumUpEnergy = (stepWork.computeEnergy && c_clEnergyMemoryMultiplier > 1);
-        bool sumUpShifts = (stepWork.computeVirial && c_clShiftMemoryMultiplier > 1);
 
-        if ( sumUpEnergy || sumUpShifts )
-        {
-            constexpr unsigned int block_size = 64U;
+    bool sumUpEnergy = (stepWork.computeEnergy && c_clEnergyMemoryMultiplier > 1);
+    bool sumUpShifts = (stepWork.computeVirial && c_clShiftMemoryMultiplier > 1);
 
-            KernelLaunchConfig configSumUp;
-            configSumUp.blockSize[0] = block_size;
-            configSumUp.blockSize[1] = 1;
-            configSumUp.blockSize[2] = 1;
-            configSumUp.gridSize[0]  = sumUpShifts ? gmx::c_numShiftVectors : 1;
-            configSumUp.sharedMemorySize = 0;
+    if ( sumUpEnergy || sumUpShifts )
+    {
+        constexpr unsigned int block_size = 64U;
 
-            const auto kernelSumUp = nbnxn_kernel_sum_up<block_size>;
+        KernelLaunchConfig configSumUp;
+        configSumUp.blockSize[0] = block_size;
+        configSumUp.blockSize[1] = 1;
+        configSumUp.blockSize[2] = 1;
+        configSumUp.gridSize[0]  = sumUpShifts ? gmx::c_numShiftVectors : 1;
+        configSumUp.sharedMemorySize = 0;
 
-            const auto kernelSumUpArgs =
-                    prepareGpuKernelArguments(
-                        kernelSumUp,
-                        configSumUp,
-                        adat,
-                        &gmx::c_numShiftVectors,
-                        &sumUpEnergy,
-                        &sumUpShifts
-                    );
+        const auto kernelSumUp = nbnxn_kernel_sum_up<block_size>;
 
-            launchGpuKernel(
-                kernelSumUp,
-                configSumUp,
-                deviceStream,
-                nullptr,
-                "nbnxn_kernel_sum_up",
-                kernelSumUpArgs
-            );
-        }
-#endif
+        const auto kernelSumUpArgs =
+                prepareGpuKernelArguments(
+                    kernelSumUp,
+                    configSumUp,
+                    adat,
+                    &gmx::c_numShiftVectors,
+                    &sumUpEnergy,
+                    &sumUpShifts
+                );
+
+        launchGpuKernel(
+            kernelSumUp,
+            configSumUp,
+            deviceStream,
+            nullptr,
+            "nbnxn_kernel_sum_up",
+            kernelSumUpArgs
+        );
+    }
 
     if (bDoTime)
     {
