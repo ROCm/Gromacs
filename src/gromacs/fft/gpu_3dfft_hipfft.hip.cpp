@@ -101,7 +101,7 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
     //configuration.disableMergeSequencesR2C = 1;
     configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
     hipError_t result = hipGetDevice(configuration.device);
-    configuration.stream = pmeStream_.stream_pointer();
+    configuration.stream = pmeStream.stream_pointer();
     configuration.num_streams=1;
     configuration.useLUT = 1;
 
