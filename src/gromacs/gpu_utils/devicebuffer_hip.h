@@ -55,6 +55,9 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
+
+static const int useMemcpyLimitedSize = getenv("GMX_MEMCPY_SIZE") != nullptr ? atoi(getenv("GMX_MEMCPY_SIZE")) : 1048576; // 1MB
+
 /*! \brief
  * Allocates a device-side buffer.
  * It is currently a caller's responsibility to call it only on not-yet allocated buffers.
@@ -139,11 +142,17 @@ void copyToDeviceBuffer(DeviceBuffer<ValueType>* buffer,
             break;
 
         case GpuApiCallBehavior::Sync:
-            stat = hipMemcpy(*((ValueType**)buffer) + startingOffset, hostBuffer, bytes,
+            //printf("[H2D] useMemcpyLimitedSize:%d bytes:%d\n", useMemcpyLimitedSize, bytes);
+            if (bytes > useMemcpyLimitedSize) {
+                stat = hipMemcpy(*((ValueType**)buffer) + startingOffset, hostBuffer, bytes,
                               hipMemcpyHostToDevice);
-            GMX_RELEASE_ASSERT(
+                GMX_RELEASE_ASSERT(
                     stat == hipSuccess,
                     ("Synchronous H2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+            } else {
+                memcpy(*((ValueType**)buffer) + startingOffset, hostBuffer, bytes);
+            }
+            
             break;
 
         default: throw;
@@ -194,11 +203,16 @@ void copyFromDeviceBuffer(ValueType*               hostBuffer,
             break;
 
         case GpuApiCallBehavior::Sync:
-            stat = hipMemcpy(hostBuffer, *((ValueType**)buffer) + startingOffset, bytes,
-                              hipMemcpyDeviceToHost);
-            GMX_RELEASE_ASSERT(
-                    stat == hipSuccess,
-                    ("Synchronous D2H copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+            //printf("[D2H] useMemcpyLimitedSize:%d bytes:%d\n", useMemcpyLimitedSize, bytes);
+            if (bytes > useMemcpyLimitedSize) {
+                stat = hipMemcpy(hostBuffer, *((ValueType**)buffer) + startingOffset, bytes,
+                                  hipMemcpyDeviceToHost);
+                GMX_RELEASE_ASSERT(
+                        stat == hipSuccess,
+                        ("Synchronous D2H copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+            } else {
+                memcpy(hostBuffer, *((ValueType**)buffer) + startingOffset, bytes);
+            }
             break;
 
         default: throw;
@@ -419,11 +433,15 @@ void initParamLookupTable(DeviceBuffer<ValueType>* deviceBuffer,
 
     const size_t sizeInBytes = numValues * sizeof(ValueType);
 
-    hipError_t stat =
-            hipMemcpy(*((ValueType**)deviceBuffer), hostBuffer, sizeInBytes, hipMemcpyHostToDevice);
-
-    GMX_RELEASE_ASSERT(stat == hipSuccess,
-                       ("Synchronous H2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+    hipError_t stat;
+    //printf("[initParamLookupTable] useMemcpyLimitedSize:%d sizeInBytes:%d\n", useMemcpyLimitedSize, sizeInBytes);
+    if (sizeInBytes < useMemcpyLimitedSize) {
+        stat  = hipMemcpy(*((ValueType**)deviceBuffer), hostBuffer, sizeInBytes, hipMemcpyHostToDevice);
+        GMX_RELEASE_ASSERT(stat == hipSuccess,
+                           ("Synchronous H2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+    } else {
+        memcpy(*((ValueType**)deviceBuffer), hostBuffer, sizeInBytes);
+    }
 
     if (!c_disableCudaTextures)
     {
