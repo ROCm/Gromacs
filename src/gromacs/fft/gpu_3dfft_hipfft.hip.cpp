@@ -101,11 +101,13 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
     //configuration.disableMergeSequencesR2C = 1;
     configuration.device = (hipDevice_t*)malloc(sizeof(hipDevice_t));
     hipError_t result = hipGetDevice(configuration.device);
-    configuration.stream = pmeStream.stream();
+    configuration.stream = pmeStream.stream_pointer();
     configuration.num_streams=1;
+    configuration.useLUT = 1;
 
     uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
     configuration.bufferSize=&bufferSize;
+    configuration.aimThreads = 64;
     configuration.bufferStride[0] = complexGridSizePadded[ZZ];
     configuration.bufferStride[1] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY];
     configuration.bufferStride[2] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY]* complexGridSizePadded[XX];

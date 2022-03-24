@@ -55,6 +55,8 @@ DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
 {
     hipError_t stat;
 
+    stream_pointer_ = new hipStream_t[1];
+
     if (priority == DeviceStreamPriority::Normal)
     {
         stat = hipStreamCreate(&stream_);
@@ -72,6 +74,7 @@ DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
         stat = hipStreamCreateWithPriority(&stream_, hipStreamDefault, highestPriority);
         gmx::checkDeviceError(stat, "Could not create HIP stream with high priority.");
     }
+    stream_pointer_[0] = stream_;
 }
 
 DeviceStream::~DeviceStream()
@@ -82,12 +85,20 @@ DeviceStream::~DeviceStream()
         GMX_RELEASE_ASSERT(stat == hipSuccess,
                            ("Failed to release HIP stream. " + gmx::getDeviceErrorString(stat)).c_str());
         stream_ = nullptr;
+
+        delete stream_pointer_;
+        stream_pointer_ = nullptr;
     }
 }
 
 hipStream_t DeviceStream::stream() const
 {
     return stream_;
+}
+
+hipStream_t* DeviceStream::stream_pointer() const
+{
+    return stream_pointer_;
 }
 
 bool DeviceStream::isValid() const
