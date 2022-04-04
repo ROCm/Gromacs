@@ -47,6 +47,7 @@
 // #include <math_constants.h>
 #include "gromacs/math/math_constants.h"
 #include "gromacs/gpu_utils/hip_arch_utils.hpp"
+#include "gromacs/gpu_utils/hip_kernel_utils.hpp"
 
 #include "pme.hpp"
 
@@ -78,7 +79,7 @@ T warp_move_dpp(const T& input) {
  * \param[in]  kernelParams             Input PME HIP data in constant memory.
  */
 template<GridOrdering gridOrdering, bool computeEnergyAndVirial, const int gridIndex>
-__launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
+LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
         void pme_solve_kernel(const struct PmeGpuCudaKernelParams kernelParams)
 {
     /* This kernel supports 2 different grid dimension orderings: YZX and XYZ */

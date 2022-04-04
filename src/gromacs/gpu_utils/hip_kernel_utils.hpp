@@ -100,5 +100,11 @@ static __forceinline__ __device__ T fetchFromParamLookupTable(const T*          
     return result;
 }
 
+#define LAUNCH_BOUNDS_EXACT(WORK_GROUP_SIZE, WAVES_PER_EU) \
+    __attribute__((amdgpu_flat_work_group_size(WORK_GROUP_SIZE, WORK_GROUP_SIZE), amdgpu_waves_per_eu(WAVES_PER_EU, WAVES_PER_EU)))
+
+#define LAUNCH_BOUNDS_EXACT_SINGLE(WORK_GROUP_SIZE) \
+    __attribute__((amdgpu_flat_work_group_size(WORK_GROUP_SIZE, WORK_GROUP_SIZE)))
+
 
 #endif /* GMX_GPU_UTILS_HIP_KERNEL_UTILS_HPP */

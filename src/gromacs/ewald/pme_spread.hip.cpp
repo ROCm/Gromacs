@@ -182,7 +182,7 @@ __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kern
  * \param[in]  kernelParams         Input PME HIP data in constant memory.
  */
 template<int order, bool computeSplines, bool spreadCharges, bool wrapX, bool wrapY, int numGrids, bool writeGlobal, ThreadsPerAtom threadsPerAtom>
-__launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
+LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
         void pme_spline_and_spread_kernel(const PmeGpuCudaKernelParams kernelParams)
 {
     const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
