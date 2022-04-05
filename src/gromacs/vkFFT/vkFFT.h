@@ -47,6 +47,9 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_complex.h>
+#ifndef vkMinMP
+#define vkMinMP 1UL
+#endif
 #elif(VKFFT_BACKEND==3)
 #ifndef CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
@@ -16634,7 +16637,7 @@ static inline VkFFTResult shaderGenVkFFT_R2C_decomposition(char* output, VkFFTSp
 	if (res != VKFFT_SUCCESS) return res;
 	//sc->tempLen = sprintf(sc->tempStr, ", const PushConsts consts) {\n");
 #elif(VKFFT_BACKEND==2)
-	sc->tempLen = sprintf(sc->tempStr, "extern \"C\" __launch_bounds__(%" PRIu64 ") __global__ void VkFFT_main_R2C ", sc->localSize[0] * sc->localSize[1] * sc->localSize[2]);
+	sc->tempLen = sprintf(sc->tempStr, "extern \"C\" __launch_bounds__(%" PRIu64 ",%" PRIu64 ") __global__ void VkFFT_main_R2C ", sc->localSize[0] * sc->localSize[1] * sc->localSize[2], vkMinMP);
 	res = VkAppendLine(sc);
 	if (res != VKFFT_SUCCESS) return res;
 	sc->tempLen = sprintf(sc->tempStr, "(%s* inputs, %s* outputs", vecTypeInput, vecTypeOutput);
