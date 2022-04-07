@@ -165,8 +165,6 @@ struct PmeGpuSpecific
     int realGridCapacity[NUMFEPSTATES] = { 0, 0 };
     /*! \brief The kernelParams.grid.fourierGrid float (not float2!) element count (actual) */
     int complexGridSize[NUMFEPSTATES] = { 0, 0 };
-    /*! \brief The kernelParams.grid.fourierGrid float (not float2!) element count (reserved) */
-    int complexGridCapacity[NUMFEPSTATES] = { 0, 0 };
 
     /*! \brief Buffer capacity used to send PME grid overlap region in X-dimension*/
     int overlapSendSizeUp = 0;

@@ -95,13 +95,18 @@ private:
 
 #if GMX_SYCL_USE_USM
     float* realGrid_;
-    float* complexGrid_;
 #else
     sycl::buffer<float, 1> realGrid_;
-    sycl::buffer<float, 1> complexGrid_;
 #endif
-    sycl::queue queue_;
-    Descriptor  r2cDescriptor_, c2rDescriptor_;
+    DeviceBuffer<float> complexGrid_;
+    sycl::queue         queue_;
+    Descriptor          r2cDescriptor_, c2rDescriptor_;
+    /*! \brief A boolean which tells whether the complex and real grids are different or same. Currenty true. */
+    bool performOutOfPlaceFFT_ = false;
+    /*! \brief complexGrid float (not float2!) element count (actual) */
+    int complexGridSize_ = 0;
+    /*! \brief complexGrid float (not float2!) element count (reserved) */
+    int complexGridCapacity_ = 0;
 
     static Descriptor initDescriptor(const ivec realGridSize);
 };

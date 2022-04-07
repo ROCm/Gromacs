@@ -89,10 +89,16 @@ public:
     void perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent) override;
 
 private:
-    cufftHandle   planR2C_;
-    cufftHandle   planC2R_;
-    cufftReal*    realGrid_;
-    cufftComplex* complexGrid_;
+    cufftHandle         planR2C_;
+    cufftHandle         planC2R_;
+    cufftReal*          realGrid_;
+    DeviceBuffer<float> complexGrid_;
+    /*! \brief A boolean which tells whether the complex and real grids are different or same. Currenty true. */
+    bool performOutOfPlaceFFT_ = false;
+    /*! \brief complexGrid float (not float2!) element count (actual) */
+    int complexGridSize_ = 0;
+    /*! \brief complexGrid float (not float2!) element count (reserved) */
+    int complexGridCapacity_ = 0;
 };
 
 } // namespace gmx

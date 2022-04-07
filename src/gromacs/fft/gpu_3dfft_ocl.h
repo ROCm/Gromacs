@@ -93,7 +93,13 @@ private:
     clfftPlanHandle               planC2R_;
     std::vector<cl_command_queue> commandStreams_;
     cl_mem                        realGrid_;
-    cl_mem                        complexGrid_;
+    DeviceBuffer<float>           complexGrid_;
+    /*! \brief A boolean which tells whether the complex and real grids are different or same. Currenty true. */
+    bool performOutOfPlaceFFT_ = false;
+    /*! \brief complexGrid float (not float2!) element count (actual) */
+    int complexGridSize_ = 0;
+    /*! \brief complexGrid float (not float2!) element count (reserved) */
+    int complexGridCapacity_ = 0;
 };
 
 } // namespace gmx
