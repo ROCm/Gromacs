@@ -56,6 +56,7 @@
 #include <hipfft.h>
 
 #ifdef GMX_GPU_USE_VKFFT
+#define vkMinMP 6UL
 # include "gromacs/vkFFT/vkFFT.h"
 #endif
 

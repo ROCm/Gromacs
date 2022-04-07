@@ -486,6 +486,74 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
 
     return FALSE;
 
+#elif GMX_SIMD_REAL_WIDTH == 8
+/*&& c_nbnxnGpuClusterSize ==8*/
+
+    SimdReal rc2_S = SimdReal(rlist2);
+
+    const real* x_i = work.iSuperClusterData.xSimd.data();
+
+    int      dim_stride = c_nbnxnGpuClusterSize * DIM;
+    SimdReal ix_S0      = load<SimdReal>(x_i + si * dim_stride + 0 * GMX_SIMD_REAL_WIDTH);
+    SimdReal iy_S0      = load<SimdReal>(x_i + si * dim_stride + 1 * GMX_SIMD_REAL_WIDTH);
+    SimdReal iz_S0      = load<SimdReal>(x_i + si * dim_stride + 2 * GMX_SIMD_REAL_WIDTH);
+
+    /* We loop from the outer to the inner particles to maximize
+     * the chance that we find a pair in range quickly and return.
+     */
+    int j0 = csj * c_nbnxnGpuClusterSize;
+    int j1 = j0 + c_nbnxnGpuClusterSize - 1;
+    while (j0 < j1)
+    {
+        SimdReal jx0_S, jy0_S, jz0_S;
+        SimdReal jx1_S, jy1_S, jz1_S;
+
+        SimdReal dx_S0, dy_S0, dz_S0;
+        SimdReal dx_S1, dy_S1, dz_S1;
+
+        SimdReal rsq_S0;
+        SimdReal rsq_S1;
+
+        SimdFBool wco_S0(false);
+        SimdFBool wco_S1(false);
+        SimdFBool wco_any_S(false);
+
+        jx0_S = SimdReal(x_j[j0 * stride + 0]);
+        jy0_S = SimdReal(x_j[j0 * stride + 1]);
+        jz0_S = SimdReal(x_j[j0 * stride + 2]);
+
+        jx1_S = SimdReal(x_j[j1 * stride + 0]);
+        jy1_S = SimdReal(x_j[j1 * stride + 1]);
+        jz1_S = SimdReal(x_j[j1 * stride + 2]);
+
+        /* Calculate distance */
+        dx_S0 = ix_S0 - jx0_S;
+        dy_S0 = iy_S0 - jy0_S;
+        dz_S0 = iz_S0 - jz0_S;
+        dx_S1 = ix_S0 - jx1_S;
+        dy_S1 = iy_S0 - jy1_S;
+        dz_S1 = iz_S0 - jz1_S;
+
+        /* rsq = dx*dx+dy*dy+dz*dz */
+        rsq_S0 = norm2(dx_S0, dy_S0, dz_S0);
+        rsq_S1 = norm2(dx_S1, dy_S1, dz_S1);
+
+        wco_S0 = (rsq_S0 < rc2_S);
+        wco_S1 = (rsq_S1 < rc2_S);
+
+        wco_any_S = wco_S0 || wco_S1;
+
+        if (anyTrue(wco_any_S))
+        {
+            return TRUE;
+        }
+
+        j0++;
+        j1--;
+    }
+
+return FALSE;
+
 #else /* !GMX_SIMD4_HAVE_REAL */
 
     /* 4-wide SIMD version.
@@ -1240,6 +1308,7 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
                 nbl->sci.back().cj4_ind_start;
         }
     }
+
 }
 
 /* Returns how many contiguous j-clusters we have starting in the i-list */
@@ -2378,6 +2447,25 @@ static void icell_set_x(int                                  ci,
         x_ci[i * DIM + YY] = x[(ia + i) * stride + YY] + shy;
         x_ci[i * DIM + ZZ] = x[(ia + i) * stride + ZZ] + shz;
     }
+
+#elif GMX_SIMD_REAL_WIDTH == 8
+
+real* x_ci = work->iSuperClusterData.xSimd.data();
+
+for (int si = 0; si < c_gpuNumClusterPerCell; si++)
+{
+    for (int i = 0; i < c_nbnxnGpuClusterSize; i += GMX_SIMD_REAL_WIDTH)
+    {
+        int io = si * c_nbnxnGpuClusterSize + i;
+        int ia = ci * c_gpuNumClusterPerCell * c_nbnxnGpuClusterSize + io;
+        for (int j = 0; j < GMX_SIMD_REAL_WIDTH; j++)
+        {
+            x_ci[io * DIM + j + XX * GMX_SIMD_REAL_WIDTH] = x[(ia + j) * stride + XX] + shx;
+            x_ci[io * DIM + j + YY * GMX_SIMD_REAL_WIDTH] = x[(ia + j) * stride + YY] + shy;
+            x_ci[io * DIM + j + ZZ * GMX_SIMD_REAL_WIDTH] = x[(ia + j) * stride + ZZ] + shz;
+        }
+    }
+}
 
 #else /* !GMX_SIMD4_HAVE_REAL */
 

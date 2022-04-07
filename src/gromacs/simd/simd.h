@@ -181,6 +181,7 @@ struct SimdDInt32Tag
 #    define GMX_SIMD4_HAVE_REAL GMX_SIMD4_HAVE_DOUBLE
 #else // GMX_DOUBLE
 
+
 /*! \brief 1 if SimdReal is available, otherwise 0.
  *
  *  \ref GMX_SIMD_HAVE_DOUBLE if GMX_DOUBLE is 1, otherwise \ref GMX_SIMD_HAVE_FLOAT.
