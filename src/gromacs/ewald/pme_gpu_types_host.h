@@ -134,6 +134,8 @@ struct PmeShared
     int nnodesX;
     /*! \brief Number of MPI ranks in Y-decomposition */
     int nnodesY;
+    /*! \brief MPI communicator for PME ranks */
+    MPI_Comm mpiComm;
     /*! \brief MPI communicator for ranks in X-decomposition */
     MPI_Comm mpiCommX;
     /*! \brief MPI communicator for ranks in Y-decomposition */

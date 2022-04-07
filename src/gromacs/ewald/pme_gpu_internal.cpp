@@ -414,6 +414,8 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
     // allocate overlap buffers needed for PME grid halo exchanges
     if (pmeGpu->settings.useDecomposition)
     {
+        int overlapX = 0;
+        int overlapY = 0;
         if (pmeGpu->common->nnodesX > 1)
         {
             int rank  = pmeGpu->common->nodeidX;
@@ -424,28 +426,40 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
             int myGrid    = pmeGpu->common->s2g0X[rank + 1] - pmeGpu->common->s2g0X[rank];
             int rightGrid = pmeGpu->common->s2g0X[right + 1] - pmeGpu->common->s2g0X[right];
 
-            int overlapSize = pmeGpu->common->gridHalo * kernelParamsPtr->grid.realGridSizePadded[YY]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+            overlapX = pmeGpu->common->gridHalo;
 
             // if only 2 PME ranks in X-domain and overlap width more than slab width
             // just transfer all grid points from neighbor
-            if (right == left && 2 * overlapSize >= rightGrid)
+            if (right == left && 2 * overlapX >= rightGrid)
             {
-                int slabWidth = std::max(rightGrid, myGrid);
-                overlapSize   = slabWidth * kernelParamsPtr->grid.realGridSizePadded[YY]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+                overlapX = std::max(rightGrid, myGrid);
             }
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftX,
+            int overlapSize = overlapX * kernelParamsPtr->grid.realGridSizePadded[YY]
+                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUp,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapXSizeLeft,
-                                   &pmeGpu->archSpecific->overlapXCapacityLeft,
+                                   &pmeGpu->archSpecific->overlapSendSizeUp,
+                                   &pmeGpu->archSpecific->overlapSendCapacityUp,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightX,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUp,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapXSizeRight,
-                                   &pmeGpu->archSpecific->overlapXCapacityRight,
+                                   &pmeGpu->archSpecific->overlapRecvSizeUp,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityUp,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDown,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeDown,
+                                   &pmeGpu->archSpecific->overlapSendCapacityDown,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDown,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeDown,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityDown,
                                    pmeGpu->archSpecific->deviceContext_);
         }
 
@@ -459,41 +473,94 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
             int myGrid    = pmeGpu->common->s2g0Y[rank + 1] - pmeGpu->common->s2g0Y[rank];
             int rightGrid = pmeGpu->common->s2g0Y[right + 1] - pmeGpu->common->s2g0Y[right];
 
-            int overlapSize = pmeGpu->common->gridHalo * kernelParamsPtr->grid.realGridSizePadded[XX]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+            overlapY = pmeGpu->common->gridHalo;
 
             // if only 2 PME ranks in Y-domain and overlap width more than slab width
             // just transfer all grid points from neighbor
-            if (right == left && 2 * overlapSize >= rightGrid)
+            if (right == left && 2 * overlapY >= rightGrid)
             {
-                int slabWidth = std::max(rightGrid, myGrid);
-                overlapSize   = slabWidth * kernelParamsPtr->grid.realGridSizePadded[XX]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+                overlapY = std::max(rightGrid, myGrid);
             }
 
+            int overlapSize = overlapY * kernelParamsPtr->grid.realGridSizePadded[XX]
+                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeftY,
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeft,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYSendSizeLeft,
-                                   &pmeGpu->archSpecific->overlapYSendCapacityLeft,
+                                   &pmeGpu->archSpecific->overlapSendSizeLeft,
+                                   &pmeGpu->archSpecific->overlapSendCapacityLeft,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftY,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeft,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYRecvSizeLeft,
-                                   &pmeGpu->archSpecific->overlapYRecvCapacityLeft,
+                                   &pmeGpu->archSpecific->overlapRecvSizeLeft,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityLeft,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRightY,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRight,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYSendSizeRight,
-                                   &pmeGpu->archSpecific->overlapYSendCapacityRight,
+                                   &pmeGpu->archSpecific->overlapSendSizeRight,
+                                   &pmeGpu->archSpecific->overlapSendCapacityRight,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightY,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRight,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYRecvSizeRight,
-                                   &pmeGpu->archSpecific->overlapYRecvCapacityRight,
+                                   &pmeGpu->archSpecific->overlapRecvSizeRight,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+        }
+
+        if (pmeGpu->common->nnodesX > 1 && pmeGpu->common->nnodesY > 1)
+        {
+            int overlapSize = overlapX * overlapY * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeUpLeft,
+                                   &pmeGpu->archSpecific->overlapSendCapacityUpLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeUpLeft,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityUpLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeDownLeft,
+                                   &pmeGpu->archSpecific->overlapSendCapacityDownLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeDownLeft,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityDownLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeUpRight,
+                                   &pmeGpu->archSpecific->overlapSendCapacityUpRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeUpRight,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityUpRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeDownRight,
+                                   &pmeGpu->archSpecific->overlapSendCapacityDownRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeDownRight,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityDownRight,
                                    pmeGpu->archSpecific->deviceContext_);
         }
     }
@@ -514,16 +581,30 @@ void pme_gpu_free_grids(const PmeGpu* pmeGpu)
     {
         if (pmeGpu->common->nnodesX > 1)
         {
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftX);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightX);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUp);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUp);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDown);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDown);
         }
 
         if (pmeGpu->common->nnodesY > 1)
         {
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeftY);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftY);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRightY);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightY);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRight);
+        }
+
+        if (pmeGpu->common->nnodesX > 1 && pmeGpu->common->nnodesY > 1)
+        {
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownRight);
         }
     }
 }
@@ -1000,6 +1081,7 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
     pmeGpu->common->boxScaler     = pme->boxScaler.get();
     pmeGpu->common->mpiCommX      = pme->mpi_comm_d[0];
     pmeGpu->common->mpiCommY      = pme->mpi_comm_d[1];
+    pmeGpu->common->mpiComm       = pme->mpi_comm;
 }
 
 /*! \libinternal \brief
@@ -1625,8 +1707,6 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     // halo exchange
     if (settings.useDecomposition)
     {
-        // mark event once spread has been launched, this event is consumed in pmeGpuGridHaloExchange
-        pmeGpu->archSpecific->spreadCompleted.markEvent(pmeGpu->archSpecific->pmeStream_);
         pmeGpuGridHaloExchange(pmeGpu);
     }
 
