@@ -323,6 +323,8 @@ public:
          ivec                 complexGridSizePadded,
          DeviceBuffer<float>* realGrid,
          DeviceBuffer<float>* complexGrid);
+
+    ~Impl();
     /*! \brief Handle initializing the rocFFT library
      *
      * Make sure the library is initialized before the plans, etc. and
@@ -333,14 +335,18 @@ public:
 #if GMX_SYCL_USE_USM
     //! Handle to the real grid buffer
     float* realGrid_;
-    //! Handle to the complex grid buffer
-    float* complexGrid_;
 #else
     //! Handle to the real grid buffer
-    sycl::buffer<float, 1> realGrid_;
-    //! Handle to the complex grid buffer
-    sycl::buffer<float, 1> complexGrid_;
+    cl::sycl::buffer<float, 1> realGrid_;
 #endif
+    //! Complex grid buffer
+    DeviceBuffer<float> complexGrid_;
+    /*! \brief A boolean which tells whether the complex and real grids are different or same. Currenty true. */
+    bool performOutOfPlaceFFT_ = false;
+    /*! \brief complexGrid float (not float2!) element count (actual) */
+    int complexGridSize_ = 0;
+    /*! \brief complexGrid float (not float2!) element count (reserved) */
+    int complexGridCapacity_ = 0;
     /*! \brief Copy of PME stream
      *
      * This copy is guaranteed by the SYCL standard to work as if
@@ -398,13 +404,36 @@ Gpu3dFft::ImplSyclRocfft::Impl::Impl(bool allocateGrids,
                  pmeStream),
     },
     realGrid_(*realGrid->buffer_.get()),
-    complexGrid_(*complexGrid->buffer_.get()),
-    queue_(pmeStream.stream())
+    queue_(pmeStream.stream()),
+    performOutOfPlaceFFT_(performOutOfPlaceFFT)
 {
     GMX_RELEASE_ASSERT(performOutOfPlaceFFT, "Only out-of-place FFT is implemented in hipSYCL");
     GMX_RELEASE_ASSERT(allocateGrids == false, "Grids need to be pre-allocated");
     GMX_RELEASE_ASSERT(gridSizesInXForEachRank.size() == 1 && gridSizesInYForEachRank.size() == 1,
                        "FFT decomposition not implemented with SYCL backend");
+
+    if (performOutOfPlaceFFT_)
+    {
+        const int newComplexGridSize =
+                complexGridSizePadded[XX] * complexGridSizePadded[YY] * complexGridSizePadded[ZZ] * 2;
+
+        reallocateDeviceBuffer(
+                complexGrid, newComplexGridSize, &complexGridSize_, &complexGridCapacity_, context);
+    }
+    else
+    {
+        *complexGrid = *realGrid;
+    }
+
+    complexGrid_ = *complexGrid;
+}
+
+Gpu3dFft::ImplSyclRocfft::Impl::~Impl()
+{
+    if (performOutOfPlaceFFT_)
+    {
+        freeDeviceBuffer(&complexGrid_);
+    }
 }
 
 void Gpu3dFft::ImplSyclRocfft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
@@ -421,12 +450,12 @@ void Gpu3dFft::ImplSyclRocfft::perform3dFft(gmx_fft_direction dir, CommandEvent*
     {
         direction  = FftDirection::RealToComplex;
         inputGrid  = &impl_->realGrid_;
-        outputGrid = &impl_->complexGrid_;
+        outputGrid = &impl_->complexGrid_->buffer_.get();
     }
     else
     {
         direction  = FftDirection::ComplexToReal;
-        inputGrid  = &impl_->complexGrid_;
+        inputGrid  = &impl_->complexGrid_->buffer_.get();
         outputGrid = &impl_->realGrid_;
     }
     // Enqueue the 3D FFT work
