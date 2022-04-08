@@ -46,6 +46,7 @@
 #include <array>
 #include <memory>
 #include <vector>
+#include <roctx.h>
 
 #include "gromacs/timing/cyclecounter.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -224,6 +225,58 @@ inline void wallcycle_all_stop(gmx_wallcycle* wc, WallCycleCounter ewc, gmx_cycl
     wc->wcc_all[prev * sc_numWallCycleCounters + current].c += cycle - wc->cycle_prev;
 }
 
+inline const char* ValuetoString(WallCycleCounter enumValue)
+{
+    constexpr gmx::EnumerationArray<WallCycleCounter, const char*> wallCycleCounterNames = {
+        "Run",
+        "Step",
+        "PP during PME",
+        "Domain decomp.",
+        "DD comm. load",
+        "DD comm. bounds",
+        "Vsite constr.",
+        "Send X to PME",
+        "Neighbor search",
+        "Launch GPU ops.",
+        "Comm. coord.",
+        "Force",
+        "Wait + Comm. F",
+        "PME mesh",
+        "PME redist. X/F",
+        "PME spread",
+        "PME gather",
+        "PME 3D-FFT",
+        "PME 3D-FFT Comm.",
+        "PME solve LJ",
+        "PME solve Elec",
+        "PME wait for PP",
+        "Wait + Recv. PME F",
+        "Wait PME GPU spread",
+        "PME 3D-FFT",
+        "PME solve", /* the strings for FFT/solve are repeated here for mixed mode counters */
+        "Wait PME GPU gather",
+        "Wait Bonded GPU",
+        "Reduce GPU PME F",
+        "Wait GPU NB nonloc.",
+        "Wait GPU NB local",
+        "Wait GPU state copy",
+        "NB X/F buffer ops.",
+        "Vsite spread",
+        "COM pull force",
+        "AWH",
+        "Write traj.",
+        "Update",
+        "Constraints",
+        "Comm. energies",
+        "Enforced rotation",
+        "Add rot. forces",
+        "Position swapping",
+        "IMD",
+        "Test"
+    };
+    return wallCycleCounterNames[enumValue];
+}
+
 //! Starts the cycle counter (and increases the call count)
 inline void wallcycle_start(gmx_wallcycle* wc, WallCycleCounter ewc)
 {
@@ -231,6 +284,9 @@ inline void wallcycle_start(gmx_wallcycle* wc, WallCycleCounter ewc)
     {
         return;
     }
+    char message[256];
+    sprintf(message, "%s\0", ValuetoString(ewc));
+    roctxRangePush(message);
 
     wallcycleBarrier(wc);
 
@@ -313,6 +369,7 @@ inline double wallcycle_stop(gmx_wallcycle* wc, WallCycleCounter ewc)
         }
     }
 
+    roctxRangePop();
     return last;
 }
 
