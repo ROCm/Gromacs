@@ -32,6 +32,7 @@
 #
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
+include_directories("/opt/rocm/roctracer/include")
 
 IF (NOT DEFINED ROCM_PATH)
     IF(NOT DEFINED ENV{ROCM_PATH})
