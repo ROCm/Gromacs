@@ -16637,7 +16637,7 @@ static inline VkFFTResult shaderGenVkFFT_R2C_decomposition(char* output, VkFFTSp
 	if (res != VKFFT_SUCCESS) return res;
 	//sc->tempLen = sprintf(sc->tempStr, ", const PushConsts consts) {\n");
 #elif(VKFFT_BACKEND==2)
-	sc->tempLen = sprintf(sc->tempStr, "extern \"C\" __launch_bounds__(%" PRIu64 ",%" PRIu64 ") __global__ void VkFFT_main_R2C ", sc->localSize[0] * sc->localSize[1] * sc->localSize[2], vkMinMP);
+	sc->tempLen = sprintf(sc->tempStr, "extern \"C\"  __attribute__((amdgpu_flat_work_group_size(%" PRIu64 ", %" PRIu64 "), amdgpu_waves_per_eu(%" PRIu64 ", %" PRIu64 "))) __global__ void VkFFT_main_R2C ", sc->localSize[0] * sc->localSize[1] * sc->localSize[2], sc->localSize[0] * sc->localSize[1] * sc->localSize[2], vkMinMP, vkMinMP);
 	res = VkAppendLine(sc);
 	if (res != VKFFT_SUCCESS) return res;
 	sc->tempLen = sprintf(sc->tempStr, "(%s* inputs, %s* outputs", vecTypeInput, vecTypeOutput);
@@ -17411,7 +17411,7 @@ static inline VkFFTResult shaderGenVkFFT(char* output, VkFFTSpecializationConsta
 		freeShaderGenVkFFT(sc);
 		return res;
 	}
-	sc->tempLen = sprintf(sc->tempStr, "extern \"C\" __launch_bounds__(%" PRIu64 ") __global__ void VkFFT_main ", sc->localSize[0] * sc->localSize[1] * sc->localSize[2]);
+	sc->tempLen = sprintf(sc->tempStr, "extern \"C\" __attribute__((amdgpu_flat_work_group_size(%" PRIu64 ", %" PRIu64 "), amdgpu_waves_per_eu(%" PRIu64 ", %" PRIu64 "))) __global__ void VkFFT_main ", sc->localSize[0] * sc->localSize[1] * sc->localSize[2], sc->localSize[0] * sc->localSize[1] * sc->localSize[2], vkMinMP, vkMinMP);
 	res = VkAppendLine(sc);
 	if (res != VKFFT_SUCCESS) {
 		freeShaderGenVkFFT(sc);
