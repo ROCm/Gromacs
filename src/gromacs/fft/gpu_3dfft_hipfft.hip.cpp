@@ -107,7 +107,7 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
 
     uint64_t bufferSize = complexGridSizePadded[XX]* complexGridSizePadded[YY]* complexGridSizePadded[ZZ] * sizeof(hipfftComplex);
     configuration.bufferSize=&bufferSize;
-    configuration.aimThreads = 2048;
+    configuration.aimThreads = 64;
     configuration.bufferStride[0] = complexGridSizePadded[ZZ];
     configuration.bufferStride[1] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY];
     configuration.bufferStride[2] = complexGridSizePadded[ZZ]* complexGridSizePadded[YY]* complexGridSizePadded[XX];

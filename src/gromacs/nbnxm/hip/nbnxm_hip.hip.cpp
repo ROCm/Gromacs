@@ -72,6 +72,7 @@
 #include "gromacs/utility/gmxassert.h"
 
 #include "nbnxm_hip_types.h"
+#include <fstream>
 
 /***** The kernel declarations/definitions come here *****/
 
@@ -461,6 +462,79 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
         return;
     }
 
+    {
+        std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+        hipError_t  stat = hipMemcpy(host_sci.data(),
+                                     *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci)),
+                                     plist->nsci * sizeof(nbnxn_sci_t),
+                                     hipMemcpyDeviceToHost);
+
+        std::ofstream scifile;
+        scifile.open("sci_before_prune.out", std::ios::app);
+        scifile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cj4_ind_start << " ; ";
+            scifile << host_sci[index_sci].cj4_length << " ; " << host_sci[index_sci].shift << std::endl;
+        }
+        scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        scifile.close();
+
+        std::vector<nbnxn_cj4_t> host_cj4(plist->ncj4);
+        stat = hipMemcpy(host_cj4.data(),
+                         *reinterpret_cast<nbnxn_cj4_t**>(&(plist->cj4)),
+                         plist->ncj4 * sizeof(nbnxn_cj4_t),
+                         hipMemcpyDeviceToHost);
+
+        unsigned int cj4mask_histogram[32];
+        for(unsigned int index_histogram = 0; index_histogram < 32; index_histogram++)
+        {
+            cj4mask_histogram[index_histogram] = 0;
+        }
+
+        std::ofstream cj4file;
+        cj4file.open("cj4_before_prune.out", std::ios::app);
+        cj4file << "---------------------START-------------------- " << stat << std::endl;
+
+        std::ofstream countfile;
+        countfile.open("countfile_prune.out", std::ios::app);
+        countfile << "---------------------START-------------------- " << std::endl;
+
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            unsigned int count = 0;
+            for (int j4 = host_sci[index_sci].cj4_ind_start; j4 < host_sci[index_sci].cj4IndEnd(); j4++)
+            {
+                cj4file << host_cj4[j4].cj[0] << " ; " << host_cj4[j4].cj[1] << " ; ";
+                cj4file << host_cj4[j4].cj[2] << " ; " << host_cj4[j4].cj[3] << " ; ";
+                cj4file << host_cj4[j4].imei[0].imask << " ; " <<  host_cj4[j4].imei[1].imask << " ; ";
+                cj4file << __builtin_popcount(host_cj4[j4].imei[0].imask & host_cj4[j4].imei[1].imask) << " ; " << __builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask) << " ; ";
+                cj4file << host_cj4[j4].imei[0].excl_ind << " ; " <<  host_cj4[j4].imei[1].excl_ind << " ; ";
+                cj4file << std::endl;
+
+                count += __builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask);
+
+                cj4mask_histogram[__builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask) - __builtin_popcount(host_cj4[j4].imei[0].imask & host_cj4[j4].imei[1].imask)]++;
+            }
+            countfile << index_sci << " , " << count << std::endl;
+            cj4file << std::endl;
+        }
+        cj4file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cj4file.close();
+        countfile.close();
+
+        std::ofstream cj4mask_histogram_file;
+        cj4mask_histogram_file.open("cj4_histogram_before_prune.out", std::ios::app);
+        cj4mask_histogram_file << "---------------------START-------------------- " << std::endl;
+
+        for(unsigned int index_histogram = 0; index_histogram < 32; index_histogram++)
+        {
+            cj4mask_histogram_file << cj4mask_histogram[index_histogram] << " ; ";
+        }
+        cj4mask_histogram_file.close();
+    }
+
     if (nbp->useDynamicPruning && plist->haveFreshList)
     {
         /* Prunes for rlistOuter and rlistInner, sets plist->haveFreshList=false
@@ -475,6 +549,76 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
         /* Don't launch an empty local kernel (not allowed with HIP) */
         return;
     }
+
+    std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+    hipError_t  stat = hipMemcpy(host_sci.data(),
+                                 *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci)),
+                                 plist->nsci * sizeof(nbnxn_sci_t),
+                                 hipMemcpyDeviceToHost);
+
+    std::ofstream scifile;
+    scifile.open("sci.out", std::ios::app);
+    scifile << "---------------------START-------------------- " << stat << std::endl;
+    for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+    {
+        scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cj4_ind_start << " ; ";
+        scifile << host_sci[index_sci].cj4_length << " ; " << host_sci[index_sci].shift << std::endl;
+    }
+    scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+    scifile.close();
+
+    std::vector<nbnxn_cj4_t> host_cj4(plist->ncj4);
+    stat = hipMemcpy(host_cj4.data(),
+                     *reinterpret_cast<nbnxn_cj4_t**>(&(plist->cj4)),
+                     plist->ncj4 * sizeof(nbnxn_cj4_t),
+                     hipMemcpyDeviceToHost);
+
+    unsigned int cj4mask_histogram[32];
+    for(unsigned int index_histogram = 0; index_histogram < 32; index_histogram++)
+    {
+        cj4mask_histogram[index_histogram] = 0;
+    }
+
+    std::ofstream cj4file;
+    cj4file.open("cj4.out", std::ios::app);
+    cj4file << "---------------------START-------------------- " << stat << std::endl;
+
+    std::ofstream countfile;
+    countfile.open("countfile.out", std::ios::app);
+    countfile << "---------------------START-------------------- " << std::endl;
+
+    for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+    {
+        unsigned int count = 0;
+        for (int j4 = host_sci[index_sci].cj4_ind_start; j4 < host_sci[index_sci].cj4IndEnd(); j4++)
+        {
+            cj4file << host_cj4[j4].cj[0] << " ; " << host_cj4[j4].cj[1] << " ; ";
+            cj4file << host_cj4[j4].cj[2] << " ; " << host_cj4[j4].cj[3] << " ; ";
+            cj4file << host_cj4[j4].imei[0].imask << " ; " <<  host_cj4[j4].imei[1].imask << " ; ";
+            cj4file << __builtin_popcount(host_cj4[j4].imei[0].imask & host_cj4[j4].imei[1].imask) << " ; " << __builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask) << " ; ";
+            cj4file << host_cj4[j4].imei[0].excl_ind << " ; " <<  host_cj4[j4].imei[1].excl_ind << " ; ";
+            cj4file << std::endl;
+
+            count += __builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask);
+
+            cj4mask_histogram[__builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask) - __builtin_popcount(host_cj4[j4].imei[0].imask & host_cj4[j4].imei[1].imask)]++;
+        }
+        cj4file << std::endl;
+    }
+    cj4file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+    cj4file.close();
+    countfile.close();
+
+    std::ofstream cj4mask_histogram_file;
+    cj4mask_histogram_file.open("cj4_histogram.out", std::ios::app);
+    cj4mask_histogram_file << "---------------------START-------------------- " << std::endl;
+
+    for(unsigned int index_histogram = 0; index_histogram < 32; index_histogram++)
+    {
+        cj4mask_histogram_file << cj4mask_histogram[index_histogram] << " ; ";
+    }
+    cj4mask_histogram_file.close();
 
     /* beginning of timed nonbonded calculation section */
     if (bDoTime)
