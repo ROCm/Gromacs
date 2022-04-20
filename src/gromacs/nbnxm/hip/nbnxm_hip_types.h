@@ -72,6 +72,7 @@ static constexpr int c_clSize = c_nbnxnGpuClusterSize;
     static constexpr unsigned int c_clEnergyMemoryMultiplier = 1U;
     static constexpr unsigned int c_clShiftMemoryMultiplier  = 1U;
 #endif
+
 static constexpr unsigned int c_clEnergyMemorySize = c_clEnergyMemoryMultiplier == 1U ? 1U : c_clEnergyMemoryMultiplier + 1U;
 static constexpr unsigned int c_clShiftMemorySize = c_clShiftMemoryMultiplier == 1U ? 1U : c_clShiftMemoryMultiplier + 1U;
 

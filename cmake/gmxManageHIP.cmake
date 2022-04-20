@@ -128,6 +128,13 @@ else()
     message(STATUS "HIP is found!")
 endif()
 
+find_package(rocprim CONFIG PATHS ${ROCM_PATH})
+if(NOT rocprim_FOUND)
+   message(FATAL_ERROR "rocprim is required, but it is not found in this environment")
+else()
+   message(STATUS "rocprim is found!")
+endif()
+
 find_package(rocfft CONFIG PATHS ${ROCM_PATH})
 if(NOT rocfft_FOUND)
    message(FATAL_ERROR "rocfft is required, but it is not found in this environment")
