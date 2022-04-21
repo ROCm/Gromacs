@@ -853,8 +853,6 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     {
         plist->haveFreshList = false;
 
-        hipDeviceSynchronize();
-
         size_t scan_temporary_size = (size_t)plist->nscan_temporary;
         rocprim::exclusive_scan(
             *reinterpret_cast<void**>(&plist->scan_temporary),
@@ -866,8 +864,6 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             ::rocprim::plus<int>(),
             deviceStream.stream()
         );
-
-        hipDeviceSynchronize();
 
         /*{
             std::vector<int> host_sci_histogram(plist->nsci_histogram);
