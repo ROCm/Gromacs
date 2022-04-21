@@ -188,6 +188,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
      * The loop stride NTHREAD_Z ensures that consecutive sub-group are assigned
      * consecutive j4's entries.
      */
+    int count = 0;
     for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
         unsigned int imaskFull, imaskCheck, imaskNew;
@@ -264,12 +265,29 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
             {
                 /* copy the list pruned to rlistOuter to a separate buffer */
                 plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
+
+                #ifndef __gfx1030__
+                    count += __popc(imaskNew | warp_move_dpp<int, 0x143>(imaskNew));
+                #else
+                    count += __popc(imaskNew) + __popc(__shfl_up(count, 31, warpSize));
+                #endif
             }
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4[j4].imei[widx].imask = imaskNew;
+
         }
         // avoid shared memory WAR hazards between loop iterations
         __builtin_amdgcn_wave_barrier();
+    }
+
+    if (haveFreshList && ((tidx & 63) == 63))
+    {
+        int* pl_sci_histogram = plist.sci_histogram;
+        int index = max(c_sciHistogramSize - (int)count - 1, 0);
+        atomicAdd(pl_sci_histogram + index, 1);
+
+        int* pl_sci_count  = plist.sci_count;
+        pl_sci_count[bidx * numParts + part] = count;
     }
 }
 #endif /* FUNCTION_DECLARATION_ONLY */
