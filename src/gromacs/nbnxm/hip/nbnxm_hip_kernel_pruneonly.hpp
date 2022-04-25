@@ -123,7 +123,8 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
 {
 
     /* convenience variables */
-    const nbnxn_sci_t* pl_sci    = plist.sci;
+    //const nbnxn_sci_t* pl_sci    = plist.sci;
+    const nbnxn_sci_t* pl_sci    = haveFreshList ? plist.sci : plist.sci_sorted;
     nbnxn_cj4_t*       pl_cj4    = plist.cj4;
     const float4*      xq        = atdat.xq;
     const float3*      shift_vec = asFloat3(atdat.shiftVec);
