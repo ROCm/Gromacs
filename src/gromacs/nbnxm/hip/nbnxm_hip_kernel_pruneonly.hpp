@@ -281,7 +281,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
         __builtin_amdgcn_wave_barrier();
     }
 
-    if (haveFreshList && ((tidx & 63) == 63))
+    if (haveFreshList && tidx == 63)
     {
 #if NTHREAD_Z > 1
         __syncthreads();
