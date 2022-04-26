@@ -281,14 +281,33 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
         __builtin_amdgcn_wave_barrier();
     }
 
-    if (haveFreshList && ((tidx & 63) == 63))
+    if (haveFreshList && tidx == 63)
     {
-        int* pl_sci_histogram = plist.sci_histogram;
-        int index = max(c_sciHistogramSize - (int)count - 1, 0);
-        atomicAdd(pl_sci_histogram + index, 1);
+#if NTHREAD_Z > 1
+        __syncthreads();
 
-        int* pl_sci_count  = plist.sci_count;
-        pl_sci_count[bidx * numParts + part] = count;
+        char* sm_reuse = sm_dynamicShmem;
+        int* count_sm =reinterpret_cast<int*>(sm_reuse);
+
+        count_sm[tidxz] = count;
+
+        __syncthreads();
+
+        for( unsigned int index_z = 1; index_z < NTHREAD_Z; index_z++ )
+            count += count_sm[index_z];
+
+        __syncthreads();
+#endif
+
+        if(tidxz == 0)
+        {
+            int* pl_sci_histogram = plist.sci_histogram;
+            int index = max(c_sciHistogramSize - (int)count - 1, 0);
+            atomicAdd(pl_sci_histogram + index, 1);
+
+            int* pl_sci_count  = plist.sci_count;
+            pl_sci_count[bidx * numParts + part] = count;
+        }
     }
 }
 #endif /* FUNCTION_DECLARATION_ONLY */
