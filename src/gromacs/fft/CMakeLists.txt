@@ -55,6 +55,7 @@ if (GMX_FFT_MKL)
     gmx_add_libgromacs_sources(fft_mkl.cpp)
 endif()
 if(Heffte_FOUND)
+    message("Adding gpu_3dfft_hefft.cpp")
     gmx_add_libgromacs_sources(
         gpu_3dfft_heffte.cpp
         )

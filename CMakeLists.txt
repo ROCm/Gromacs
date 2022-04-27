@@ -238,11 +238,13 @@ gmx_dependent_option(
 mark_as_advanced(GMX_BUILD_OWN_FFTW)
 mark_as_advanced(GMX_DISABLE_FFTW_MEASURE)
 
-gmx_dependent_option(
-    GMX_USE_HEFFTE
-    "Use HeFFTe for FFT support. Used with CUDA backend"
-    OFF
-    "GMX_GPU STREQUAL CUDA;GMX_MPI")
+
+# This is a hack to enable the use of HEFFTE
+# gmx_dependent_option(
+#     GMX_USE_HEFFTE
+#     "Use HeFFTe for FFT support. Used with CUDA backend"
+#     OFF
+#     "GMX_GPU STREQUAL CUDA;GMX_MPI OR GMX_GPU STREQUAL HIP")
 
 gmx_dependent_cache_variable(GMX_SIMD_REF_FLOAT_WIDTH  "Reference SIMD single precision width" STRING "4" "GMX_SIMD STREQUAL REFERENCE")
 gmx_dependent_cache_variable(GMX_SIMD_REF_DOUBLE_WIDTH "Reference SIMD double precision width" STRING "2" "GMX_SIMD STREQUAL REFERENCE")
@@ -649,13 +651,17 @@ if(CYGWIN)
 endif()
 
 if(GMX_USE_HEFFTE)
-    if(NOT GMX_GPU_CUDA)
+    if(NOT (GMX_GPU_CUDA OR GMX_GPU_HIP) )
         message(FATAL_ERROR "HeFFTe support requires a CUDA build")
     endif()
     if(NOT GMX_LIB_MPI)
         message(FATAL_ERROR "HeFFTe support requires a library MPI build")
     endif()
-    find_package(Heffte 2.2.0 REQUIRED CUDA)
+    if(GMX_GPU_CUDA)
+        find_package(Heffte 2.2.0 REQUIRED CUDA)
+    else()
+        find_package(Heffte 2.2.0 REQUIRED ROCM)
+    endif()
 endif()
 
 if(WIN32)
