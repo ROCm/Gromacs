@@ -46,6 +46,7 @@
 #include "gpu_3dfft_hipfft.hpp"
 
 #include "gromacs/gpu_utils/device_stream.h"
+#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
@@ -65,20 +66,35 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
                                  ArrayRef<const int> gridSizesInXForEachRank,
                                  ArrayRef<const int> gridSizesInYForEachRank,
                                  const int /*nz*/,
-                                 bool /*performOutOfPlaceFFT*/,
-                                 const DeviceContext& /*context*/,
+                                 bool                 performOutOfPlaceFFT,
+                                 const DeviceContext& context,
                                  const DeviceStream&  pmeStream,
                                  ivec                 realGridSize,
                                  ivec                 realGridSizePadded,
                                  ivec                 complexGridSizePadded,
                                  DeviceBuffer<float>* realGrid,
                                  DeviceBuffer<float>* complexGrid) :
-    realGrid_(reinterpret_cast<hipfftReal*>(*realGrid)),
-    complexGrid_(reinterpret_cast<hipfftComplex*>(*complexGrid))
+    realGrid_(reinterpret_cast<hipfftReal*>(*realGrid)), performOutOfPlaceFFT_(performOutOfPlaceFFT)
 {
     GMX_RELEASE_ASSERT(allocateGrids == false, "Grids needs to be pre-allocated");
     GMX_RELEASE_ASSERT(gridSizesInXForEachRank.size() == 1 && gridSizesInYForEachRank.size() == 1,
                        "FFT decomposition not implemented with cuFFT backend");
+
+    if (performOutOfPlaceFFT_)
+    {
+        const int newComplexGridSize =
+                complexGridSizePadded[XX] * complexGridSizePadded[YY] * complexGridSizePadded[ZZ] * 2;
+
+        reallocateDeviceBuffer(
+                complexGrid, newComplexGridSize, &complexGridSize_, &complexGridCapacity_, context);
+    }
+    else
+    {
+        *complexGrid = *realGrid;
+    }
+
+    complexGrid_ = *complexGrid;
+
 
     const int complexGridSizePaddedTotal =
             complexGridSizePadded[XX] * complexGridSizePadded[YY] * complexGridSizePadded[ZZ];
@@ -179,6 +195,11 @@ Gpu3dFft::ImplHipFft::~ImplHipFft()
     deleteVkFFT(&appR2C);
     free(configuration.device);
 #else
+    if (performOutOfPlaceFFT_)
+    {
+        freeDeviceBuffer(&complexGrid_);
+    }
+
     hipfftResult_t result;
     result = hipfftDestroy(planR2C_);
     handleHipfftError(result, "hipfftDestroy R2C failure");

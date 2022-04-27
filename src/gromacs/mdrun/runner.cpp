@@ -55,6 +55,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <memory>
+#include <iostream>
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/builder.h"
@@ -232,11 +233,12 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
 
     // Direct GPU comm path is being used with CUDA_AWARE_MPI
     // make sure underlying MPI implementation is CUDA-aware
-    if (GMX_LIB_MPI && GMX_GPU_CUDA)
+    if (GMX_LIB_MPI && (GMX_GPU_CUDA || GMX_GPU_HIP))
     {
         const bool haveDetectedCudaAwareMpi =
                 (checkMpiCudaAwareSupport() == CudaAwareMpiStatus::Supported);
         // allows overriding the CUDA-aware MPI detection
+        std::cout << "Checking if we are having cuda aware MPI" << std::endl;
         const bool forceCudaAwareMpi = (getenv("GMX_FORCE_CUDA_AWARE_MPI") != nullptr);
 
         devFlags.canUseCudaAwareMpi = haveDetectedCudaAwareMpi || forceCudaAwareMpi;
@@ -316,8 +318,9 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
             (pmeRunMode == PmeRunMode::GPU || pmeRunMode == PmeRunMode::Mixed)
             && ((numRanksPerSimulation > 1 && numPmeRanksPerSimulation == 0)
                 || numPmeRanksPerSimulation > 1);
+    std::cout <<  " devFlags.canUseCudaAwareMpi " << devFlags.canUseCudaAwareMpi << std::endl;
     const bool pmeGpuDecompositionSupported =
-            (devFlags.canUseGpuAwareMpi
+            (devFlags.canUseCudaAwareMpi
              && (pmeRunMode == PmeRunMode::GPU || pmeRunMode == PmeRunMode::Mixed));
 
     const bool forcePmeGpuDecomposition = getenv("GMX_GPU_PME_DECOMPOSITION") != nullptr;
@@ -346,6 +349,9 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
 
     if (!pmeGpuDecompositionSupported && pmeGpuDecompositionRequested)
     {
+        std::cout << " pmeGpuDecompositionSupported: " << pmeGpuDecompositionSupported
+                  << " pmeGpuDecompositionRequested: " << pmeGpuDecompositionRequested 
+                  << std::endl;
         gmx_fatal(FARGS,
                   "PME tasks were required to run on GPUs, but that is not implemented with "
                   "more than one PME rank. Use a single rank simulation, or a separate PME rank, "

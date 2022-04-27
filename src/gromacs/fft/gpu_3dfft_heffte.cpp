@@ -40,6 +40,7 @@
  *  \ingroup module_fft
  */
 
+#include <heffte_common.h>
 #include "gmxpre.h"
 
 #include "gpu_3dfft_heffte.h"
@@ -58,7 +59,7 @@ Gpu3dFft::ImplHeFfte<backend_tag>::ImplHeFfte(bool                allocateGrids,
                                               ArrayRef<const int> gridSizesInYForEachRank,
                                               const int           nz,
                                               bool                performOutOfPlaceFFT,
-                                              const DeviceContext& /*context*/,
+                                              const DeviceContext& context,
                                               const DeviceStream&  pmeStream,
                                               ivec                 realGridSize,
                                               ivec                 realGridSizePadded,
@@ -112,6 +113,7 @@ Gpu3dFft::ImplHeFfte<backend_tag>::ImplHeFfte(bool                allocateGrids,
 
     // if possible, keep complex data in slab decomposition along Z
     // this allows heffte to have single communication phase
+
     if (numDomainsY > 1 && complexZDim >= nProcs)
     {
         // define shape of local complex grid boxes
@@ -199,6 +201,8 @@ void Gpu3dFft::ImplHeFfte<backend_tag>::perform3dFft(gmx_fft_direction dir, Comm
 // instantiate relevant HeFFTe backend
 #if GMX_GPU_CUDA
 template class Gpu3dFft::ImplHeFfte<heffte::backend::cufft>;
+#elif GMX_GPU_HIP
+template class Gpu3dFft::ImplHeFfte<heffte::backend::rocfft>;
 #endif
 
 } // namespace gmx

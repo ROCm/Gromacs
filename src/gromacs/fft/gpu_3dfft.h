@@ -71,6 +71,7 @@ enum class FftBackend
     Hipfft,
     Ocl,   // supports only single-GPU
     HeFFTe_CUDA,
+    HeFFTe_HIP,
     SyclMkl,    // supports only single-GPU
     SyclRocfft, // supports only single-GPU
     Sycl,       // stubs for not supported configurations

@@ -814,6 +814,13 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
             backend      = gmx::FftBackend::HeFFTe_CUDA;
             allocateGrid = true;
         }
+#elif GMX_GPU_HIP
+        gmx::FftBackend backend = gmx::FftBackend::Hipfft;
+        if (pmeGpu->settings.useDecomposition)
+        {
+            backend = gmx::FftBackend::HeFFTe_HIP;
+            allocateGrid = true;
+        }
 #elif GMX_GPU_OPENCL
         const gmx::FftBackend backend = gmx::FftBackend::Ocl;
 #elif GMX_GPU_SYCL
@@ -2146,16 +2153,17 @@ void pme_gpu_gather(PmeGpu* pmeGpu, real** h_grids, gmx_parallel_3dfft_t* fftSet
                                       &kernelParamsPtr->atoms.d_gridlineIndices,
                                       &kernelParamsPtr->atoms.d_forces);
 #endif
-    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather", kernelArgs);
-    pme_gpu_stop_timing(pmeGpu, timingId);
+        launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather", kernelArgs);
+        pme_gpu_stop_timing(pmeGpu, timingId);
 
-    if (pmeGpu->settings.useGpuForceReduction)
-    {
-        pmeGpu->archSpecific->pmeForcesReady.markEvent(pmeGpu->archSpecific->pmeStream_);
-    }
-    else
-    {
-        pme_gpu_copy_output_forces(pmeGpu);
+        if (pmeGpu->settings.useGpuForceReduction)
+        {
+            pmeGpu->archSpecific->pmeForcesReady.markEvent(pmeGpu->archSpecific->pmeStream_);
+        }
+        else
+        {
+            pme_gpu_copy_output_forces(pmeGpu);
+        }
     }
 }
 
