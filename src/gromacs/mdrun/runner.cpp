@@ -55,7 +55,6 @@
 #include <cstdio>
 #include <algorithm>
 #include <memory>
-#include <iostream>
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/builder.h"
@@ -238,7 +237,6 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
         const bool haveDetectedCudaAwareMpi =
                 (checkMpiCudaAwareSupport() == CudaAwareMpiStatus::Supported);
         // allows overriding the CUDA-aware MPI detection
-        std::cout << "Checking if we are having cuda aware MPI" << std::endl;
         const bool forceCudaAwareMpi = (getenv("GMX_FORCE_CUDA_AWARE_MPI") != nullptr);
 
         devFlags.canUseCudaAwareMpi = haveDetectedCudaAwareMpi || forceCudaAwareMpi;
@@ -318,7 +316,6 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
             (pmeRunMode == PmeRunMode::GPU || pmeRunMode == PmeRunMode::Mixed)
             && ((numRanksPerSimulation > 1 && numPmeRanksPerSimulation == 0)
                 || numPmeRanksPerSimulation > 1);
-    std::cout <<  " devFlags.canUseCudaAwareMpi " << devFlags.canUseCudaAwareMpi << std::endl;
     const bool pmeGpuDecompositionSupported =
             (devFlags.canUseCudaAwareMpi
              && (pmeRunMode == PmeRunMode::GPU || pmeRunMode == PmeRunMode::Mixed));
@@ -349,9 +346,6 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
 
     if (!pmeGpuDecompositionSupported && pmeGpuDecompositionRequested)
     {
-        std::cout << " pmeGpuDecompositionSupported: " << pmeGpuDecompositionSupported
-                  << " pmeGpuDecompositionRequested: " << pmeGpuDecompositionRequested 
-                  << std::endl;
         gmx_fatal(FARGS,
                   "PME tasks were required to run on GPUs, but that is not implemented with "
                   "more than one PME rank. Use a single rank simulation, or a separate PME rank, "
