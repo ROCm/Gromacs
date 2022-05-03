@@ -93,9 +93,9 @@ static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
 #endif
 */
 //#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIPCC__))
-//#    define DISABLE_HIP_TEXTURES 1
+#    define DISABLE_HIP_TEXTURES 1
 //#else
-#    define DISABLE_HIP_TEXTURES 0
+//#    define DISABLE_HIP_TEXTURES 0
 //#endif
 
 /*! \brief True if the use of texture fetch in the HIP kernels is disabled. */
