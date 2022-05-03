@@ -73,6 +73,12 @@ static __forceinline__ __device__ const T& fast_load(const T* buffer, unsigned i
     return *reinterpret_cast<const T*>(reinterpret_cast<const char*>(buffer) + idx * static_cast<unsigned int>(sizeof(T)) + offset * static_cast<unsigned int>(sizeof(T)));
 }
 
+template<typename T, typename U>
+static __forceinline__ __device__ const T& fast_load(const U* buffer, unsigned int idx, unsigned int offset = 0)
+{
+    return *reinterpret_cast<const T*>(reinterpret_cast<const char*>(buffer) + idx * static_cast<unsigned int>(sizeof(U)) + offset * static_cast<unsigned int>(sizeof(T)));
+}
+
 static __forceinline__ __device__ void atomic_add_force(float3* buffer, unsigned int idx, unsigned int component, float value)
 {
     atomicAdd(reinterpret_cast<float*>(reinterpret_cast<char*>(buffer) + (idx * static_cast<unsigned int>(sizeof(float3)) + component * static_cast<unsigned int>(sizeof(float)))), value);

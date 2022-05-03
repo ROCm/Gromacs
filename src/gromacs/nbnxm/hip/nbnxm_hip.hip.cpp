@@ -643,8 +643,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     KernelLaunchConfig config;
     config.blockSize[0] = c_clSize * c_clSize * num_threads_z;
     config.gridSize[0]  = nblock;
-    config.sharedMemorySize =
-            calc_shmem_required_nonbonded(num_threads_z, &nb->deviceContext_->deviceInfo(), nbp);
+    config.sharedMemorySize = 0;
 
     if (debug)
     {
