@@ -624,7 +624,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             }
 
             /* reduce j forces */
-            reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj, c_fullWarpMask);
+            reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj);
         }
 #    ifdef PRUNE_NBL
         /* Update the imask with the new one which does not contain the
@@ -645,7 +645,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai, c_fullWarpMask);
+        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai);
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
@@ -683,7 +683,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
 #    ifdef CALC_ENERGIES
     /* reduce the energies over warps and store into global memory */
-    reduce_energy_warp_shfl(E_lj, E_el, e_lj, e_el, tidx, c_fullWarpMask);
+    reduce_energy_warp_shfl(E_lj, E_el, e_lj, e_el, tidx);
 #    endif
 }
 #endif /* FUNCTION_DECLARATION_ONLY */
