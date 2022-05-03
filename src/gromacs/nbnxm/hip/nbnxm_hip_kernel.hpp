@@ -419,9 +419,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 
-#    if DO_JM_UNROLL
-#       pragma unroll 2
-#    endif
+#       pragma unroll 1
         for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
         {
             const bool maskSet = imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster));
@@ -446,9 +444,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
 
             fcj_buf = make_float3(0.0F);
-#    if !defined PRUNE_NBL
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
-#    endif
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
                 if (imask & mask_ji)
@@ -472,10 +468,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         imask &= ~mask_ji;
                     }
 #    endif
-                    int_bit = (wexcl & mask_ji) ? 1.0F : 0.0F;
+                    int_bit = (wexcl >> (jm * c_nbnxnGpuNumClusterPerSupercluster + i)) & 1;
                     /* cutoff & exclusion check */
 #    ifdef EXCLUSION_FORCES
-                    if ((r2 < rcoulomb_sq) * (nonSelfInteraction | (ci != cj)))
+                    if ((r2 < rcoulomb_sq) && (ci != (nonSelfInteraction ? -1 : cj)))
 #    else
                     if ((r2 < rcoulomb_sq) * int_bit)
 #    endif
@@ -485,7 +481,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifndef LJ_COMB
                         /* LJ 6*C6 and 12*C12 */
                         typei = atib[i * c_clSize + tidxi];
-                        fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
+                        fetch_nbfp_c6_c12(c6, c12, nbparam, __mul24(ntypes, typei) + typej);
 #    else
                         ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM
