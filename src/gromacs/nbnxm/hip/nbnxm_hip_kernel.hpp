@@ -283,17 +283,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
-#if c_nbnxnGpuNumClusterPerSupercluster == 8
-    if (tidxz == 0)
+    if (c_nbnxnGpuNumClusterPerSupercluster == 8)
     {
-        i = tidxj;
+        if (tidxz == 0)
         {
-#else
-    if (tidxz == 0 && tidxj == 0)
-    {
-        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
-        {
-#endif
+            i = tidxj;
             /* Pre-load i-atom x and q into shared memory */
             ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
             ai = ci * c_clSize + tidxi;
@@ -310,6 +304,31 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             /* Pre-load the LJ combination parameters into shared memory */
             ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
 #    endif
+        }
+    }
+    else
+    {
+        if (tidxz == 0 && tidxj == 0)
+        {
+            for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+            {
+                /* Pre-load i-atom x and q into shared memory */
+                ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
+                ai = ci * c_clSize + tidxi;
+
+                const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
+                xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
+                xqbuf.w *= nbparam.epsfac;
+                xqib[i * c_clSize + tidxi] = xqbuf;
+
+#    ifndef LJ_COMB
+                /* Pre-load the i-atom types into shared memory */
+                atib[i * c_clSize + tidxi] = atom_types[ai];
+#    else
+                /* Pre-load the LJ combination parameters into shared memory */
+                ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
+#    endif
+            }
         }
     }
     __syncthreads();
