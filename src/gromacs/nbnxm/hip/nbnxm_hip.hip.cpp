@@ -845,6 +845,29 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, kernelArgs);
 
+    KernelLaunchConfig configPop;
+    configPop.blockSize[0] = 128U;
+    configPop.gridSize[0]  = nblock;
+    configPop.sharedMemorySize = 0;
+
+    const auto kernelPop = nbnxn_kernel_pop<128U>;
+
+    const auto kernelPopArgs =
+            prepareGpuKernelArguments(
+                kernelPop,
+                configPop,
+                plist
+            );
+
+    launchGpuKernel(
+        kernelPop,
+        configPop,
+        deviceStream,
+        nullptr,
+        "nbnxn_kernel_pop",
+        kernelPopArgs
+    );
+
     /* TODO: consider a more elegant way to track which kernel has been called
        (combined or separate 1st pass prune, rolling prune). */
     if (plist->haveFreshList)

@@ -59,6 +59,8 @@
 #include "gromacs/gpu_utils/vectype_ops.hpp"
 #include "gromacs/gpu_utils/typecasts.hpp"
 
+#include <rocprim/rocprim.hpp>
+
 #include "nbnxm_hip_types.h"
 
 // These functions help hipcc to generate faster code for loads and atomic operations where
@@ -260,6 +262,56 @@ void nbnxn_kernel_bucket_sci_sort(
         if( size > (block_offset + ItemsPerThread * flat_id + i) )
             pl_sci_sort[sci_offset[i]] = sci[i];
     }
+}
+
+
+template<
+    unsigned int BlockSize
+>
+__launch_bounds__(BlockSize) __global__
+void nbnxn_kernel_pop(Nbnxm::gpu_plist plist)
+{
+    nbnxn_sci_t* pl_sci = plist.sci;
+    nbnxn_cj4_t* pl_cj4 = plist.cj4;
+
+    unsigned int bid = blockIdx.x;
+    unsigned int tid = threadIdx.x;
+
+    nbnxn_sci_t  nb_sci;
+    nb_sci     = pl_sci[bid];         /* my i super-cluster's index = current bidx */
+    //sci        = nb_sci.sci;           /* super-cluster */
+    unsigned int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
+    unsigned int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
+
+    nbnxn_cj4_t nb_cj4;
+    int j4 = cij4_start + tid;
+    if (j4 < cij4_end)
+    {
+        nb_cj4 = pl_cj4[j4];
+    }
+    else
+    {
+        nb_cj4.imei[0].imask = 0;
+    }
+
+    // scan attempt
+    int flag = 0;
+    if (nb_cj4.imei[0].imask)
+    {
+        flag = 1;
+    }
+
+    int total = 0;
+    int id    = 0;
+    rocprim::block_scan<int, BlockSize> bscan;
+    bscan.inclusive_scan(flag, id, total);
+
+    if (flag)
+    {
+        pl_cj4[cij4_start + (id - 1)] = nb_cj4;
+    }
+
+    pl_sci[bid].cj4_length = total;
 }
 
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
