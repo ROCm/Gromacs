@@ -636,14 +636,12 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
      *   and j-cluster concurrency, in x, y, and z, respectively.
      * - The 1D block-grid contains as many blocks as super-clusters.
      */
-    int num_threads_z = 1;
+    int num_threads_z = 2;
     int nblock = calc_nb_kernel_nblock(plist->nsci, &nb->deviceContext_->deviceInfo());
 
 
     KernelLaunchConfig config;
-    config.blockSize[0] = c_clSize;
-    config.blockSize[1] = c_clSize;
-    config.blockSize[2] = num_threads_z;
+    config.blockSize[0] = c_clSize * c_clSize * num_threads_z;
     config.gridSize[0]  = nblock;
     config.sharedMemorySize =
             calc_shmem_required_nonbonded(num_threads_z, &nb->deviceContext_->deviceInfo(), nbp);

@@ -130,7 +130,7 @@
  *
  * Note: convenience macros, need to be undef-ed at the end of the file.
  */
-#define NTHREAD_Z 1
+#define NTHREAD_Z 2
 
 #ifdef CALC_ENERGIES
 #    define MIN_BLOCKS_PER_MP 6
@@ -196,6 +196,16 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
     unsigned int bidx = blockIdx.x;
 
+    /* thread/block/warp id-s */
+    unsigned int tid   = threadIdx.x;
+    unsigned int tidx  = tid & (c_warpSize - 1);
+    unsigned int tidxi = tidx & (c_clSize - 1);
+    unsigned int tidxj = tidx / c_clSize;
+
+    constexpr unsigned int wnum  = THREADS_PER_BLOCK / c_warpSize;
+    unsigned int wid   = tid / c_warpSize;
+    unsigned int widx  = tidx / c_subWarp; /* warp index */
+
 #    ifdef CALC_ENERGIES
 #        ifdef EL_EWALD_ANY
     float                beta        = nbparam.ewald_beta;
@@ -212,18 +222,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float*               e_lj        = atdat.eLJ + energy_index_base;
     float*               e_el        = atdat.eElec + energy_index_base;
 #    endif     /* CALC_ENERGIES */
-
-    /* thread/block/warp id-s */
-    unsigned int tidxi = threadIdx.x;
-    unsigned int tidxj = threadIdx.y;
-    unsigned int tidx  = threadIdx.y * c_clSize + threadIdx.x;
-#    if NTHREAD_Z == 1
-    unsigned int tidxz = 0;
-#    else
-    unsigned int  tidxz = threadIdx.z;
-#    endif
-
-    unsigned int widx  = tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -285,7 +283,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
     if (c_nbnxnGpuNumClusterPerSupercluster == 8)
     {
-        if (tidxz == 0)
+        if (wid == 0)
         {
             i = tidxj;
             /* Pre-load i-atom x and q into shared memory */
@@ -308,7 +306,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     }
     else
     {
-        if (tidxz == 0 && tidxj == 0)
+        if (wid == 0 && tidxj == 0)
         {
             for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
@@ -403,19 +401,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
      */
-#    if NTHREAD_Z == 1
-    for (j4 = cij4_start; j4 < cij4_end; j4++)
-#    else
-    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
-#    endif
+    for (j4 = cij4_start + wid; j4 < cij4_end; j4 += wnum)
     {
         imask     = pl_cj4[j4].imei[widx].imask;
-#    ifndef PRUNE_NBL
-        if (!imask)
-        {
-            continue;
-        }
-#    endif
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 

@@ -89,7 +89,8 @@ public:
     __forceinline__ __device__ const ValueType& operator[](unsigned int idx) const { return fast_load(buffer, idx); }
 };
 
-constexpr int c_subWarp = 64 / c_nbnxnGpuClusterpairSplit;
+constexpr int c_warpSize = 64;
+constexpr int c_subWarp = c_warpSize / c_nbnxnGpuClusterpairSplit;
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
 static const int __device__ c_clSizeLog2 = 3;
