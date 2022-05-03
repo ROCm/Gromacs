@@ -164,15 +164,15 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     const
 #    endif
             nbnxn_cj4_t* pl_cj4      = plist.cj4;
-    const nbnxn_excl_t*  excl        = plist.excl;
+    FastBuffer<nbnxn_excl_t> excl    = FastBuffer<nbnxn_excl_t>(plist.excl);
 #    ifndef LJ_COMB
-    const int*           atom_types  = atdat.atomTypes;
+    FastBuffer<int>      atom_types  = FastBuffer<int>(atdat.atomTypes);
     int                  ntypes      = atdat.numTypes;
 #    else
-    const float2* lj_comb = atdat.ljComb;
-    float2        ljcp_i, ljcp_j;
+    FastBuffer<float2> lj_comb       = FastBuffer<float2>(atdat.ljComb);
+    float2                   ljcp_i, ljcp_j;
 #    endif
-    const float4*        xq          = atdat.xq;
+    FastBuffer<float4>   xq          = FastBuffer<float4>(atdat.xq);
     float3*              f           = asFloat3(atdat.f);
     const float3*        shift_vec   = asFloat3(atdat.shiftVec);
     float                rcoulomb_sq = nbparam.rcoulomb_sq;
@@ -643,7 +643,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             }
 
             /* reduce j forces */
-            reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj);
+            float r = reduce_force_j_warp_shfl(fcj_buf, tidxi);
+            if (tidxi < 3)
+            {
+                atomic_add_force(f, aj, tidxi, r);
+            }
         }
 #    ifdef PRUNE_NBL
         /* Update the imask with the new one which does not contain the
@@ -658,45 +662,36 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         bCalcFshift = false;
     }
 
-    float3 fshift_buf = make_float3(0.0f);
+    float fshift_buf = 0.0F;
+    float fci[c_nbnxnGpuNumClusterPerSupercluster];
 
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
-        ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai);
+        fci[i] = reduce_force_i_warp_shfl(fci_buf[i], tidxi, tidxj);
+        fshift_buf += fci[i];
+    }
+    if (tidxi < 3)
+    {
+        for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+        {
+            ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxj;
+            atomic_add_force(f, ai, tidxi, fci[i]);
+        }
     }
 
-    /* add up local shift forces into global mem, tidxj indexes x,y,z */
+    /* add up local shift forces into global mem, tidxi indexes x,y,z */
     if (bCalcFshift)
     {
-        fshift_buf.x += warp_move_dpp<float, 0xb1>(fshift_buf.x);
-        fshift_buf.y += warp_move_dpp<float, 0xb1>(fshift_buf.y);
-        fshift_buf.z += warp_move_dpp<float, 0xb1>(fshift_buf.z);
-
-        fshift_buf.x += warp_move_dpp<float, 0x4e>(fshift_buf.x);
-        fshift_buf.y += warp_move_dpp<float, 0x4e>(fshift_buf.y);
-        fshift_buf.z += warp_move_dpp<float, 0x4e>(fshift_buf.z);
-
-        fshift_buf.x += warp_move_dpp<float, 0x114>(fshift_buf.x);
-        fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
-        fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
-
-#ifndef __gfx1030__
-        if (tidx == (c_clSize - 1))
-#else
-        if ( tidx == (c_clSize - 1) || tidx == (c_subWarp + c_clSize - 1) )
-#endif
-        {
 #ifdef GMX_ENABLE_MEMORY_MULTIPLIER
-            const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+        const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
 #else
-            const unsigned int shift_index_base = 0;
+        const unsigned int shift_index_base = 0;
 #endif
+        if (tidxi < 3)
+        {
             float3* fShift = asFloat3(atdat.fShift);
-            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
-            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
-            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
+            atomic_add_force(fShift, nb_sci.shift + shift_index_base, tidxi, fshift_buf);
         }
     }
 
