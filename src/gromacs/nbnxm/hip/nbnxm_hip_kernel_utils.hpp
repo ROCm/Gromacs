@@ -438,12 +438,14 @@ calculate_potential_switch_F_E(const NBParamGpu nbparam, float inv_r, float r2, 
  */
 static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, int typei, int typej)
 {
-#    if DISABLE_CUDA_TEXTURES
-    return LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej]);
+#    if DISABLE_HIP_TEXTURES
+    float c6_i = LDG(&nbparam.nbfp_comb[typei]).x;
+    float c6_j = LDG(&nbparam.nbfp_comb[typej]).x;
 #    else
-    return tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typei)
-           * tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typej);
-#    endif /* DISABLE_CUDA_TEXTURES */
+    float c6_i = tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, typei).x;
+    float c6_j = tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, typej).x;
+#    endif /* DISABLE_HIP_TEXTURES */
+    return c6_i * c6_j;
 }
 
 
