@@ -46,8 +46,7 @@ typedef struct nbnxn_sci_t
     /* Returns the number of j-cluster groups in this entry */
     int numJClusterGroups() const { return cj4_ind_end - cj4_ind_start; }
 
-    int sci;           /* i-super-cluster        */
-    int nsp_cj4;       /* number of caluclations */
+    int sci;           /* i-super-cluster       */
     int shift;         /* Shift vector index plus possible flags */
     int cj4_ind_start; /* Start index into cj4  */
     int cj4_ind_end;   /* End index into cj4    */

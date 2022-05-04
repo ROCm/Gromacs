@@ -1116,7 +1116,7 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
      * that pair based on atom distances on the CPU to avoid empty j-groups.
      */
 #define PRUNE_LIST_CPU_ONE 1
-#define PRUNE_LIST_CPU_ALL 1
+#define PRUNE_LIST_CPU_ALL 0
 
 #if PRUNE_LIST_CPU_ONE
     int ci_last = -1;
@@ -2105,13 +2105,11 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
         nsp_max = nsp_target_av;
     }
 
-    int cj4len_max = const_cj4len_max;
-
     const int cj4_start = nbl->sci.back().cj4_ind_start;
     const int cj4_end   = nbl->sci.back().cj4_ind_end;
     const int j4len     = cj4_end - cj4_start;
 
-    if (j4len > cj4len_max)
+    if (j4len > 1 && j4len * c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize > nsp_max)
     {
         /* Modify the last ci entry and process the cj4's again */
 
@@ -2132,11 +2130,10 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             /* If adding the current cj4 with nsp_cj4 pairs get us further
              * away from our target nsp_max, split the list before this cj4.
              */
-            if (nsp > 0 && (cj4 - nbl->sci.back().cj4_ind_start) > cj4len_max)
+            if (nsp > 0 && nsp_max - nsp < nsp + nsp_cj4 - nsp_max)
             {
                 /* Split the list at cj4 */
                 nbl->sci.back().cj4_ind_end = cj4;
-                nbl->sci.back().nsp_cj4 = nsp;
                 /* Create a new sci entry */
                 nbnxn_sci_t sciNew;
                 sciNew.sci           = nbl->sci.back().sci;
@@ -2153,8 +2150,6 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
 
         /* Put the remaining cj4's in the last sci entry */
         nbl->sci.back().cj4_ind_end = cj4_end;
-        nbl->sci.back().nsp_cj4 = nsp;
-
 
         /* Possibly balance out the last two sci's
          * by moving the last cj4 of the second last sci.
@@ -2165,18 +2160,6 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             nbl->sci[nbl->sci.size() - 2].cj4_ind_end--;
             nbl->sci[nbl->sci.size() - 1].cj4_ind_start--;
         }
-    }
-    else
-    {
-        int nsp_cj4 = 0;
-        for (int cj4 = cj4_start; cj4 < cj4_end; cj4++)
-        {
-            for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
-            {
-                nsp_cj4 += (nbl->cj4[cj4].imei[0].imask >> p) & 1;
-            }
-        }
-        nbl->sci.back().nsp_cj4 = nsp_cj4;
     }
 }
 
@@ -2197,7 +2180,7 @@ static void closeIEntry(NbnxnPairlistGpu* nbl, int nsp_max_av, gmx_bool progBal,
         int ncj4          = (nbl->work->cj_ind + c_nbnxnGpuJgroupSize - 1) / c_nbnxnGpuJgroupSize;
         nbl->work->cj_ind = ncj4 * c_nbnxnGpuJgroupSize;
 
-        //if (nsp_max_av > 0)
+        if (nsp_max_av > 0)
         {
             /* Measure the size of the new entry and potentially split it */
             split_sci_entry(nbl, nsp_max_av, progBal, nsp_tot_est, thread, nthread);
@@ -2701,7 +2684,7 @@ static void combine_nblists(gmx::ArrayRef<const NbnxnPairlistGpu> nbls, NbnxnPai
             {
                 nblc->cj4[cj4_offset + j4] = nbli.cj4[j4];
                 nblc->cj4[cj4_offset + j4].imei[0].excl_ind += excl_offset;
-                if (c_nbnxnGpuClusterpairSplit == 2)
+		if (c_nbnxnGpuClusterpairSplit == 2)
                     nblc->cj4[cj4_offset + j4].imei[1].excl_ind += excl_offset;
             }
 
@@ -3853,7 +3836,7 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
     NbnxnPairlistGpuWork& work = *nbl->work;
 
     /* We will distinguish differences up to double the average */
-    const int m = std::max(256, static_cast<int>(( 64 * 16 * ssize(nbl->cj4)) / ssize(nbl->sci)));
+    const int m = static_cast<int>((2 * ssize(nbl->cj4)) / ssize(nbl->sci));
 
     /* Resize work.sci_sort so we can sort into it */
     work.sci_sort.resize(nbl->sci.size());
@@ -3865,11 +3848,7 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
     /* Count the entries of each size */
     for (const nbnxn_sci_t& sci : nbl->sci)
     {
-#ifdef nsp_based_sort
-        int i = std::min(m, sci.nsp_cj4);
-#else
         int i = std::min(m, sci.numJClusterGroups());
-#endif
         sort[i]++;
     }
     /* Calculate the offset for each count */
@@ -3886,11 +3865,7 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
     gmx::ArrayRef<nbnxn_sci_t> sci_sort = work.sci_sort;
     for (const nbnxn_sci_t& sci : nbl->sci)
     {
-#ifdef nsp_based_sort
-        int i               = std::min(m, sci.nsp_cj4);
-#else
         int i               = std::min(m, sci.numJClusterGroups());
-#endif
         sci_sort[sort[i]++] = sci;
     }
 
