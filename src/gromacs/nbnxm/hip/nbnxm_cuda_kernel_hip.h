@@ -199,8 +199,6 @@ __launch_bounds__(c_clSize * c_clSize * 4)
     float                rlist_sq    = nbparam.rlistOuter_sq;
 #    endif
 
-    unsigned int bidx  = blockIdx.x;
-
 #    ifdef CALC_ENERGIES
 #        ifdef EL_EWALD_ANY
     float                beta        = nbparam.ewald_beta;
@@ -208,8 +206,8 @@ __launch_bounds__(c_clSize * c_clSize * 4)
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj + bidx % c_clEnergySize;
-    float*               e_el        = atdat.e_el + bidx % c_clEnergySize;
+    float*               e_lj        = atdat.e_lj;
+    float*               e_el        = atdat.e_el;
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
@@ -221,6 +219,7 @@ __launch_bounds__(c_clSize * c_clSize * 4)
 #    else
     unsigned int  tidxz = threadIdx.z;
 #    endif
+    unsigned int bidx  = blockIdx.x;
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -657,14 +656,17 @@ __launch_bounds__(c_clSize * c_clSize * 4)
 
         if( tidxi == 0 && tidxj < 3 )
         {
-            atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + tidxj, fshift_buf);
+            #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
+                    atomicAddNoRet(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+            #else
+                    atomicAddOverWriteForFloat(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+            #endif
         }
     }
 
 #    ifdef CALC_ENERGIES
     /* reduce the energies over warps and store into global memory */
     reduce_energy_warp_shfl(E_lj, E_el, e_lj, e_el, tidx, c_fullWarpMask);
-
 #    endif
 }
 #endif /* FUNCTION_DECLARATION_ONLY */

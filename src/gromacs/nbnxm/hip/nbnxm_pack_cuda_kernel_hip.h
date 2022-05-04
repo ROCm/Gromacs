@@ -199,8 +199,6 @@ __launch_bounds__(THREADS_PER_BLOCK)
     float                rlist_sq    = nbparam.rlistOuter_sq;
 #    endif
 
-    unsigned int bidx  = blockIdx.x;
-
 #    ifdef CALC_ENERGIES
 #        ifdef EL_EWALD_ANY
     float                beta        = nbparam.ewald_beta;
@@ -208,8 +206,8 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #        else
     float c_rf = nbparam.c_rf;
 #        endif /* EL_EWALD_ANY */
-    float*               e_lj        = atdat.e_lj + bidx % c_clEnergySize + 1;
-    float*               e_el        = atdat.e_el + bidx % c_clEnergySize + 1;
+    float*               e_lj        = atdat.e_lj;
+    float*               e_el        = atdat.e_el;
 #    endif     /* CALC_ENERGIES */
 
     /* thread/block/warp id-s */
@@ -222,6 +220,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 #    else
     unsigned int  tidxz = threadIdx.z;
 #    endif
+    unsigned int bidx  = blockIdx.x;
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -779,7 +778,7 @@ __launch_bounds__(THREADS_PER_BLOCK)
 
         if( tidxi == 0 && tidxj < 3 )
         {
-            atomicAdd(&(atdat.fshift[nb_sci.shift + SHIFTS * (bidx % c_clShiftSize)].x) + tidxj, fshift_buf);
+                    atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
         }
     }
 

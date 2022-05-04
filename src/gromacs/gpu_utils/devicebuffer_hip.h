@@ -222,7 +222,7 @@ void clearDeviceBufferAsync(DeviceBuffer<ValueType>* buffer,
 {
     GMX_ASSERT(buffer, "needs a buffer pointer");
     const size_t bytes   = numValues * sizeof(ValueType);
-    const int pattern = 0;
+    const char   pattern = 0;
 
     hipError_t stat = hipMemsetAsync(*((ValueType**)buffer) + startingOffset, pattern, bytes,
                                        deviceStream.stream());

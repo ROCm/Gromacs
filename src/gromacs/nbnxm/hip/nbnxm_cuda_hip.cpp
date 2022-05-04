@@ -595,9 +595,9 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     bool usePack = false;
 
 #ifdef GMX_GPU_USE_PACK
-    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 &&
-    //    	    !stepWork.computeEnergy &&
-    //    	    !(plist->haveFreshList &&
+    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 && 
+    //    	    !stepWork.computeEnergy && 
+    //    	    !(plist->haveFreshList && 
     //                !nb->timers->interaction[iloc].didPrune)) {
     //    usePack = true;
     //}
@@ -615,7 +615,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
     */
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
-    
+
     if (bDoTime)
     {
         t->interaction[iloc].nb_k.closeTimingRegion(deviceStream);
@@ -834,22 +834,6 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
     if (iloc == InteractionLocality::Local)
     {
         /* DtoH fshift when virial is needed */
-        if ( (stepWork.computeVirial && c_clShiftSize > 1) || (stepWork.computeEnergy && c_clEnergySize > 1))
-        {
-            constexpr unsigned int block_size = 64U;
-
-            KernelLaunchConfig configSumUp;
-            configSumUp.blockSize[0] = block_size;
-            configSumUp.blockSize[1] = 1;
-            configSumUp.blockSize[2] = 1;
-            configSumUp.gridSize[0]  = 1;
-            configSumUp.sharedMemorySize = 0;
-
-            const auto kernelSumUp = nbnxn_kernel_sum_up<block_size, c_clShiftSize>;
-
-            launchGpuKernel(kernelSumUp, configSumUp, deviceStream, nullptr, "nbnxn_kernel_sum_up", *adat, (stepWork.computeEnergy && c_clEnergySize > 1), (stepWork.computeVirial && c_clShiftSize > 1), SHIFTS);
-        }
-
         if (stepWork.computeVirial)
         {
             static_assert(sizeof(nb->nbst.fshift[0]) == sizeof(adat->fshift[0]),
