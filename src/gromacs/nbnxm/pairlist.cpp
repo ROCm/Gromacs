@@ -2111,7 +2111,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
     const int cj4_end   = nbl->sci.back().cj4_ind_end;
     const int j4len     = cj4_end - cj4_start;
 
-    if (1)
+    if (j4len > cj4len_max)
     {
         /* Modify the last ci entry and process the cj4's again */
 
@@ -2124,18 +2124,15 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             int nsp_cj4_p = nsp_cj4;
             /* Count the number of cluster pairs in this cj4 group */
             nsp_cj4 = 0;
-            for (int w = 0; w < c_nbnxnGpuClusterpairSplit; w++)
+            for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
             {
-                for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
-                {
-                    nsp_cj4 += (nbl->cj4[cj4].imei[w].imask >> p) & 1;
-                }
+                nsp_cj4 += (nbl->cj4[cj4].imei[0].imask >> p) & 1;
             }
 
             /* If adding the current cj4 with nsp_cj4 pairs get us further
              * away from our target nsp_max, split the list before this cj4.
              */
-            if (nsp > 0 && (nsp + nsp_cj4) > const_nsp_max)
+            if (nsp > 0 && (cj4 - nbl->sci.back().cj4_ind_start) > cj4len_max)
             {
                 /* Split the list at cj4 */
                 nbl->sci.back().cj4_ind_end = cj4;
@@ -2174,12 +2171,9 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
         int nsp_cj4 = 0;
         for (int cj4 = cj4_start; cj4 < cj4_end; cj4++)
         {
-            for (int w = 0; w < c_nbnxnGpuClusterpairSplit; w++)
+            for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
             {
-                for (int p = 0; p < c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize; p++)
-                {
-                    nsp_cj4 += (nbl->cj4[cj4].imei[w].imask >> p) & 1;
-                }
+                nsp_cj4 += (nbl->cj4[cj4].imei[0].imask >> p) & 1;
             }
         }
         nbl->sci.back().nsp_cj4 = nsp_cj4;
