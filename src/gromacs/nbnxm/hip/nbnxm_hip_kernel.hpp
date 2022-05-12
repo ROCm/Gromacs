@@ -223,7 +223,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     unsigned int  tidxz = threadIdx.z;
 #    endif
 
-    unsigned int widx  = tidx / c_subWarp; /* warp index */
+    unsigned int widx  = c_subWarp == warpSize ? 0 : tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -410,6 +410,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
     {
         imask     = pl_cj4[j4].imei[widx].imask;
+        // "Scalarize" imask when possible, the compiler always generates vector load here
+        // so imask is stored in a vector register, making it scalar simplifies the code.
+        imask     = c_subWarp == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 #    ifndef PRUNE_NBL
         if (!imask)
         {
@@ -419,7 +422,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 
-#       pragma unroll 1
+#       pragma unroll
         for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
         {
             const bool maskSet = imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster));
