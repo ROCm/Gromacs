@@ -156,8 +156,9 @@ Gpu3dFft::ImplHeFfte<backend_tag>::ImplHeFfte(bool                allocateGrids,
         };
 
         // Define 3D FFT plan
+	heffte::plan_options options(true, heffte::reshape_algorithm::p2p, true);
         fftPlan_ = std::make_unique<heffte::fft3d_r2c<backend_tag, int>>(
-                pmeStream.stream(), realBox, complexBox, 0, comm, heffte::default_options<backend_tag>());
+                pmeStream.stream(), realBox, complexBox, 0, comm, options);
     }
 
     // allocate grid and workspace_
