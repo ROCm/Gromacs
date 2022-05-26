@@ -412,7 +412,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         imask     = pl_cj4[j4].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
         // so imask is stored in a vector register, making it scalar simplifies the code.
-        imask     = c_subWarp == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
+        //imask     = c_subWarp == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 #    ifndef PRUNE_NBL
         if (!imask)
         {
@@ -661,6 +661,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         bCalcFshift = false;
     }
 
+#ifndef __gfx1030__
     float fshift_buf = 0.0F;
     float fci[c_nbnxnGpuNumClusterPerSupercluster];
 
@@ -693,6 +694,28 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             atomic_add_force(fShift, nb_sci.shift + shift_index_base, tidxi, fshift_buf);
         }
     }
+#else
+    float fshift_buf = 0.0F;
+
+    /* reduce i forces */
+    for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+    {
+        ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
+        reduce_force_i_warp_shfl(fci_buf[i], f, &fshift_buf, bCalcFshift, tidxj, ai);
+    }
+
+    /* add up local shift forces into global mem, tidxj indexes x,y,z */
+    if (bCalcFshift && (tidxj & 3) < 3)
+    {
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+        const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+#else
+        const unsigned int shift_index_base = 0;
+#endif
+        float3* fShift = asFloat3(atdat.fShift);
+        atomicAdd(&(fShift[nb_sci.shift].x) + shift_index_base * 3 + (tidxj & 3), fshift_buf);
+    }
+#endif
 
 #    ifdef CALC_ENERGIES
     /* reduce the energies over warps and store into global memory */

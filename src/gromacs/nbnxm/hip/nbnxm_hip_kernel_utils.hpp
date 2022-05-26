@@ -740,12 +740,11 @@ static __forceinline__ __device__ float reduce_force_i_warp_shfl(float3       f,
                                                                  unsigned int tidxi,
                                                                  unsigned int tidxj)
 {
-    // TODO support NAVI
-
     // Transpose values so DPP-based retuction can be used later
     f.x = __shfl(f.x, tidxi * c_clSize + tidxj);
     f.y = __shfl(f.y, tidxi * c_clSize + tidxj);
     f.z = __shfl(f.z, tidxi * c_clSize + tidxj);
+
 
     f.x += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.x);
     f.y += warp_move_dpp<float, /* row_shr:1 */ 0x111>(f.y);
@@ -768,6 +767,47 @@ static __forceinline__ __device__ float reduce_force_i_warp_shfl(float3       f,
 
     return f.x;
 }
+
+/*! Final i-force reduction; this implementation works only with power of two
+ *  array sizes.
+ */
+static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
+                                                                float3*            fout,
+                                                                float*             fshift_buf,
+                                                                bool               bCalcFshift,
+                                                                int                tidxj,
+                                                                int                aidx)
+{
+    fin.x += __shfl_down(fin.x, c_clSize);
+    fin.y += __shfl_up(fin.y, c_clSize);
+    fin.z += __shfl_down(fin.z, c_clSize);
+
+    if (tidxj & 1)
+    {
+        fin.x = fin.y;
+    }
+
+    fin.x += __shfl_down(fin.x, 2 * c_clSize);
+    fin.z += __shfl_up(fin.z, 2 * c_clSize);
+
+    if (tidxj & 2)
+    {
+        fin.x = fin.z;
+    }
+
+    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
+    if ((tidxj & 3) < 3)
+    {
+        atomicAdd(&fout[aidx].x + (tidxj & 3), fin.x);
+
+        if (bCalcFshift)
+        {
+            *fshift_buf += fin.x;
+        }
+    }
+}
+
+
 
 /*! Energy reduction; this implementation works only with power of two
  *  array sizes.
