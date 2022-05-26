@@ -773,36 +773,30 @@ static __forceinline__ __device__ float reduce_force_i_warp_shfl(float3       f,
  */
 static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
                                                                 float3*            fout,
-                                                                float*             fshift_buf,
+                                                                float3&            fshift_buf,
                                                                 bool               bCalcFshift,
                                                                 int                tidxj,
                                                                 int                aidx)
 {
-    fin.x += __shfl_down(fin.x, c_clSize);
-    fin.y += __shfl_up(fin.y, c_clSize);
-    fin.z += __shfl_down(fin.z, c_clSize);
-
-    if (tidxj & 1)
+    #pragma unroll
+    for (int offset = warpSize >> 1; offset >= c_clSize; offset >>= 1)
     {
-        fin.x = fin.y;
+        fin.x += __shfl_down(fin.x, offset);
+        fin.y += __shfl_down(fin.y, offset);
+        fin.z += __shfl_down(fin.z, offset);
     }
 
-    fin.x += __shfl_down(fin.x, 2 * c_clSize);
-    fin.z += __shfl_up(fin.z, 2 * c_clSize);
-
-    if (tidxj & 2)
+    if (tidxj % (warpSize / c_clSize) == 0)
     {
-        fin.x = fin.z;
-    }
-
-    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-    if ((tidxj & 3) < 3)
-    {
-        atomicAdd(&fout[aidx].x + (tidxj & 3), fin.x);
+        atomicAdd((&fout[aidx].x), fin.x);
+        atomicAdd((&fout[aidx].y), fin.y);
+        atomicAdd((&fout[aidx].z), fin.z);
 
         if (bCalcFshift)
         {
-            *fshift_buf += fin.x;
+            fshift_buf.x += fin.x;
+            fshift_buf.y += fin.y;
+            fshift_buf.z += fin.z;
         }
     }
 }

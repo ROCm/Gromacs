@@ -695,26 +695,44 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         }
     }
 #else
-    float fshift_buf = 0.0F;
+    float3 fshift_buf = make_float3(0.0f);
 
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, &fshift_buf, bCalcFshift, tidxj, ai);
+        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai);
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if (bCalcFshift && (tidxj & 3) < 3)
+    if (bCalcFshift)
     {
-#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
-        const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
-#else
-        const unsigned int shift_index_base = 0;
-#endif
-        float3* fShift = asFloat3(atdat.fShift);
-        atomicAdd(&(fShift[nb_sci.shift].x) + shift_index_base * 3 + (tidxj & 3), fshift_buf);
+        fshift_buf.x += warp_move_dpp<float, 0xb1>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0xb1>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0xb1>(fshift_buf.z);
+
+        fshift_buf.x += warp_move_dpp<float, 0x4e>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0x4e>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0x4e>(fshift_buf.z);
+
+        fshift_buf.x += warp_move_dpp<float, 0x114>(fshift_buf.x);
+        fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
+        fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
+
+        if ( tidx == (c_clSize - 1) || tidx == (c_subWarp + c_clSize - 1) )
+        {
+   #ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+            const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+   #else
+            const unsigned int shift_index_base = 0;
+   #endif
+            float3* fShift = asFloat3(atdat.fShift);
+            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
+            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
+            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
+        }
     }
+
 #endif
 
 #    ifdef CALC_ENERGIES
