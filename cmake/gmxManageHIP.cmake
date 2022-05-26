@@ -32,7 +32,6 @@
 #
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
-include_directories("/opt/rocm/roctracer/include")
 
 IF (NOT DEFINED ROCM_PATH)
     IF(NOT DEFINED ENV{ROCM_PATH})
@@ -41,6 +40,7 @@ IF (NOT DEFINED ROCM_PATH)
         set(ROCM_PATH $ENV{ROCM_PATH})
     endif()
 endif()
+include_directories("${ROCM_PATH}/roctracer/include")
 list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH})
 message(STATUS "ROCM Path: " ${ROCM_PATH})
 
