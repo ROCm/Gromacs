@@ -499,6 +499,13 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
         cj4file.open("cj4_before_prune.out", std::ios::app);
         cj4file << "---------------------START-------------------- " << stat << std::endl;
 
+        std::vector<int> host_sci_count(plist->nsci_counted);
+
+        stat = hipMemcpy(host_sci_count.data(),
+                                     *reinterpret_cast<int**>(&(plist->sci_count_sorted)),
+                                     plist->nsci_count_sorted * sizeof(int),
+                                     hipMemcpyDeviceToHost);
+
         std::ofstream countfile;
         countfile.open("countfile_prune.out", std::ios::app);
         countfile << "---------------------START-------------------- " << std::endl;
@@ -519,7 +526,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
 
                 cj4mask_histogram[__builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask) - __builtin_popcount(host_cj4[j4].imei[0].imask & host_cj4[j4].imei[1].imask)]++;
             }
-            countfile << index_sci << " , " << count << std::endl;
+            countfile << index_sci << " , " << count << "  : " << host_sci_count[index_sci] <<  std::endl;
             cj4file << std::endl;
         }
         cj4file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
@@ -583,6 +590,13 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
             cj4mask_histogram[index_histogram] = 0;
         }
 
+        std::vector<int> host_sci_count(plist->nsci_counted);
+
+        stat = hipMemcpy(host_sci_count.data(),
+                         *reinterpret_cast<int**>(&(plist->sci_count_sorted)),
+                         plist->nsci_count_sorted * sizeof(int),
+                         hipMemcpyDeviceToHost);
+
         std::ofstream cj4file;
         cj4file.open("cj4.out", std::ios::app);
         cj4file << "---------------------START-------------------- " << stat << std::endl;
@@ -607,7 +621,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
 
                 cj4mask_histogram[__builtin_popcount(host_cj4[j4].imei[0].imask | host_cj4[j4].imei[1].imask) - __builtin_popcount(host_cj4[j4].imei[0].imask & host_cj4[j4].imei[1].imask)]++;
             }
-            countfile << index_sci << " , " << count << std::endl;
+            countfile << index_sci << " , " << count << "  : " << (c_sciHistogramSize - 1) - host_sci_count[index_sci] <<  std::endl;
             cj4file << std::endl;
         }
         cj4file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
@@ -850,8 +864,29 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     /* TODO: consider a more elegant way to track which kernel has been called
        (combined or separate 1st pass prune, rolling prune). */
     if (plist->haveFreshList)
+    //if (plist->haveFreshList || ((numParts - 1) == part))
     {
-        plist->haveFreshList = false;
+        if (!plist->haveFreshList)
+        {
+            copyBetweenDeviceBuffers(
+                &plist->sci, &plist->sci_sorted, plist->nsci, deviceStream, GpuApiCallBehavior::Async, timingEvent);
+            copyBetweenDeviceBuffers(
+                &plist->sci_count, &plist->sci_count_sorted, plist->nsci, deviceStream, GpuApiCallBehavior::Async, timingEvent);
+
+            clearDeviceBufferAsync(&plist->sci_histogram, 0, c_sciHistogramSize, deviceStream);
+
+            size_t histogram_temporary_size = (size_t)plist->nhistogram_temporary;
+
+            rocprim::histogram_even(
+                *reinterpret_cast<void**>(&plist->histogram_temporary),
+                histogram_temporary_size,
+                *reinterpret_cast<int**>(&plist->sci_count_sorted),
+                static_cast<unsigned int>(plist->nsci),
+                *reinterpret_cast<int**>(&plist->sci_histogram),
+                c_sciHistogramSize + 1, 0, c_sciHistogramSize,
+                deviceStream.stream()
+            );
+        }
 
         size_t scan_temporary_size = (size_t)plist->nscan_temporary;
         rocprim::exclusive_scan(
@@ -883,15 +918,22 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             scihistogramfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
             scihistogramfile.close();
 
-
-
             std::vector<int> host_sci_count(plist->nsci_counted);
 
-            stat = hipMemcpy(host_sci_count.data(),
-                                         *reinterpret_cast<int**>(&(plist->sci_count)),
-                                         plist->nsci_counted * sizeof(int),
-                                         hipMemcpyDeviceToHost);
-
+            if (plist->haveFreshList)
+            {
+                stat = hipMemcpy(host_sci_count.data(),
+                                             *reinterpret_cast<int**>(&(plist->sci_count)),
+                                             plist->nsci_counted * sizeof(int),
+                                             hipMemcpyDeviceToHost);
+            }
+            else
+            {
+                stat = hipMemcpy(host_sci_count.data(),
+                                             *reinterpret_cast<int**>(&(plist->sci_count_sorted)),
+                                             plist->nsci_count_sorted * sizeof(int),
+                                             hipMemcpyDeviceToHost);
+            }
             std::ofstream scicountfile;
             scicountfile.open("sci_count.out", std::ios::app);
             scicountfile << "---------------------START-------------------- " << stat << std::endl;
@@ -930,7 +972,8 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
         configSortSci.gridSize[0]  = (plist->nsci + items_per_block - 1) / items_per_block;
         configSortSci.sharedMemorySize = 0;
 
-        const auto kernelSciSort = nbnxn_kernel_bucket_sci_sort<256, 16>;
+        const auto kernelSciSort = plist->haveFreshList ?
+            nbnxn_kernel_bucket_sci_sort<256, 16, true> : nbnxn_kernel_bucket_sci_sort<256, 16, false>;
 
         const auto kernelSciSortArgs =
                 prepareGpuKernelArguments(
@@ -948,6 +991,32 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             kernelSciSortArgs
         );
 
+
+        /*{
+            hipError_t  stat;
+            std::vector<int> host_sci_count(plist->nsci_counted);
+
+            stat = hipMemcpy(host_sci_count.data(),
+                                         *reinterpret_cast<int**>(&(plist->sci_count_sorted)),
+                                         plist->nsci_count_sorted * sizeof(int),
+                                         hipMemcpyDeviceToHost);
+
+            std::ofstream scicountfile;
+            scicountfile.open("sci_count_after.out", std::ios::app);
+            scicountfile << "---------------------START-------------------- " << stat << std::endl;
+            for(unsigned int index = 0; index < plist->nsci_counted; index++)
+            {
+                scicountfile << index << " ; " << host_sci_count[index] << std::endl;
+            }
+            scicountfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+            scicountfile.close();
+
+        }*/
+    }
+
+    if (plist->haveFreshList)
+    {
+        plist->haveFreshList = false;
         /* Mark that pruning has been done */
         nb->timers->interaction[iloc].didPrune = true;
     }
