@@ -223,7 +223,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     unsigned int  tidxz = threadIdx.z;
 #    endif
 
-    unsigned int widx  = c_subWarp == warpSize ? 0 : tidx / c_subWarp; /* warp index */
+    unsigned int widx  = (c_clSize * c_clSize) == warpSize ? 0 : tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
