@@ -98,7 +98,7 @@ public:
     virtual void perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent) = 0;
 
     /*! \brief FFT complex grid */
-    DeviceBuffer<float> complexGrid_ = nullptr;
+    DeviceBuffer<float> complexGrid_;
 };
 
 } // namespace gmx
