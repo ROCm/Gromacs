@@ -875,6 +875,16 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
             memcpy(grid.localComplexGridSize, grid.localComplexGridSizePadded, DIM * sizeof(int));
         }
     }
+    else
+    {
+        // Initialize grid.localComplexGridSize with grid.complexGridSize.
+        // These values needs to be initialized for unit tests which run pme_gpu_solve even in mixed
+        // mode. In real world cases, pme_gu_solve is never called in mixed mode.
+        PmeGpuGridParams& grid = pme_gpu_get_kernel_params_base_ptr(pmeGpu)->grid;
+        memcpy(grid.localComplexGridSizePadded, grid.complexGridSizePadded, DIM * sizeof(int));
+        memcpy(grid.localComplexGridSize, grid.complexGridSize, DIM * sizeof(int));
+    }
+
 }
 
 void pme_gpu_destroy_3dfft(const PmeGpu* pmeGpu)

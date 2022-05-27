@@ -96,6 +96,9 @@ public:
 
     //! \copydoc Gpu3dFft::perform3dFft
     virtual void perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent) = 0;
+
+    /*! \brief FFT complex grid */
+    DeviceBuffer<float> complexGrid_ = nullptr;
 };
 
 } // namespace gmx
