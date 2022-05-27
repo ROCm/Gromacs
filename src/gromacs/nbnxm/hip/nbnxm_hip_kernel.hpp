@@ -484,7 +484,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifndef LJ_COMB
                         /* LJ 6*C6 and 12*C12 */
                         typei = atib[i * c_clSize + tidxi];
+#        ifdef __gfx1030__
+                        fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
+#        else
                         fetch_nbfp_c6_c12(c6, c12, nbparam, __mul24(ntypes, typei) + typej);
+#        endif
 #    else
                         ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM

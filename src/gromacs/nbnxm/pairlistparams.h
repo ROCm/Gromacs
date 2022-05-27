@@ -82,7 +82,7 @@ static constexpr int c_gpuNumClusterPerCell =
  * In CUDA the number of threads in a warp is 32 and we have cluster pairs
  * of 8*8=64 atoms, so it's convenient to store data for cluster pair halves.
  */
-#ifdef GMX_NAVI_BUILD
+#if GMX_NAVI_BUILD
 static constexpr int c_nbnxnGpuClusterpairSplit = 2;
 #else
 static constexpr int c_nbnxnGpuClusterpairSplit = 1;
