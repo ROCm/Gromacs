@@ -151,3 +151,5 @@ endif()
 
 option(GMX_HIP_NB_SINGLE_COMPILATION_UNIT "Whether to compile the HIP non-bonded module using a single compilation unit." OFF)
 mark_as_advanced(GMX_HIP_NB_SINGLE_COMPILATION_UNIT)
+
+option(GMX_NAVI_BUILD "Navi build with Warp Size 32 and Pairsplit 2" OFF)

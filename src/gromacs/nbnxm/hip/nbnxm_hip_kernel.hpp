@@ -164,15 +164,15 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     const
 #    endif
             nbnxn_cj4_t* pl_cj4      = plist.cj4;
-    const nbnxn_excl_t*  excl        = plist.excl;
+    FastBuffer<nbnxn_excl_t> excl    = FastBuffer<nbnxn_excl_t>(plist.excl);
 #    ifndef LJ_COMB
-    const int*           atom_types  = atdat.atomTypes;
+    FastBuffer<int>      atom_types  = FastBuffer<int>(atdat.atomTypes);
     int                  ntypes      = atdat.numTypes;
 #    else
-    const float2* lj_comb = atdat.ljComb;
-    float2        ljcp_i, ljcp_j;
+    FastBuffer<float2> lj_comb       = FastBuffer<float2>(atdat.ljComb);
+    float2                   ljcp_i, ljcp_j;
 #    endif
-    const float4*        xq          = atdat.xq;
+    FastBuffer<float4>   xq          = FastBuffer<float4>(atdat.xq);
     float3*              f           = asFloat3(atdat.f);
     const float3*        shift_vec   = asFloat3(atdat.shiftVec);
     float                rcoulomb_sq = nbparam.rcoulomb_sq;
@@ -223,7 +223,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     unsigned int  tidxz = threadIdx.z;
 #    endif
 
-    unsigned int widx  = tidx / c_subWarp; /* warp index */
+    unsigned int widx  = (c_clSize * c_clSize) == warpSize ? 0 : tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -283,17 +283,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
-#if c_nbnxnGpuNumClusterPerSupercluster == 8
-    if (tidxz == 0)
+    if (c_nbnxnGpuNumClusterPerSupercluster == 8)
     {
-        i = tidxj;
+        if (tidxz == 0)
         {
-#else
-    if (tidxz == 0 && tidxj == 0)
-    {
-        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
-        {
-#endif
+            i = tidxj;
             /* Pre-load i-atom x and q into shared memory */
             ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
             ai = ci * c_clSize + tidxi;
@@ -310,6 +304,31 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             /* Pre-load the LJ combination parameters into shared memory */
             ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
 #    endif
+        }
+    }
+    else
+    {
+        if (tidxz == 0 && tidxj == 0)
+        {
+            for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+            {
+                /* Pre-load i-atom x and q into shared memory */
+                ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
+                ai = ci * c_clSize + tidxi;
+
+                const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
+                xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
+                xqbuf.w *= nbparam.epsfac;
+                xqib[i * c_clSize + tidxi] = xqbuf;
+
+#    ifndef LJ_COMB
+                /* Pre-load the i-atom types into shared memory */
+                atib[i * c_clSize + tidxi] = atom_types[ai];
+#    else
+                /* Pre-load the LJ combination parameters into shared memory */
+                ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
+#    endif
+            }
         }
     }
     __syncthreads();
@@ -391,6 +410,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
     {
         imask     = pl_cj4[j4].imei[widx].imask;
+        // "Scalarize" imask when possible, the compiler always generates vector load here
+        // so imask is stored in a vector register, making it scalar simplifies the code.
+        imask     = c_subWarp == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 #    ifndef PRUNE_NBL
         if (!imask)
         {
@@ -400,9 +422,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 
-#    if DO_JM_UNROLL
-#       pragma unroll 2
-#    endif
+#       pragma unroll
         for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
         {
             const bool maskSet = imask & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster));
@@ -427,9 +447,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
 
             fcj_buf = make_float3(0.0F);
-#    if !defined PRUNE_NBL
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
-#    endif
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
                 if (imask & mask_ji)
@@ -453,10 +471,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         imask &= ~mask_ji;
                     }
 #    endif
-                    int_bit = (wexcl & mask_ji) ? 1.0F : 0.0F;
+                    int_bit = (wexcl >> (jm * c_nbnxnGpuNumClusterPerSupercluster + i)) & 1;
                     /* cutoff & exclusion check */
 #    ifdef EXCLUSION_FORCES
-                    if ((r2 < rcoulomb_sq) * (nonSelfInteraction | (ci != cj)))
+                    if ((r2 < rcoulomb_sq) && (ci != (nonSelfInteraction ? -1 : cj)))
 #    else
                     if ((r2 < rcoulomb_sq) * int_bit)
 #    endif
@@ -466,7 +484,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifndef LJ_COMB
                         /* LJ 6*C6 and 12*C12 */
                         typei = atib[i * c_clSize + tidxi];
+#        ifdef __gfx1030__
                         fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
+#        else
+                        fetch_nbfp_c6_c12(c6, c12, nbparam, __mul24(ntypes, typei) + typej);
+#        endif
 #    else
                         ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM
@@ -624,7 +646,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             }
 
             /* reduce j forces */
-            reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj, c_fullWarpMask);
+            float r = reduce_force_j_warp_shfl(fcj_buf, tidxi);
+            if (tidxi < 3)
+            {
+                atomic_add_force(f, aj, tidxi, r);
+            }
         }
 #    ifdef PRUNE_NBL
         /* Update the imask with the new one which does not contain the
@@ -639,13 +665,47 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         bCalcFshift = false;
     }
 
+#ifndef __gfx1030__
+    float fshift_buf = 0.0F;
+    float fci[c_nbnxnGpuNumClusterPerSupercluster];
+
+    /* reduce i forces */
+    for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+    {
+        fci[i] = reduce_force_i_warp_shfl(fci_buf[i], tidxi, tidxj);
+        fshift_buf += fci[i];
+    }
+    if (tidxi < 3)
+    {
+        for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
+        {
+            ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxj;
+            atomic_add_force(f, ai, tidxi, fci[i]);
+        }
+    }
+
+    /* add up local shift forces into global mem, tidxi indexes x,y,z */
+    if (bCalcFshift)
+    {
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+        const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+#else
+        const unsigned int shift_index_base = 0;
+#endif
+        if (tidxi < 3)
+        {
+            float3* fShift = asFloat3(atdat.fShift);
+            atomic_add_force(fShift, nb_sci.shift + shift_index_base, tidxi, fshift_buf);
+        }
+    }
+#else
     float3 fshift_buf = make_float3(0.0f);
 
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
         ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai, c_fullWarpMask);
+        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai);
     }
 
     /* add up local shift forces into global mem, tidxj indexes x,y,z */
@@ -663,17 +723,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
         fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
 
-#ifndef __gfx1030__
-        if (tidx == (c_clSize - 1))
-#else
         if ( tidx == (c_clSize - 1) || tidx == (c_subWarp + c_clSize - 1) )
-#endif
         {
-#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+   #ifdef GMX_ENABLE_MEMORY_MULTIPLIER
             const unsigned int shift_index_base = gmx::c_numShiftVectors * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
-#else
+   #else
             const unsigned int shift_index_base = 0;
-#endif
+   #endif
             float3* fShift = asFloat3(atdat.fShift);
             atomicAdd(&(fShift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
             atomicAdd(&(fShift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
@@ -681,9 +737,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         }
     }
 
+#endif
+
 #    ifdef CALC_ENERGIES
     /* reduce the energies over warps and store into global memory */
-    reduce_energy_warp_shfl(E_lj, E_el, e_lj, e_el, tidx, c_fullWarpMask);
+    reduce_energy_warp_shfl(E_lj, E_el, e_lj, e_el, tidx);
 #    endif
 }
 #endif /* FUNCTION_DECLARATION_ONLY */

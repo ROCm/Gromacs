@@ -61,6 +61,34 @@
 
 #include "nbnxm_hip_types.h"
 
+// These functions help hipcc to generate faster code for loads and atomic operations where
+// 64-bit scalar + 32-bit vector registers are used instead of 64-bit vector saving a few
+// instructions for computing 64-bit vector addresses.
+
+template<typename T>
+static __forceinline__ __device__ const T& fast_load(const T* buffer, unsigned int idx, unsigned int offset = 0)
+{
+    return *reinterpret_cast<const T*>(reinterpret_cast<const char*>(buffer) + idx * static_cast<unsigned int>(sizeof(T)) + offset * static_cast<unsigned int>(sizeof(T)));
+}
+
+static __forceinline__ __device__ void atomic_add_force(float3* buffer, unsigned int idx, unsigned int component, float value)
+{
+    atomicAdd(reinterpret_cast<float*>(reinterpret_cast<char*>(buffer) + (idx * static_cast<unsigned int>(sizeof(float3)) + component * static_cast<unsigned int>(sizeof(float)))), value);
+}
+
+template<typename ValueType>
+class FastBuffer
+{
+private:
+    const ValueType* buffer;
+
+public:
+    __forceinline__ __device__ FastBuffer(const ValueType* buffer) : buffer(buffer) {}
+    __forceinline__ __device__ const ValueType& operator[](std::size_t idx) const { return buffer[idx]; }
+    __forceinline__ __device__ const ValueType& operator[](int idx) const { return fast_load(buffer, idx); }
+    __forceinline__ __device__ const ValueType& operator[](unsigned int idx) const { return fast_load(buffer, idx); }
+};
+
 constexpr int c_subWarp = 64 / c_nbnxnGpuClusterpairSplit;
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
@@ -241,20 +269,6 @@ void nbnxn_kernel_bucket_sci_sort(
             pl_sci_count_sorted[sci_offset[i]] = sci_count[i];
         }
     }
-}
-
-static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
-  const int* address_as_ull = (int*)address;
-  int old = *address_as_ull;
-  int assumed;
-
-  do {
-    assumed = old;
-    old = atomicCAS((int*)address_as_ull, assumed,
-                    __float_as_int(val +
-                    __int_as_float(assumed)));
-  } while (assumed != old);
-
 }
 
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
@@ -446,14 +460,16 @@ calculate_potential_switch_F_E(const NBParamGpu nbparam, float inv_r, float r2, 
  *  Depending on what is supported, it fetches parameters either
  *  using direct load, texture objects, or texrefs.
  */
-static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, int typei, int typej)
+static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, unsigned int typei, unsigned int typej)
 {
-#    if DISABLE_CUDA_TEXTURES
-    return LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej]);
+#    if DISABLE_HIP_TEXTURES
+    float c6_i = fast_load(nbparam.nbfp_comb, typei).x;
+    float c6_j = fast_load(nbparam.nbfp_comb, typej).x;
 #    else
-    return tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typei)
-           * tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typej);
-#    endif /* DISABLE_CUDA_TEXTURES */
+    float c6_i = tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, typei).x;
+    float c6_j = tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, typej).x;
+#    endif /* DISABLE_HIP_TEXTURES */
+    return c6_i * c6_j;
 }
 
 
@@ -521,10 +537,10 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NB
  *  Depending on what is supported, it fetches parameters either
  *  using direct load, texture objects, or texrefs.
  */
-static __forceinline__ __device__ float2 fetch_nbfp_comb_c6_c12(const NBParamGpu nbparam, int type)
+static __forceinline__ __device__ float2 fetch_nbfp_comb_c6_c12(const NBParamGpu nbparam, unsigned int type)
 {
 #    if DISABLE_HIP_TEXTURES
-    return LDG(&nbparam.nbfp_comb[type]);
+    return fast_load(nbparam.nbfp_comb, type);
 #    else
     return tex1Dfetch<float2>(nbparam.nbfp_comb_texobj, type);
 #    endif /* DISABLE_HIP_TEXTURES */
@@ -585,14 +601,13 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_LB_F_E(const NBPa
  *  Depending on what is supported, it fetches parameters either
  *  using direct load, texture objects, or texrefs.
  */
-static __forceinline__ __device__ float2 fetch_coulomb_force_r(const NBParamGpu nbparam, int index)
+static __forceinline__ __device__ float2 fetch_coulomb_force_r(const NBParamGpu nbparam, unsigned int index)
 {
     float2 d;
 
 #    if DISABLE_HIP_TEXTURES
-    /* Can't do 8-byte fetch because some of the addresses will be misaligned. */
-    d.x = LDG(&nbparam.coulomb_tab[index]);
-    d.y = LDG(&nbparam.coulomb_tab[index + 1]);
+    d.x = fast_load(nbparam.coulomb_tab, index);
+    d.y = fast_load(nbparam.coulomb_tab, index, 1);
 #    else
     d.x   = tex1Dfetch<float>(nbparam.coulomb_tab_texobj, index);
     d.y   = tex1Dfetch<float>(nbparam.coulomb_tab_texobj, index + 1);
@@ -623,9 +638,9 @@ __forceinline__ __device__ float flerp(float d0, float d1, float t)
  */
 static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBParamGpu nbparam, float r)
 {
-    float normalized = nbparam.coulomb_tab_scale * r;
-    int   index      = static_cast<int>(normalized);
-    float fraction   = normalized - index;
+    float normalized   = nbparam.coulomb_tab_scale * r;
+    unsigned int index = static_cast<unsigned int>(normalized);
+    float fraction     = normalized - index;
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
@@ -638,11 +653,11 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
  *  using direct load, texture objects, or texrefs.
  */
 // NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, const NBParamGpu nbparam, int baseIndex)
+static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, const NBParamGpu nbparam, unsigned int baseIndex)
 {
     float2 c6c12;
 #    if DISABLE_HIP_TEXTURES
-    c6c12 = LDG(&nbparam.nbfp[baseIndex]);
+    c6c12 = fast_load(nbparam.nbfp, baseIndex);
 #    else
     c6c12 = tex1Dfetch<float2>(nbparam.nbfp_texobj, baseIndex);
 #    endif // DISABLE_HIP_TEXTURES
@@ -690,213 +705,78 @@ static __forceinline__ __device__ float pmecorrF(float z2)
     return polyFN0 * polyFD0;
 }
 
-/*! Final j-force reduction; this generic implementation works with
- *  arbitrary array sizes.
- */
-static __forceinline__ __device__ void
-reduce_force_j_generic(const float* f_buf, float3* fout, int tidxi, int tidxj, int aidx)
-{
-    if (tidxi < 3)
-    {
-        float f = 0.0F;
-        for (int j = tidxj * c_clSize; j < (tidxj + 1) * c_clSize; j++)
-        {
-            f += f_buf[c_fbufStride * tidxi + j];
-        }
-
-        atomicAdd((&fout[aidx].x) + tidxi, f);
-    }
-}
-
 /*! Final j-force reduction; this implementation only with power of two
  *  array sizes.
  */
-static __forceinline__ __device__ void
-reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
+static __forceinline__ __device__ float
+reduce_force_j_warp_shfl(float3 f, unsigned int tidxi)
 {
-    /*for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
+    f.x += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.x);
+    f.y += warp_move_dpp<float, /* row_shr:1 */ 0x111>(f.y);
+    f.z += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.z);
+
+    if (tidxi & 1)
     {
-        f.x += __shfl_down(f.x, offset);
-        f.y += __shfl_down(f.y, offset);
-        f.z += __shfl_down(f.z, offset);
-    }*/
-
-    f.x += warp_move_dpp<float, 0xb1>(f.x);
-    f.y += warp_move_dpp<float, 0xb1>(f.y);
-    f.z += warp_move_dpp<float, 0xb1>(f.z);
-
-    f.x += warp_move_dpp<float, 0x4e>(f.x);
-    f.y += warp_move_dpp<float, 0x4e>(f.y);
-    f.z += warp_move_dpp<float, 0x4e>(f.z);
-
-    f.x += warp_move_dpp<float, 0x114>(f.x);
-    f.y += warp_move_dpp<float, 0x114>(f.y);
-    f.z += warp_move_dpp<float, 0x114>(f.z);
-
-    //if (tidxi == 0)
-    if (tidxi == c_clSize - 1)
-    {
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAdd((&fout[aidx].x), f.x);
-        atomicAdd((&fout[aidx].y), f.y);
-        atomicAdd((&fout[aidx].z), f.z);
-#else
-        atomicAddOverWriteForFloat((&fout[aidx].x), f.x);
-        atomicAddOverWriteForFloat((&fout[aidx].y), f.y);
-        atomicAddOverWriteForFloat((&fout[aidx].z), f.z);
-#endif
+        f.x = f.y;
     }
-}
 
-/*! Final i-force reduction; this generic implementation works with
- *  arbitrary array sizes.
- * TODO: add the tidxi < 3 trick
- */
-static __forceinline__ __device__ void reduce_force_i_generic(const float* f_buf,
-                                                              float3*      fout,
-                                                              float*       fshift_buf,
-                                                              bool         bCalcFshift,
-                                                              int          tidxi,
-                                                              int          tidxj,
-                                                              int          aidx)
-{
-    if (tidxj < 3)
+    f.x += warp_move_dpp<float, /* row_shl:2 */ 0x102>(f.x);
+    f.z += warp_move_dpp<float, /* row_shr:2 */ 0x112>(f.z);
+
+    if (tidxi & 2)
     {
-        float f = 0.0F;
-        for (int j = tidxi; j < c_clSizeSq; j += c_clSize)
-        {
-            f += f_buf[tidxj * c_fbufStride + j];
-        }
-
-        atomicAdd(&fout[aidx].x + tidxj, f);
-
-        if (bCalcFshift)
-        {
-            *fshift_buf += f;
-        }
+        f.x = f.z;
     }
+
+    f.x += warp_move_dpp<float, /* row_shl:4 */ 0x104>(f.x);
+
+    return f.x;
 }
 
 /*! Final i-force reduction; this implementation works only with power of two
  *  array sizes.
  */
-static __forceinline__ __device__ void reduce_force_i_pow2(volatile float* f_buf,
-                                                           float3*         fout,
-                                                           float*          fshift_buf,
-                                                           bool            bCalcFshift,
-                                                           int             tidxi,
-                                                           int             tidxj,
-                                                           int             aidx)
+static __forceinline__ __device__ float reduce_force_i_warp_shfl(float3       f,
+                                                                 unsigned int tidxi,
+                                                                 unsigned int tidxj)
 {
-    int   i, j;
-    float f;
+    // Transpose values so DPP-based retuction can be used later
+    f.x = __shfl(f.x, tidxi * c_clSize + tidxj);
+    f.y = __shfl(f.y, tidxi * c_clSize + tidxj);
+    f.z = __shfl(f.z, tidxi * c_clSize + tidxj);
 
-    static_assert(c_clSize == 1 << c_clSizeLog2);
 
-    /* Reduce the initial c_clSize values for each i atom to half
-     * every step by using c_clSize * i threads.
-     * Can't just use i as loop variable because than nvcc refuses to unroll.
-     */
-    i = c_clSize / 2;
-#    pragma unroll 5
-    for (j = c_clSizeLog2 - 1; j > 0; j--)
+    f.x += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.x);
+    f.y += warp_move_dpp<float, /* row_shr:1 */ 0x111>(f.y);
+    f.z += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.z);
+
+    if (tidxi & 1)
     {
-        if (tidxj < i)
-        {
-
-            f_buf[tidxj * c_clSize + tidxi] += f_buf[(tidxj + i) * c_clSize + tidxi];
-            f_buf[c_fbufStride + tidxj * c_clSize + tidxi] +=
-                    f_buf[c_fbufStride + (tidxj + i) * c_clSize + tidxi];
-            f_buf[2 * c_fbufStride + tidxj * c_clSize + tidxi] +=
-                    f_buf[2 * c_fbufStride + (tidxj + i) * c_clSize + tidxi];
-        }
-        i >>= 1;
+        f.x = f.y;
     }
 
-    /* i == 1, last reduction step, writing to global mem */
-    if (tidxj < 3)
-    {
-        /* tidxj*c_fbufStride selects x, y or z */
-        f = f_buf[tidxj * c_fbufStride + tidxi] + f_buf[tidxj * c_fbufStride + i * c_clSize + tidxi];
+    f.x += warp_move_dpp<float, /* row_shl:2 */ 0x102>(f.x);
+    f.z += warp_move_dpp<float, /* row_shr:2 */ 0x112>(f.z);
 
-        atomicAdd(&(fout[aidx].x) + tidxj, f);
-
-        if (bCalcFshift)
-        {
-            *fshift_buf += f;
-        }
-    }
-}
-
-/*! Final i-force reduction wrapper; calls the generic or pow2 reduction depending
- *  on whether the size of the array to be reduced is power of two or not.
- */
-static __forceinline__ __device__ void
-reduce_force_i(float* f_buf, float3* f, float* fshift_buf, bool bCalcFshift, int tidxi, int tidxj, int ai)
-{
-    if ((c_clSize & (c_clSize - 1)))
+    if (tidxi & 2)
     {
-        reduce_force_i_generic(f_buf, f, fshift_buf, bCalcFshift, tidxi, tidxj, ai);
+        f.x = f.z;
     }
-    else
-    {
-        reduce_force_i_pow2(f_buf, f, fshift_buf, bCalcFshift, tidxi, tidxj, ai);
-    }
+
+    f.x += warp_move_dpp<float, /* row_shl:4 */ 0x104>(f.x);
+
+    return f.x;
 }
 
 /*! Final i-force reduction; this implementation works only with power of two
  *  array sizes.
  */
-static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
-                                                                float3*            fout,
-                                                                float*             fshift_buf,
-                                                                bool               bCalcFshift,
-                                                                int                tidxj,
-                                                                int                aidx,
-                                                                const unsigned long activemask)
-{
-    // fin.x += __shfl_down_sync(activemask, fin.x, c_clSize);
-    // fin.y += __shfl_up_sync(activemask, fin.y, c_clSize);
-    // fin.z += __shfl_down_sync(activemask, fin.z, c_clSize);
-    fin.x += __shfl_down(fin.x, c_clSize);
-    fin.y += __shfl_up(fin.y, c_clSize);
-    fin.z += __shfl_down(fin.z, c_clSize);
-
-    if (tidxj & 1)
-    {
-        fin.x = fin.y;
-    }
-
-    // fin.x += __shfl_down_sync(activemask, fin.x, 2 * c_clSize);
-    // fin.z += __shfl_up_sync(activemask, fin.z, 2 * c_clSize);
-    fin.x += __shfl_down(fin.x, 2 * c_clSize);
-    fin.z += __shfl_up(fin.z, 2 * c_clSize);
-
-    if (tidxj & 2)
-    {
-        fin.x = fin.z;
-    }
-    fin.x += __shfl_down(fin.x, 4*c_clSize);
-
-    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-    if (tidxj < 3)
-    {
-        atomicAdd(&fout[aidx].x + tidxj, fin.x);
-
-        if (bCalcFshift)
-        {
-            *fshift_buf += fin.x;
-        }
-    }
-}
-
 static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
                                                                 float3*            fout,
                                                                 float3&            fshift_buf,
                                                                 bool               bCalcFshift,
                                                                 int                tidxj,
-                                                                int                aidx,
-                                                                const unsigned long activemask)
+                                                                int                aidx)
 {
     #pragma unroll
     for (int offset = warpSize >> 1; offset >= c_clSize; offset >>= 1)
@@ -921,121 +801,43 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     }
 }
 
-/*! Energy reduction; this implementation works only with power of two
- *  array sizes.
- */
-static __forceinline__ __device__ void
-reduce_energy_pow2(volatile float* buf, float* e_lj, float* e_el, unsigned int tidx)
-{
-    float e1, e2;
 
-    unsigned int i = warp_size / 2;
-
-    /* Can't just use i as loop variable because than nvcc refuses to unroll. */
-#    pragma unroll 10
-    for (int j = warp_size_log2 - 1; j > 0; j--)
-    {
-        if (tidx < i)
-        {
-            buf[tidx] += buf[tidx + i];
-            buf[c_fbufStride + tidx] += buf[c_fbufStride + tidx + i];
-        }
-        i >>= 1;
-    }
-
-    // TODO do this on two threads - requires e_lj and e_el to be stored on adjascent
-    // memory locations to make sense
-    /* last reduction step, writing to global mem */
-    if (tidx == 0)
-    {
-        e1 = buf[tidx] + buf[tidx + i];
-        e2 = buf[c_fbufStride + tidx] + buf[c_fbufStride + tidx + i];
-
-        atomicAdd(e_lj, e1);
-        atomicAdd(e_el, e2);
-    }
-}
 
 /*! Energy reduction; this implementation works only with power of two
  *  array sizes.
  */
 static __forceinline__ __device__ void
-reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
+reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx)
 {
-    /*for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
-    {
-        E_lj += __shfl_down(E_lj, offset);
-        E_el += __shfl_down(E_el, offset);
-    }*/
+    E_lj += warp_move_dpp<float, 0xb1>(E_lj);
+    E_el += warp_move_dpp<float, 0xb1>(E_el);
 
-    if(c_subWarp > 1)
-    {
-        E_lj += warp_move_dpp<float, 0xb1>(E_lj);
-        E_el += warp_move_dpp<float, 0xb1>(E_el);
-    }
+    E_lj += warp_move_dpp<float, 0x4e>(E_lj);
+    E_el += warp_move_dpp<float, 0x4e>(E_el);
 
-    if(c_subWarp > 2)
-    {
-        E_lj += warp_move_dpp<float, 0x4e>(E_lj);
-        E_el += warp_move_dpp<float, 0x4e>(E_el);
-    }
+    E_lj += warp_move_dpp<float, 0x114>(E_lj);
+    E_el += warp_move_dpp<float, 0x114>(E_el);
 
-    if(c_subWarp > 4)
-    {
-        E_lj += warp_move_dpp<float, 0x114>(E_lj);
-        E_el += warp_move_dpp<float, 0x114>(E_el);
-    }
+    E_lj += warp_move_dpp<float, 0x118>(E_lj);
+    E_el += warp_move_dpp<float, 0x118>(E_el);
 
-    if(c_subWarp > 8)
-    {
-        E_lj += warp_move_dpp<float, 0x118>(E_lj);
-        E_el += warp_move_dpp<float, 0x118>(E_el);
-    }
-
-    if(c_subWarp > 16)
-    {
 #ifndef __gfx1030__
-        E_lj += warp_move_dpp<float, 0x142>(E_lj);
-        E_el += warp_move_dpp<float, 0x142>(E_el);
+    E_lj += warp_move_dpp<float, 0x142>(E_lj);
+    E_el += warp_move_dpp<float, 0x142>(E_el);
+
+    E_lj += warp_move_dpp<float, 0x143>(E_lj);
+    E_el += warp_move_dpp<float, 0x143>(E_el);
 #else
-        E_lj += __shfl(E_lj, 15, warpSize);
-        E_el += __shfl(E_el, 15, warpSize);
+    E_lj += __shfl(E_lj, 15);
+    E_el += __shfl(E_el, 15);
 #endif
-    }
-
-#ifndef __gfx1030__
-    if(c_subWarp > 32)
-    {
-
-        E_lj += warp_move_dpp<float, 0x143>(E_lj);
-        E_el += warp_move_dpp<float, 0x143>(E_el);
-    }
 
     /* The last thread in the subWarp writes the reduced energies */
-    if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
+    if ((tidx & (warpSize - 1)) == (warpSize - 1))
     {
         atomicAdd(e_lj, E_lj);
         atomicAdd(e_el, E_el);
     }
-#else
-    if(c_subWarp > 32)
-    {
-        if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
-        {
-            atomicAdd(e_lj, E_lj);
-            atomicAdd(e_el, E_el);
-        }
-    }
-    else
-    {
-        if ((tidx & (warpSize - 1)) == (warpSize - 1))
-        {
-            atomicAdd(e_lj, E_lj);
-            atomicAdd(e_el, E_el);
-        }
-    }
-    return;
-#endif
 }
 
 #endif /* NBNXN_HIP_KERNEL_UTILS_HPP */

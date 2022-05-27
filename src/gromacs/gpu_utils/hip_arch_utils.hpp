@@ -36,6 +36,8 @@
 #ifndef HIP_ARCH_UTILS_HPP_
 #define HIP_ARCH_UTILS_HPP_
 
+#include "config.h"
+
 #include "gromacs/utility/basedefinitions.h"
 
 /*! \file
@@ -59,8 +61,7 @@
    following constants should depend on the value of GMX_PTX_ARCH.
  */
 
- //#define GMX_NAVI_BUILD
- #ifdef GMX_NAVI_BUILD
+ #if GMX_NAVI_BUILD
  static const int warp_size      = 32;
  static const int warp_size_log2 = 5;
  #else
@@ -93,9 +94,9 @@ static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
 #endif
 */
 //#if defined(GMX_DISABLE_HIP_TEXTURES) || (defined(__clang__) && defined(__HIPCC__))
-//#    define DISABLE_HIP_TEXTURES 1
+#    define DISABLE_HIP_TEXTURES 1
 //#else
-#    define DISABLE_HIP_TEXTURES 0
+//#    define DISABLE_HIP_TEXTURES 0
 //#endif
 
 /*! \brief True if the use of texture fetch in the HIP kernels is disabled. */
