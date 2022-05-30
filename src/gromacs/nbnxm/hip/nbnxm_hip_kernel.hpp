@@ -223,7 +223,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     unsigned int  tidxz = threadIdx.z;
 #    endif
 
-    unsigned int widx  = (c_clSize * c_clSize) == warpSize ? 0 : tidx / c_subWarp; /* warp index */
+    unsigned int widx  = c_subWarp == warpSize ? 0 : tidx / c_subWarp; /* warp index */
 
     int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
 #    ifndef LJ_COMB
@@ -283,53 +283,26 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
-    if (c_nbnxnGpuNumClusterPerSupercluster == 8)
+    // We may need only a subset of threads active for preloading i-atoms
+    // depending on the super-cluster and cluster / thread-block size.
+    constexpr bool c_loadUsingAllXYThreads = (c_clSize == c_nbnxnGpuNumClusterPerSupercluster);
+    if (tidxz == 0 && (c_loadUsingAllXYThreads || tidxj < c_nbnxnGpuNumClusterPerSupercluster))
     {
-        if (tidxz == 0)
-        {
-            i = tidxj;
-            /* Pre-load i-atom x and q into shared memory */
-            ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
-            ai = ci * c_clSize + tidxi;
-
-            const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
-            xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
-            xqbuf.w *= nbparam.epsfac;
-            xqib[i * c_clSize + tidxi] = xqbuf;
+        /* Pre-load i-atom x and q into shared memory */
+        ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
+        ai = ci * c_clSize + tidxi;
+        const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
+        xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
+        xqbuf.w *= nbparam.epsfac;
+        xqib[tidxj * c_clSize + tidxi] = xqbuf;
 
 #    ifndef LJ_COMB
-            /* Pre-load the i-atom types into shared memory */
-            atib[i * c_clSize + tidxi] = atom_types[ai];
+        /* Pre-load the i-atom types into shared memory */
+        atib[tidxj * c_clSize + tidxi] = atom_types[ai];
 #    else
-            /* Pre-load the LJ combination parameters into shared memory */
-            ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
+        /* Pre-load the LJ combination parameters into shared memory */
+        ljcpib[tidxj * c_clSize + tidxi] = lj_comb[ai];
 #    endif
-        }
-    }
-    else
-    {
-        if (tidxz == 0 && tidxj == 0)
-        {
-            for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
-            {
-                /* Pre-load i-atom x and q into shared memory */
-                ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
-                ai = ci * c_clSize + tidxi;
-
-                const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
-                xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
-                xqbuf.w *= nbparam.epsfac;
-                xqib[i * c_clSize + tidxi] = xqbuf;
-
-#    ifndef LJ_COMB
-                /* Pre-load the i-atom types into shared memory */
-                atib[i * c_clSize + tidxi] = atom_types[ai];
-#    else
-                /* Pre-load the LJ combination parameters into shared memory */
-                ljcpib[i * c_clSize + tidxi] = lj_comb[ai];
-#    endif
-            }
-        }
     }
     __syncthreads();
 
@@ -403,11 +376,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
      */
-#    if NTHREAD_Z == 1
-    for (j4 = cij4_start; j4 < cij4_end; j4++)
-#    else
-    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
-#    endif
+    for (j4 = cij4_start; j4 < cij4_end; ++j4)
     {
         imask     = pl_cj4[j4].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
