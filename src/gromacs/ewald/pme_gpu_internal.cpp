@@ -883,6 +883,12 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
         PmeGpuGridParams& grid = pme_gpu_get_kernel_params_base_ptr(pmeGpu)->grid;
         memcpy(grid.localComplexGridSizePadded, grid.complexGridSizePadded, DIM * sizeof(int));
         memcpy(grid.localComplexGridSize, grid.complexGridSize, DIM * sizeof(int));
+
+        for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+        {
+            grid.d_fftComplexGrid[gridIndex] = grid.d_realGrid[gridIndex];
+        }
+
     }
 
 }
