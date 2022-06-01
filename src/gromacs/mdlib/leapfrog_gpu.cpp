@@ -66,12 +66,16 @@ namespace gmx
 void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                             DeviceBuffer<Float3>              d_xp,
                             DeviceBuffer<Float3>              d_v,
+                            // it's easier if I pass the pmeData instead
+                            const int                         realGridSize, 
+                            DeviceBuffer<float>               d_grid,  
                             const DeviceBuffer<Float3>        d_f,
                             const float                       dt,
                             const bool                        doTemperatureScaling,
                             gmx::ArrayRef<const t_grp_tcstat> tcstat,
                             const bool                        doParrinelloRahman,
                             const float                       dtPressureCouple,
+                            const bool                        isPmeRank, 
                             const matrix                      prVelocityScalingMatrix)
 {
 
@@ -118,6 +122,9 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                          d_x,
                          d_xp,
                          d_v,
+                         isPmeRank,
+                         realGridSize, 
+                         d_grid,
                          d_f,
                          d_inverseMasses_,
                          dt,

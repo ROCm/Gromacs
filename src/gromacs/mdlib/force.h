@@ -46,6 +46,7 @@
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/enumerationhelpers.h"
+#include "gromacs/gpu_utils/devicebuffer_datatype.h"
 
 class DDBalanceRegionHandler;
 struct gmx_edsam;
@@ -132,7 +133,9 @@ void do_force(FILE*                               log,
               gmx_edsam*                          ed,
               CpuPpLongRangeNonbondeds*           longRangeNonbondeds,
               int                                 legacyFlags,
-              const DDBalanceRegionHandler&       ddBalanceRegionHandler);
+              const DDBalanceRegionHandler&       ddBalanceRegionHandler, 
+              int*                                realGridSize =NULL, 
+              DeviceBuffer<float>*                d_grid=NULL);
 
 /* Communicate coordinates (if parallel).
  * Do neighbor searching (if necessary).

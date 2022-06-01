@@ -102,12 +102,15 @@ void LeapFrogDeviceTestRunner::integrate(LeapFrogTestData* testData, int numStep
         integrator->integrate(d_x,
                               d_xp,
                               d_v,
+                              0, 
+                              NULL, 
                               d_f,
                               testData->timestep_,
                               doTempCouple,
                               testData->kineticEnergyData_.tcstat,
                               doPressureCouple,
                               testData->dtPressureCouple_,
+                              false, // disable grid flushing
                               testData->velocityScalingMatrix_);
     }
 
