@@ -147,6 +147,8 @@ struct PmeGpuSpecific
     int gridlineIndicesSize = 0;
     /*! \brief The kernelParams.atoms.gridlineIndices int element count (reserved) */
     int gridlineIndicesSizeAlloc = 0;
+    /*! \brief Number of used splines (padded to a full warp). */
+    int splineCountActive = 0;
     /*! \brief Both the kernelParams.atoms.theta and kernelParams.atoms.dtheta float element count (actual) */
     int splineDataSize = 0;
     /*! \brief Both the kernelParams.atoms.theta and kernelParams.atoms.dtheta float element count (reserved) */

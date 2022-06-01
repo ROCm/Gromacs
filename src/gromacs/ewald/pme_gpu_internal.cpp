@@ -132,6 +132,14 @@ int pme_gpu_get_atom_data_block_size()
     return c_pmeAtomDataBlockSize;
 }
 
+int pme_gpu_get_atoms_per_warp(const PmeGpu* pmeGpu)
+{
+    const int order = pmeGpu->common->pme_order;
+    const int threadsPerAtom =
+            (pmeGpu->settings.threadsPerAtom == ThreadsPerAtom::Order ? order : order * order);
+    return pmeGpu->programHandle_->warpSize() / threadsPerAtom;
+}
+
 void pme_gpu_synchronize(const PmeGpu* pmeGpu)
 {
     pmeGpu->archSpecific->pmeStream_.synchronize();
@@ -685,19 +693,19 @@ void pme_gpu_copy_output_spread_grid(const PmeGpu* pmeGpu, float* h_grid, const 
 
 void pme_gpu_copy_output_spread_atom_data(const PmeGpu* pmeGpu)
 {
-    const size_t splinesCount    = DIM * pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order;
-    auto*        kernelParamsPtr = pmeGpu->kernelParams.get();
+    auto*     kernelParamsPtr = pmeGpu->kernelParams.get();
+    const int nAtoms          = pmeGpu->kernelParams->atoms.nAtoms;
     copyFromDeviceBuffer(pmeGpu->staging.h_dtheta,
                          &kernelParamsPtr->atoms.d_dtheta,
                          0,
-                         splinesCount,
+                         pmeGpu->archSpecific->splineCountActive,
                          pmeGpu->archSpecific->pmeStream_,
                          pmeGpu->settings.transferKind,
                          nullptr);
     copyFromDeviceBuffer(pmeGpu->staging.h_theta,
                          &kernelParamsPtr->atoms.d_theta,
                          0,
-                         splinesCount,
+                         pmeGpu->archSpecific->splineCountActive,
                          pmeGpu->archSpecific->pmeStream_,
                          pmeGpu->settings.transferKind,
                          nullptr);
@@ -712,17 +720,17 @@ void pme_gpu_copy_output_spread_atom_data(const PmeGpu* pmeGpu)
 
 void pme_gpu_copy_input_gather_atom_data(const PmeGpu* pmeGpu)
 {
-    const size_t splinesCount    = DIM * pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order;
+    const size_t splineDataSize  = pmeGpu->archSpecific->splineDataSize;
     auto*        kernelParamsPtr = pmeGpu->kernelParams.get();
 
     // TODO: could clear only the padding and not the whole thing, but this is a test-exclusive code anyway
     clearDeviceBufferAsync(&kernelParamsPtr->atoms.d_gridlineIndices,
                            0,
-                           pmeGpu->nAtomsAlloc * DIM,
+                           splineDataSize,
                            pmeGpu->archSpecific->pmeStream_);
     clearDeviceBufferAsync(&kernelParamsPtr->atoms.d_dtheta,
                            0,
-                           pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order * DIM,
+                           splineDataSize,
                            pmeGpu->archSpecific->pmeStream_);
     clearDeviceBufferAsync(&kernelParamsPtr->atoms.d_theta,
                            0,
@@ -732,14 +740,14 @@ void pme_gpu_copy_input_gather_atom_data(const PmeGpu* pmeGpu)
     copyToDeviceBuffer(&kernelParamsPtr->atoms.d_dtheta,
                        pmeGpu->staging.h_dtheta,
                        0,
-                       splinesCount,
+                       splineDataSize,
                        pmeGpu->archSpecific->pmeStream_,
                        pmeGpu->settings.transferKind,
                        nullptr);
     copyToDeviceBuffer(&kernelParamsPtr->atoms.d_theta,
                        pmeGpu->staging.h_theta,
                        0,
-                       splinesCount,
+                       splineDataSize,
                        pmeGpu->archSpecific->pmeStream_,
                        pmeGpu->settings.transferKind,
                        nullptr);
@@ -1270,10 +1278,14 @@ void pme_gpu_reinit_atoms(PmeGpu* pmeGpu, const int nAtoms, const real* chargesA
 {
     auto* kernelParamsPtr         = pme_gpu_get_kernel_params_base_ptr(pmeGpu);
     kernelParamsPtr->atoms.nAtoms = nAtoms;
-    const int  block_size         = pme_gpu_get_atom_data_block_size();
-    const int  nAtomsNewPadded    = ((nAtoms + block_size - 1) / block_size) * block_size;
+    const int  blockSize          = pme_gpu_get_atom_data_block_size();
+    const int  nAtomsNewPadded    = ((nAtoms + blockSize - 1) / blockSize) * blockSize;
     const bool haveToRealloc      = (pmeGpu->nAtomsAlloc < nAtomsNewPadded);
     pmeGpu->nAtomsAlloc           = nAtomsNewPadded;
+
+    const auto atomsPerWarp                 = pme_gpu_get_atoms_per_warp(pmeGpu);
+    const int  nWarps                       = ((nAtoms + atomsPerWarp - 1) / atomsPerWarp);
+    pmeGpu->archSpecific->splineCountActive = DIM * nWarps * atomsPerWarp * pmeGpu->common->pme_order;
 
 #if GMX_DOUBLE
     GMX_RELEASE_ASSERT(false, "Only single precision supported");
