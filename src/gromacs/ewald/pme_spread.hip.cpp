@@ -156,8 +156,8 @@ __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kern
                         getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
                 const float thetaX = sm_theta[splineIndexX];
                 assert(isfinite(thetaX));
-                assert(isfinite(gm_grid[gridIndexGlobal]));
-                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
+                assert(isfinite(*reinterpret_cast<float*>(reinterpret_cast<char*>(gm_grid) + (gridIndexGlobal * static_cast<unsigned int>(sizeof(float))))));
+                atomicAdd(reinterpret_cast<float*>(reinterpret_cast<char*>(gm_grid) + (gridIndexGlobal * static_cast<unsigned int>(sizeof(float)))), thetaX * Val);
             }
         }
     }
@@ -185,10 +185,10 @@ template<int order, bool computeSplines, bool spreadCharges, bool wrapX, bool wr
 LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
         void pme_spline_and_spread_kernel(const PmeGpuCudaKernelParams kernelParams)
 {
-    const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
-    const int atomsPerBlock       = c_spreadMaxThreadsPerBlock / threadsPerAtomValue;
+    constexpr int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
+    constexpr int atomsPerBlock       = c_spreadMaxThreadsPerBlock / threadsPerAtomValue;
     // Number of atoms processed by a single warp in spread and gather
-    const int atomsPerWarp = warpSize/ threadsPerAtomValue;
+    constexpr int atomsPerWarp = warpSize/ threadsPerAtomValue;
     // Gridline indices, ivec
     __shared__ int sm_gridlineIndices[atomsPerBlock * DIM];
     // Charges
@@ -224,36 +224,13 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
         return;
     }
     /* Charges, required for both spline and spread */
-    if (c_useAtomDataPrefetch)
-    {
-        pme_gpu_stage_atom_data<float, atomsPerBlock, 1>(
-                sm_coefficients, &kernelParams.atoms.d_coefficients[0][kernelParams.pipelineAtomStart]);
-        __syncthreads();
-        atomCharge = sm_coefficients[atomIndexLocal];
-    }
-    else
-    {
-        atomCharge = kernelParams.atoms.d_coefficients[0][atomIndexGlobal];
-    }
+    atomCharge = kernelParams.atoms.d_coefficients[0][atomIndexGlobal];
 
     if (computeSplines)
     {
         const float3* __restrict__ gm_coordinates =
                 asFloat3(&kernelParams.atoms.d_coordinates[kernelParams.pipelineAtomStart]);
-        if (c_useAtomDataPrefetch)
-        {
-            // Coordinates
-            __shared__ float3 sm_coordinates[atomsPerBlock];
-
-            /* Staging coordinates */
-            pme_gpu_stage_atom_data<float3, atomsPerBlock, 1>(sm_coordinates, gm_coordinates);
-            __syncthreads();
-            atomX = sm_coordinates[atomIndexLocal];
-        }
-        else
-        {
-            atomX = gm_coordinates[atomIndexGlobal];
-        }
+        atomX = gm_coordinates[atomIndexGlobal];
         calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, numGrids>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
         // __syncwarp();
@@ -287,17 +264,7 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
     if (numGrids == 2)
     {
         __syncthreads();
-        if (c_useAtomDataPrefetch)
-        {
-            pme_gpu_stage_atom_data<float, atomsPerBlock, 1>(sm_coefficients,
-                                                             kernelParams.atoms.d_coefficients[1]);
-            __syncthreads();
-            atomCharge = sm_coefficients[atomIndexLocal];
-        }
-        else
-        {
-            atomCharge = kernelParams.atoms.d_coefficients[1][atomIndexGlobal];
-        }
+        atomCharge = kernelParams.atoms.d_coefficients[1][atomIndexGlobal];
         if (spreadCharges && atomIndexGlobal < kernelParams.atoms.nAtoms)
         {
             if (!kernelParams.usePipeline || (atomIndexGlobal < kernelParams.pipelineAtomEnd))

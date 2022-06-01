@@ -40,7 +40,7 @@
 #ifndef FUNCTION_DECLARATION_ONLY
 /* Instantiate external template functions */
 template __global__ void
-nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
+nbnxn_kernel_prune_hip<false, c_pruneKernelJ4Concurrency>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 template __global__ void
-nbnxn_kernel_prune_hip<true>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
+nbnxn_kernel_prune_hip<true, c_pruneKernelJ4Concurrency / 2>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 #endif

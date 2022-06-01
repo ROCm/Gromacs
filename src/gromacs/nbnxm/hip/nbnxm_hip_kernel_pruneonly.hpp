@@ -84,9 +84,9 @@
  *   - with large inputs NTHREAD_Z=1 is 2-3% faster (on CC>=5.0)
  */
 #define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY)
-#define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
+#define THREADS_PER_BLOCK (c_clSize * c_clSize)
 // we want 100% occupancy, so max threads/block
-#define MIN_BLOCKS_PER_MP 4
+#define MIN_BLOCKS_PER_MP 8
 /**@}*/
 
 /*! \brief Nonbonded list pruning kernel.
@@ -103,8 +103,8 @@
  *
  *   Each thread calculates an i-j atom distance..
  */
-template<bool haveFreshList>
-__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__
+template<bool haveFreshList, int threadsZ>
+__launch_bounds__(THREADS_PER_BLOCK * threadsZ, MIN_BLOCKS_PER_MP) __global__
         void nbnxn_kernel_prune_hip(NBAtomDataGpu    atdat,
                                     NBParamGpu       nbparam,
                                     Nbnxm::gpu_plist plist,
@@ -115,10 +115,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__
 
 // Add extern declarations so each translation unit understands that
 // there will be a definition provided.
-extern template __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__ void
-nbnxn_kernel_prune_hip<true>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
-extern template __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__ void
-nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
+extern template __launch_bounds__(THREADS_PER_BLOCK * (NTHREAD_Z / 2), MIN_BLOCKS_PER_MP) __global__ void
+nbnxn_kernel_prune_hip<true, NTHREAD_Z / 2>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
+extern template __launch_bounds__(THREADS_PER_BLOCK * NTHREAD_Z, MIN_BLOCKS_PER_MP) __global__ void
+nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 #else
 {
 
@@ -126,7 +126,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     //const nbnxn_sci_t* pl_sci    = plist.sci;
     const nbnxn_sci_t* pl_sci    = haveFreshList ? plist.sci : plist.sci_sorted;
     nbnxn_cj4_t*       pl_cj4    = plist.cj4;
-    const float4*      xq        = atdat.xq;
+    FastBuffer<float4>   xq      = FastBuffer<float4>(atdat.xq);
     const float3*      shift_vec = asFloat3(atdat.shiftVec);
 
     float rlistOuter_sq = nbparam.rlistOuter_sq;
@@ -135,7 +135,7 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     /* thread/block/warp id-s */
     unsigned int tidxi = threadIdx.x;
     unsigned int tidxj = threadIdx.y;
-#    if NTHREAD_Z == 1
+#    if threadsZ == 1
     unsigned int tidxz = 0;
 #    else
     unsigned int tidxz = threadIdx.z;
@@ -168,20 +168,20 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
-    if (tidxz == 0 && tidxj == 0)
+    // We may need only a subset of threads active for preloading i-atoms
+    // depending on the super-cluster and cluster / thread-block size.
+    constexpr bool c_loadUsingAllXYThreads = (c_clSize == c_nbnxnGpuNumClusterPerSupercluster);
+    if (tidxz == 0 && (c_loadUsingAllXYThreads || tidxj < c_nbnxnGpuNumClusterPerSupercluster))
     {
-        for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
-        {
-            /* Pre-load i-atom x and q into shared memory */
-            int ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i;
-            int ai = ci * c_clSize + tidxi;
+        /* Pre-load i-atom x and q into shared memory */
+        int ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
+        int ai = ci * c_clSize + tidxi;
 
-            /* We don't need q, but using float4 in shmem avoids bank conflicts.
-               (but it also wastes L2 bandwidth). */
-            float4 tmp                    = xq[ai];
-            float4 xi                     = tmp + shift_vec[nb_sci.shift];
-            xib[i * c_clSize + tidxi] = xi;
-        }
+        /* We don't need q, but using float4 in shmem avoids bank conflicts.
+           (but it also wastes L2 bandwidth). */
+        float4 tmp                    = xq[ai];
+        float4 xi                     = tmp + shift_vec[nb_sci.shift];
+        xib[tidxj * c_clSize + tidxi] = xi;
     }
     __syncthreads();
 
@@ -190,14 +190,18 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
      * consecutive j4's entries.
      */
     int count = 0;
-    for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
+    for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += threadsZ)
     {
         unsigned int imaskFull, imaskCheck, imaskNew;
+        unsigned int imask = pl_cj4[j4].imei[widx].imask;
+        // "Scalarize" imask when possible, the compiler always generates vector load here
+        // so imask is stored in a vector register, making it scalar simplifies the code.
+        imask     = __builtin_amdgcn_readfirstlane(imask);
 
         if (haveFreshList)
         {
             /* Read the mask from the list transferred from the CPU */
-            imaskFull = pl_cj4[j4].imei[widx].imask;
+            imaskFull = imask;
             /* We attempt to prune all pairs present in the original list */
             imaskCheck = imaskFull;
             imaskNew   = 0;
@@ -207,14 +211,14 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
             /* Read the mask from the "warp-pruned" by rlistOuter mask array */
             imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
             /* Read the old rolling pruned mask, use as a base for new */
-            imaskNew = pl_cj4[j4].imei[widx].imask;
+            imaskNew = imask;
             /* We only need to check pairs with different mask */
             imaskCheck = (imaskNew ^ imaskFull);
         }
 
         if (imaskCheck)
         {
-#    pragma unroll c_nbnxnGpuJgroupSize
+#    pragma unroll
             for (int jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
                 if (imaskCheck & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
@@ -228,14 +232,13 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
                     float4 tmp = xq[aj];
                     float3 xj  = make_float3(tmp.x, tmp.y, tmp.z);
 
-#    pragma unroll c_nbnxnGpuNumClusterPerSupercluster
+#    pragma unroll
                     for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
                     {
                         if (imaskCheck & mask_ji)
                         {
                             /* load i-cluster coordinates from shmem */
                             float4 xi = xib[i * c_clSize + tidxi];
-
 
                             /* distance between i and j atoms */
                             float3 rv = make_float3(xi.x, xi.y, xi.z) - xj;
@@ -267,13 +270,12 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
                 /* copy the list pruned to rlistOuter to a separate buffer */
                 plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
 
-            #ifndef __gfx1030__
-                count += __popc(imaskNew | warp_move_dpp<int, 0x143>(imaskNew));
-            #else
-                count += __popc(imaskNew) + __popc(__shfl_up(imaskNew, 31, warpSize));
-            #endif
+                #ifndef __gfx1030__
+                    count += __popc(imaskNew | warp_move_dpp<int, 0x143>(imaskNew));
+                #else
+                    count += __popc(imaskNew) + __popc(__shfl_up(imaskNew, 31, warpSize));
+                #endif
             }
-
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4[j4].imei[widx].imask = imaskNew;
 
@@ -285,20 +287,19 @@ nbnxn_kernel_prune_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm
     if (haveFreshList && tidx == 63)
     //if (tidx == 63)
     {
-#if NTHREAD_Z > 1
-        __syncthreads();
-        char* sm_reuse = sm_dynamicShmem;
-        int* count_sm =reinterpret_cast<int*>(sm_reuse);
+        if (threadsZ > 1)
+        {
+            __syncthreads();
+            char* sm_reuse = sm_dynamicShmem;
+            int* count_sm =reinterpret_cast<int*>(sm_reuse);
 
-        count_sm[tidxz] = count;
+            count_sm[tidxz] = count;
+            __syncthreads();
 
-        __syncthreads();
-
-        for( unsigned int index_z = 1; index_z < NTHREAD_Z; index_z++ )
-            count += count_sm[index_z];
-
-        __syncthreads();
-#endif
+            for( unsigned int index_z = 1; index_z < threadsZ; index_z++ )
+                count += count_sm[index_z];
+            __syncthreads();
+        }
 
         if(tidxz == 0)
         {
