@@ -200,6 +200,8 @@ void gmx::LegacySimulator::do_md()
     gmx_bool bPMETunePrinting = FALSE;
 
     bool bInteractiveMDstep = false;
+    int realGridSize = 0;
+    DeviceBuffer<float> d_grid;
 
     SimulationSignals signals;
     // Most global communnication stages don't propagate mdrun
@@ -1196,7 +1198,9 @@ void gmx::LegacySimulator::do_md()
                      ed ? ed->getLegacyED() : nullptr,
                      fr->longRangeNonbondeds.get(),
                      (bNS ? GMX_FORCE_NS : 0) | force_flags,
-                     ddBalanceRegionHandler);
+                     ddBalanceRegionHandler,
+                     &realGridSize,  
+                     &d_grid);
         }
 
         // VV integrators do not need the following velocity half step
@@ -1502,6 +1506,8 @@ void gmx::LegacySimulator::do_md()
                 {
                     integrator->set(stateGpu->getCoordinates(),
                                     stateGpu->getVelocities(),
+                                    realGridSize,
+                                    &d_grid,
                                     stateGpu->getForces(),
                                     top->idef,
                                     *md);
@@ -1546,6 +1552,7 @@ void gmx::LegacySimulator::do_md()
                                       ekind->tcstat,
                                       doParrinelloRahman,
                                       ir->nstpcouple * ir->delta_t,
+                                      runScheduleWork->stepWork.haveGpuPmeOnThisRank, 
                                       M);
             }
             else
