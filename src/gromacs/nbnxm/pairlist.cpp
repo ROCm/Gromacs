@@ -1303,7 +1303,7 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
             nbl->nci_tot += npair;
 
             /* Increase the closing index in i super-cell list */
-            nbl->sci.back().cj4_length =
+            nbl->sci.back().cj4_length_poped = nbl->sci.back().cj4_length =
                 ((nbl->work->cj_ind + c_nbnxnGpuJgroupSize - 1) / c_nbnxnGpuJgroupSize) -
                 nbl->sci.back().cj4_ind_start;
         }
@@ -2037,6 +2037,7 @@ static void addNewIEntry(NbnxnPairlistGpu* nbl, int sci, int shift, int gmx_unus
     sciEntry.shift         = shift;
     sciEntry.cj4_ind_start = nbl->cj4.size();
     sciEntry.cj4_length    = 0;
+    sciEntry.cj4_length_poped = 0;
 
     nbl->sci.push_back(sciEntry);
 }
@@ -2197,6 +2198,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             {
                 /* Split the list at cj4 */
                  nbl->sci.back().cj4_length = cj4 - nbl->sci.back().cj4_ind_start;
+                 nbl->sci.back().cj4_length_poped = cj4 - nbl->sci.back().cj4_ind_start;
                 /* Create a new sci entry */
                 nbnxn_sci_t sciNew;
                 sciNew.sci           = nbl->sci.back().sci;
@@ -2218,6 +2220,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
 
         /* Put the remaining cj4's in the last sci entry */
         nbl->sci.back().cj4_length = cj4_end - nbl->sci.back().cj4_ind_start;
+        nbl->sci.back().cj4_length_poped = cj4_end - nbl->sci.back().cj4_ind_start;
 #if !GMX_GPU_HIP
         /* Possibly balance out the last two sci's
          * by moving the last cj4 of the second last sci.
@@ -2226,6 +2229,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
         {
             GMX_ASSERT(nbl->sci.size() >= 2, "We expect at least two elements");
             nbl->sci[nbl->sci.size() - 2].cj4_length--;
+            nbl->sci[nbl->sci.size() - 2].cj4_length_poped--;
             nbl->sci[nbl->sci.size() - 1].cj4_ind_start--;
         }
 #endif

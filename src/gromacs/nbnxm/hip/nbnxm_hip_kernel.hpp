@@ -167,10 +167,12 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 {
     /* convenience variables */
     const nbnxn_sci_t* pl_sci = plist.sci_sorted == nullptr ? plist.sci : plist.sci_sorted;
+
 #    ifndef PRUNE_NBL
     const
 #    endif
-            nbnxn_cj4_t* pl_cj4      = plist.cj4;
+    nbnxn_cj4_ext_t* pl_cj4          = plist.cj4_sorted;
+    const nbnxn_cj4_t* pl_cj4_org    = plist.cj4;
     FastBuffer<nbnxn_excl_t> excl    = FastBuffer<nbnxn_excl_t>(plist.excl);
 #    ifndef LJ_COMB
     FastBuffer<int>      atom_types  = FastBuffer<int>(atdat.atomTypes);
@@ -223,6 +225,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     /* thread/block/warp id-s */
     unsigned int tidxi = threadIdx.x;
     unsigned int tidxj = threadIdx.y;
+    unsigned int gidxj = tidxj / c_subGroup;
     unsigned int tidx  = threadIdx.y * c_clSize + threadIdx.x;
 #    if NTHREAD_Z == 1
     unsigned int tidxz = 0;
@@ -252,7 +255,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    if defined CALC_ENERGIES || defined LJ_POT_SWITCH
     float        E_lj_p;
 #    endif
-    unsigned int wexcl, imask, mask_ji;
+    unsigned int wexcl, imask, imask_v, mask_ji;
     float4       xqbuf;
     fast_float3  xi, xj, rv, n2, f_ij, fcj_buf;
     fast_float3  fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
@@ -289,7 +292,12 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     nb_sci     = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
     sci        = nb_sci.sci;           /* super-cluster */
     cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-    cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
+#ifndef PRUNE_NBL
+    cij4_end   = cij4_start + nb_sci.cj4_length_poped;   /* and last index of j clusters */
+#else
+    int cij4_last_valid = cij4_start;
+    cij4_end   = cij4_start + nb_sci.cj4_length;   /* and last index of j clusters */
+#endif
 
     // We may need only a subset of threads active for preloading i-atoms
     // depending on the super-cluster and cluster / thread-block size.
@@ -338,7 +346,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
 #        ifdef EXCLUSION_FORCES /* Ewald or RF */
     if (nb_sci.shift == gmx::c_centralShiftIndex
-        && pl_cj4[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
+        && pl_cj4_org[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
     {
         /* we have the diagonal: add the charge and LJ self interaction energy term */
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
@@ -382,10 +390,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
 #    endif /* CALC_ENERGIES */
 
-#    ifdef EXCLUSION_FORCES
-    const int nonSelfInteraction = !(nb_sci.shift == gmx::c_centralShiftIndex & tidxj <= tidxi);
-#    endif
-
     /* loop over the j clusters = seen by any of the atoms in the current super-cluster;
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
      * consecutive j4's entries.
@@ -402,10 +406,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             continue;
         }
 #    endif
-        wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
-        // "Scalarize" wexcl_idx when possible, gives a slight performance increase for Mi2** GPUs
-        wexcl_idx = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(wexcl_idx) : wexcl_idx;
-        wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
+        imask_v  = pl_cj4[j4].imask[gidxj];
 
 #       pragma unroll
         for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
@@ -418,8 +419,22 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
             mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-            cj = pl_cj4[j4].cj[jm];
-            aj = cj * c_clSize + tidxj;
+            int sm_index   = jm * c_clSize + tidxj;
+
+            int j_new      = pl_cj4[j4].j[jm * c_clSize + gidxj];
+            int tidxj_orig = j_new & (c_subGroupN - 1);
+            int tidx_orig  = tidxi + c_clSize * tidxj_orig;
+            int jm_orig    = (j_new & (c_subGroupJ4Size - 1)) / c_subGroupN;
+
+            wexcl_idx = pl_cj4[j4].excl_ind[jm * c_clSize + gidxj];
+            cj        = pl_cj4[j4].cj[jm * c_clSize + gidxj];
+            aj        = cj * c_clSize + tidxj_orig;
+
+            wexcl = excl[wexcl_idx].pair[tidx_orig & (c_subWarp - 1)];
+
+#    ifdef EXCLUSION_FORCES
+            const int nonSelfInteraction = !(nb_sci.shift == gmx::c_centralShiftIndex & tidxj_orig <= tidxi);
+#    endif
 
             /* load j atom data */
             xqbuf = xq[aj];
@@ -435,7 +450,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
-                if (imask & mask_ji)
+                if (imask & mask_ji  & imask_v )
                 {
                     ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i; /* i cluster index */
 
@@ -456,7 +471,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         imask &= ~mask_ji;
                     }
 #    endif
-                    int_bit = (wexcl >> (jm * c_nbnxnGpuNumClusterPerSupercluster + i)) & 1;
+                    int_bit = (wexcl >> (jm_orig * c_nbnxnGpuNumClusterPerSupercluster + i)) & 1;
                     /* cutoff & exclusion check */
 #    ifdef EXCLUSION_FORCES
                     if ((r2 < rcoulomb_sq) && (ci != (nonSelfInteraction ? -1 : cj)))

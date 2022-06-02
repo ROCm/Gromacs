@@ -131,9 +131,8 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
 {
 
     /* convenience variables */
-    //const nbnxn_sci_t* pl_sci    = plist.sci;
-    const nbnxn_sci_t* pl_sci    = haveFreshList ? plist.sci : plist.sci_sorted;
-    nbnxn_cj4_t*       pl_cj4    = plist.cj4;
+    nbnxn_sci_t* pl_sci          = haveFreshList ? plist.sci : plist.sci_sorted;
+    nbnxn_cj4_ext_t*   pl_cj4    = plist.cj4_sorted;
     FastBuffer<float4>   xq      = FastBuffer<float4>(atdat.xq);
     const float3*      shift_vec = asFloat3(atdat.shiftVec);
 
@@ -143,6 +142,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
     /* thread/block/warp id-s */
     unsigned int tidxi = threadIdx.x;
     unsigned int tidxj = threadIdx.y;
+    unsigned int gidxj = tidxj / c_subGroup;
 #    if threadsZ == 1
     unsigned int tidxz = 0;
 #    else
@@ -175,6 +175,8 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
     int sci        = nb_sci.sci;           /* super-cluster */
     int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
     int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
+
+    int cij4_last_valid = cij4_start;
 
     // We may need only a subset of threads active for preloading i-atoms
     // depending on the super-cluster and cluster / thread-block size.
@@ -240,8 +242,11 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                 {
                     unsigned int mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    int cj = pl_cj4[j4].cj[jm];
-                    int aj = cj * c_clSize + tidxj;
+                    int j_new      = pl_cj4[j4].j[jm * c_clSize + gidxj];
+                    int tidxj_orig = j_new & (c_subGroupN - 1);
+
+                    int cj      = pl_cj4[j4].cj[jm * c_clSize + gidxj];
+                    int aj      = cj * c_clSize + tidxj_orig;
 
                     /* load j atom data */
                     float4 tmp = xq[aj];
@@ -293,12 +298,40 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                 #endif
             }
             /* update the imask with only the pairs up to rlistInner */
-            plist.cj4[j4].imei[widx].imask = imaskNew;
+            plist.cj4_sorted[j4].imei[widx].imask = imaskNew;
 
+            if(imaskNew && cij4_last_valid < j4)
+                cij4_last_valid = j4;
         }
         // avoid shared memory WAR hazards between loop iterations
         __builtin_amdgcn_wave_barrier();
     }
+
+    int cij4_last_valid_temp = warp_move_dpp<int, 0x143>(cij4_last_valid);
+    cij4_last_valid = cij4_last_valid_temp > cij4_last_valid ? cij4_last_valid_temp : cij4_last_valid;
+    if ( tidx == 63 )
+    {
+        __syncthreads();
+
+        char* sm_reuse = sm_dynamicShmem;
+        int* cij4_sm  =reinterpret_cast<int*>(sm_reuse);
+        cij4_sm[tidxz]  = cij4_last_valid;
+
+        __syncthreads();
+
+        if(tidxz == 0 && widx == 0)
+        {
+            for( unsigned int index_z = 1; index_z < NTHREAD_Z; index_z++ )
+            {
+                if( cij4_last_valid < cij4_sm[index_z] )
+                    cij4_last_valid = cij4_sm[index_z];
+            }
+
+            __syncthreads();
+            pl_sci[bidx * numParts + part].cj4_length_poped = static_cast<short>(cij4_last_valid - cij4_start) + 1;
+        }
+    }
+
 
     if (haveFreshList && tidx == 63)
     {

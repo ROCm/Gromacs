@@ -136,6 +136,11 @@ __device__ __forceinline__ int __nb_any(int predicate,int widx)
     }
 }
 
+__device__ __forceinline__ bool __nb_any_group(int predicate, int gidx)
+{
+    return ((__ballot(predicate) >> (gidx * c_subGroup * c_clSize)) << ((c_subGroupN - 1) * c_subGroup * c_clSize)) > uint64_t(0);
+}
+
 static __forceinline__ __device__
 void float3_reduce_final(float3* input_ptr, const unsigned int size)
 {

@@ -185,6 +185,8 @@ typedef struct nbnxn_sci
     int cj4_ind_start;
     //! End index into cj4
     short cj4_length;
+    //! End index into cj4
+    short cj4_length_poped;
     //! Shift vector index plus possible flags
     short shift;
 } nbnxn_sci_t;
@@ -206,6 +208,41 @@ typedef struct
     //! The i-cluster mask data for 2 warps
     nbnxn_im_ei_t imei[c_nbnxnGpuClusterpairSplit];
 } nbnxn_cj4_t;
+
+constexpr int c_subGroup  = 1;
+constexpr int c_subGroupN = c_nbnxnGpuNumClusterPerSupercluster / c_subGroup;
+constexpr int c_subGroupJ4Size = c_subGroupN * c_nbnxnGpuJgroupSize;
+
+//! Interaction data for a j-group for one warp
+struct nbnxn_im_ei_ext_t
+{
+    //! The i-cluster interactions mask for 1 warp
+    unsigned int imask = 0U;
+};
+
+//! Four-way j-cluster lists
+typedef struct
+{
+    //! The 4 j-clusters indices
+    int cj[c_subGroupN * c_nbnxnGpuJgroupSize];
+    //! The j indices
+    int j[c_subGroupN * c_nbnxnGpuJgroupSize];
+    //! Original index into the exclusion array for 1 warp, default index 0 which means no exclusions
+    int excl_ind[c_subGroupN * c_nbnxnGpuJgroupSize];
+    //! The original i-cluster interactions mask for 1 warp
+    unsigned int imask[c_subGroupN];
+    //! The i-cluster mask data for 2 warps
+    nbnxn_im_ei_ext_t imei[c_nbnxnGpuClusterpairSplit];
+} nbnxn_cj4_ext_t;
+
+#define BITTYPES 15
+
+typedef struct
+{
+    int j;
+    unsigned char mask;
+    unsigned char type;
+} nbnxn_cj_sort_t;
 
 //! Struct for storing the atom-pair interaction bits for a cluster pair in a GPU pairlist
 struct nbnxn_excl_t

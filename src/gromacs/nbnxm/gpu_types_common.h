@@ -310,6 +310,20 @@ struct gpu_plist
     int cj4_nalloc;
     //! 4*j cluster list, contains j cluster number and index into the i cluster list
     DeviceBuffer<nbnxn_cj4_t> cj4;
+    //! total # of 4*j sorted clusters
+    int ncj_sorted;
+    //! allocation size of cj4 sorted
+    int cj_sorted_nalloc;
+    //! 4*j sorted cluster list, contains j cluster number and index into the i cluster list
+    DeviceBuffer<nbnxn_cj_sort_t> cj_sorted;
+
+    //! total # of 4*j sorted clusters
+    int ncj4_sorted;
+    //! allocation size of cj4 sorted
+    int cj4_sorted_nalloc;
+    //! 4*j sorted cluster list, contains j cluster number and index into the i cluster list
+    DeviceBuffer<nbnxn_cj4_ext_t> cj4_sorted;
+
     //! # of 4*j clusters * # of warps
     int nimask;
     //! allocation size of imask

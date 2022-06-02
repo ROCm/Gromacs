@@ -56,6 +56,9 @@
 #    include "gromacs/gpu_utils/hiputils.hpp"
 #    include "hip/nbnxm_hip_types.h"
 #    include "hip/nbnxm_hip_kernel_utils.hpp"
+#    define FUNCTION_DECLARATION_ONLY
+#        include "hip/nbnxm_hip_prune_sort.hpp"
+#    undef FUNCTION_DECLARATION_ONLY
 #endif
 
 #if GMX_GPU_OPENCL
@@ -88,6 +91,8 @@
 #include "pairlistsets.h"
 
 #include <rocprim/rocprim.hpp>
+
+#include <fstream>
 
 namespace Nbnxm
 {
@@ -218,6 +223,8 @@ static inline void init_plist(gpu_plist* pl)
     pl->sci_count           = nullptr;
     pl->sci_sorted          = nullptr;
     pl->cj4                 = nullptr;
+    pl->cj_sorted      = nullptr;
+    pl->cj4_sorted     = nullptr;
     pl->imask               = nullptr;
     pl->excl                = nullptr;
 
@@ -237,6 +244,10 @@ static inline void init_plist(gpu_plist* pl)
     pl->sci_sorted_nalloc          = -1;
     pl->ncj4                       = -1;
     pl->cj4_nalloc                 = -1;
+    pl->ncj4_sorted            = -1;
+    pl->cj4_sorted_nalloc      = -1;
+    pl->ncj_sorted             = -1;
+    pl->cj_sorted_nalloc       = -1;
     pl->nimask                     = -1;
     pl->imask_nalloc               = -1;
     pl->nexcl                      = -1;
@@ -635,6 +646,13 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
                        GpuApiCallBehavior::Async,
                        bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
 
+   reallocateDeviceBuffer(
+        &d_plist->cj_sorted, h_plist->cj4.size() * c_subGroupJ4Size, &d_plist->ncj_sorted, &d_plist->cj_sorted_nalloc, deviceContext);
+
+
+    reallocateDeviceBuffer(
+        &d_plist->cj4_sorted, h_plist->cj4.size(), &d_plist->ncj4_sorted, &d_plist->cj4_sorted_nalloc, deviceContext);
+
     reallocateDeviceBuffer(&d_plist->imask,
                            h_plist->cj4.size() * c_nbnxnGpuClusterpairSplit,
                            &d_plist->nimask,
@@ -650,6 +668,69 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
                        deviceStream,
                        GpuApiCallBehavior::Async,
                        bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
+
+   if(h_plist->sci.size())
+   {
+       constexpr char kernelNameSort[] = "k_prune_sort";
+       const auto     kernelSort = nbnxn_kernel_sort_j_hip<true>;
+
+       int num_threads_sort_z = 1;
+
+       KernelLaunchConfig configSort;
+       configSort.blockSize[0]     = c_clSize;
+       configSort.blockSize[1]     = c_clSize;
+       configSort.blockSize[2]     = num_threads_sort_z;
+       configSort.gridSize[0]      = h_plist->sci.size();
+       configSort.sharedMemorySize = std::max(c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(float4) + num_threads_sort_z * c_clSize * (BITTYPES + 2) * sizeof(int), num_threads_sort_z * c_clSize * c_clSize * sizeof(unsigned char));
+
+       int numParts = 1, part = 0;
+       const auto kernelSortArgs = prepareGpuKernelArguments(kernelSort, configSort, nb->atdat, nb->nbparam, d_plist, &numParts, &part);
+       launchGpuKernel(kernelSort, configSort, deviceStream, bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr, kernelNameSort, kernelSortArgs);
+
+       /*std::vector<nbnxn_sci_t> host_sci(d_plist->nsci);
+
+       hipError_t  stat = hipMemcpy(host_sci.data(),
+                                    *reinterpret_cast<nbnxn_sci_t**>(&(d_plist->sci)),
+                                    d_plist->nsci * sizeof(nbnxn_sci_t),
+                                    hipMemcpyDeviceToHost);
+
+       std::ofstream scifile;
+       scifile.open("sci_sorted.out", std::ios::app);
+       scifile << "---------------------START-------------------- " << stat << std::endl;
+       for(unsigned int index_sci = 0; index_sci < d_plist->nsci; index_sci++)
+       {
+           scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cj4_ind_start << " ; ";
+           scifile << host_sci[index_sci].shift << " ; " << host_sci[index_sci].cj4_length << " ; " << host_sci[index_sci].cj4_length_poped << std::endl;
+       }
+       scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+       scifile.close();
+
+       std::vector<nbnxn_cj_sort_t> host_cj_sorted(d_plist->ncj_sorted);
+
+       stat = hipMemcpy(host_cj_sorted.data(),
+                        *reinterpret_cast<nbnxn_cj_sort_t**>(&(d_plist->cj_sorted)),
+                        d_plist->ncj_sorted * sizeof(nbnxn_cj_sort_t),
+                        hipMemcpyDeviceToHost);
+
+       std::ofstream cj4sortedfile;
+       cj4sortedfile.open("cjsorted_before.out", std::ios::app);
+       cj4sortedfile << "---------------------START-------------------- " << stat << std::endl;
+       for(unsigned int index_sci = 0; index_sci < d_plist->nsci; index_sci++)
+       {
+           for (int j4 = host_sci[index_sci].cj4_ind_start; j4 < host_sci[index_sci].cj4IndEnd(); j4++)
+           {
+               for( unsigned int index = 0; index < 32; index++)
+               {
+                   cj4sortedfile << static_cast<int>(host_cj_sorted[j4 * 32 + index].mask) << " ; " <<  static_cast<int>(host_cj_sorted[j4 * 32 + index].type) << " ; " <<  host_cj_sorted[j4 * 32 + index].j << " ; ";
+                   cj4sortedfile << std::endl;
+               }
+           }
+           cj4sortedfile << std::endl;
+           cj4sortedfile << std::endl;
+       }
+       cj4sortedfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+       cj4sortedfile.close();*/
+   }
 
     if (bDoTime)
     {
@@ -1243,6 +1324,8 @@ void gpu_free(NbnxmGpu* nb)
     freeDeviceBuffer(&plist->sci_count);
     freeDeviceBuffer(&plist->sci_sorted);
     freeDeviceBuffer(&plist->cj4);
+    freeDeviceBuffer(&plist->cj_sorted);
+    freeDeviceBuffer(&plist->cj4_sorted);
     freeDeviceBuffer(&plist->imask);
     freeDeviceBuffer(&plist->excl);
     delete plist;
@@ -1256,6 +1339,8 @@ void gpu_free(NbnxmGpu* nb)
         freeDeviceBuffer(&plist_nl->sci_count);
         freeDeviceBuffer(&plist_nl->sci_sorted);
         freeDeviceBuffer(&plist_nl->cj4);
+        freeDeviceBuffer(&plist_nl->cj_sorted);
+        freeDeviceBuffer(&plist_nl->cj4_sorted);
         freeDeviceBuffer(&plist_nl->imask);
         freeDeviceBuffer(&plist_nl->excl);
         delete plist_nl;

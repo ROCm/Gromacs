@@ -105,6 +105,7 @@
 
 /* Prune-only kernels */
 #include "nbnxm_hip_kernel_pruneonly.hpp"
+#include "nbnxm_hip_prune_sort.hpp"
 #undef FUNCTION_DECLARATION_ONLY
 
 /* Now generate the function definitions if we are using a single compilation unit. */
@@ -689,9 +690,75 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
                 config.sharedMemorySize);
     }
 
+
+
     if (plist->haveFreshList)
     {
         clearDeviceBufferAsync(&plist->sci_histogram, 0, c_sciHistogramSize, deviceStream);
+
+        auto*          timingEventSort  = bDoTime ? timer->fetchNextEvent() : nullptr;
+        constexpr char kernelNameSort[] = "k_prune_sort";
+        const auto     kernelSort = plist->haveFreshList ? nbnxn_kernel_sort_j_hip<true> : nbnxn_kernel_sort_j_hip<false>;
+
+        int num_threads_sort_z = 1;
+
+        KernelLaunchConfig configSort;
+        configSort.blockSize[0]     = c_clSize;
+        configSort.blockSize[1]     = c_clSize;
+        configSort.blockSize[2]     = num_threads_sort_z;
+        configSort.gridSize[0]      = nblock;
+        configSort.sharedMemorySize = std::max(calc_shmem_required_prune(num_threads_sort_z) + num_threads_sort_z * c_clSize * (BITTYPES + 2) * sizeof(int), num_threads_sort_z * c_clSize * c_clSize * sizeof(unsigned char));
+
+        const auto kernelSortArgs = prepareGpuKernelArguments(kernelSort, configSort, adat, nbp, plist, &numParts, &part);
+        launchGpuKernel(kernelSort, configSort, deviceStream, timingEventSort, kernelNameSort, kernelSortArgs);
+
+        std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+        hipError_t  stat = hipMemcpy(host_sci.data(),
+                                     *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci)),
+                                     plist->nsci * sizeof(nbnxn_sci_t),
+                                     hipMemcpyDeviceToHost);
+
+        std::ofstream scifile;
+        scifile.open("sci_sorted.out", std::ios::app);
+        scifile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cj4_ind_start << " ; ";
+            scifile << host_sci[index_sci].shift << " ; " << host_sci[index_sci].cj4_length << " ; " << host_sci[index_sci].cj4_length_poped << std::endl;
+        }
+        scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        scifile.close();
+
+        std::vector<nbnxn_cj_sort_t> host_cj_sorted(plist->ncj_sorted);
+
+        stat = hipMemcpy(host_cj_sorted.data(),
+                         *reinterpret_cast<nbnxn_cj_sort_t**>(&(plist->cj_sorted)),
+                         plist->ncj_sorted * sizeof(nbnxn_cj_sort_t),
+                         hipMemcpyDeviceToHost);
+
+        std::ofstream cjsortedfile;
+        cjsortedfile.open("cjsorted_before.out", std::ios::app);
+        cjsortedfile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            for (int j4 = host_sci[index_sci].cj4_ind_start; j4 < host_sci[index_sci].cj4IndEnd(); j4++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        cjsortedfile << static_cast<int>(host_cj_sorted[j4 * 32 + j * 8 + i].mask) << " ; ";
+                        cjsortedfile << static_cast<int>(host_cj_sorted[j4 * 32 + j * 8 + i].type) << " ; ";
+                    }
+                    cjsortedfile << std::endl;
+                }
+                cjsortedfile << std::endl;
+            }
+            cjsortedfile << std::endl;
+        }
+        cjsortedfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cjsortedfile.close();
     }
 
     auto*          timingEvent  = bDoTime ? timer->fetchNextEvent() : nullptr;
@@ -718,6 +785,60 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             ::rocprim::plus<int>(),
             deviceStream.stream()
         );
+
+        /*{
+            std::vector<int> host_sci_histogram(plist->nsci_histogram);
+
+            hipError_t  stat = hipMemcpy(host_sci_histogram.data(),
+                                         *reinterpret_cast<int**>(&(plist->sci_histogram)),
+                                         plist->nsci_histogram * sizeof(int),
+                                         hipMemcpyDeviceToHost);
+
+            std::ofstream scihistogramfile;
+            scihistogramfile.open("sci_histogram.out", std::ios::app);
+            scihistogramfile << "---------------------START-------------------- " << stat << std::endl;
+            for(unsigned int index = 0; index < plist->nsci_histogram; index++)
+            {
+                scihistogramfile << index << " ; " << host_sci_histogram[index] << std::endl;
+            }
+            scihistogramfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+            scihistogramfile.close();
+
+            std::vector<int> host_sci_count(plist->nsci_counted);
+
+            stat = hipMemcpy(host_sci_count.data(),
+                             *reinterpret_cast<int**>(&(plist->sci_count)),
+                             plist->nsci_counted * sizeof(int),
+                             hipMemcpyDeviceToHost);
+            std::ofstream scicountfile;
+            scicountfile.open("sci_count.out", std::ios::app);
+            scicountfile << "---------------------START-------------------- " << stat << std::endl;
+            for(unsigned int index = 0; index < plist->nsci_counted; index++)
+            {
+                scicountfile << index << " ; " << host_sci_count[index] << std::endl;
+            }
+            scicountfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+            scicountfile.close();
+
+
+
+            std::vector<int> host_sci_offset(plist->nsci_offset);
+
+            stat = hipMemcpy(host_sci_offset.data(),
+                             *reinterpret_cast<int**>(&(plist->sci_offset)),
+                             plist->nsci_offset * sizeof(int),
+                             hipMemcpyDeviceToHost);
+
+            std::ofstream scioffsetfile;
+            scioffsetfile.open("sci_offset.out", std::ios::app);
+            scioffsetfile << "---------------------START-------------------- " << stat << std::endl;
+            for(unsigned int index = 0; index < plist->nsci_offset; index++)
+            {
+                scioffsetfile << index << " ; " << host_sci_offset[index] << std::endl;
+            }
+            scioffsetfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+            scioffsetfile.close();
+        }*/
 
         KernelLaunchConfig configSortSci;
         const unsigned int items_per_block = 256 * 16;

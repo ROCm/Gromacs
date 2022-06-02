@@ -44,6 +44,7 @@ if(GMX_GPU_HIP)
     endif()
 
     file(GLOB NBNXM_HIP_SOURCES
+         nbnxm_hip_prune_sort.hip.cpp
          nbnxm_hip.hip.cpp
          nbnxm_hip_data_mgmt.hip.cpp
          nbnxm_hip_jit_support.hip.cpp
