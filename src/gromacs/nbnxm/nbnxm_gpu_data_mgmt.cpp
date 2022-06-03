@@ -56,6 +56,7 @@
 #    include "gromacs/gpu_utils/hiputils.hpp"
 #    include "hip/nbnxm_hip_types.h"
 #    include "hip/nbnxm_hip_kernel_utils.hpp"
+#    include "roctx.h"
 #endif
 
 #if GMX_GPU_OPENCL

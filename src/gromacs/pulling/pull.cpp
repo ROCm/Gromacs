@@ -2272,6 +2272,7 @@ struct pull_t* init_pull(FILE*                     fplog,
 
     pull->bRefAt = FALSE;
     pull->cosdim = -1;
+    // more or less the kernel we need here :
     for (size_t g = 0; g < pull->group.size(); g++)
     {
         pull_group_work_t* pgrp;
