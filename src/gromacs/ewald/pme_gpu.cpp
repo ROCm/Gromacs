@@ -68,6 +68,7 @@
 #include "pme_grid.h"
 #include "pme_internal.h"
 #include "pme_solve.h"
+#include "roctx.h"
 
 /*! \brief
  * Finds out if PME is currently running on GPU.
@@ -442,9 +443,15 @@ void pme_gpu_reinit_computation(const gmx_pme_t* pme, gmx_wallcycle* wcycle)
     wallcycle_sub_start_nocount(wcycle, WallCycleSubCounter::LaunchGpuPme);
 
     pme_gpu_update_timings(pme->gpu);
-
+    roctxRangePush("pme_gpu_clear_grids");
+#if !defined(GMX_CLEAN_GRIDS_IN_KERNEL)
     pme_gpu_clear_grids(pme->gpu);
+#endif
+    roctxRangePop();
+
+    roctxRangePush("pme_gpu_clear_energy_virial");
     pme_gpu_clear_energy_virial(pme->gpu);
+    roctxRangePop();
 
     wallcycle_sub_stop(wcycle, WallCycleSubCounter::LaunchGpuPme);
     wallcycle_stop(wcycle, WallCycleCounter::LaunchGpu);
