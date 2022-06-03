@@ -1031,16 +1031,20 @@ static void launchGpuEndOfStepTasks(nonbonded_verlet_t*               nbv,
         }
 
         /* now clear the GPU outputs while we finish the step on the CPU */
+        roctxRangePush("Nbnxm::gpu_clear_outputs");
         wallcycle_start_nocount(wcycle, WallCycleCounter::LaunchGpu);
         wallcycle_sub_start_nocount(wcycle, WallCycleSubCounter::LaunchGpuNonBonded);
         Nbnxm::gpu_clear_outputs(nbv->gpu_nbv, runScheduleWork.stepWork.computeVirial);
         wallcycle_sub_stop(wcycle, WallCycleSubCounter::LaunchGpuNonBonded);
         wallcycle_stop(wcycle, WallCycleCounter::LaunchGpu);
+        roctxRangePop();
     }
 
     if (runScheduleWork.stepWork.haveGpuPmeOnThisRank)
     {
+        roctxRangePush("pme_gpu_reinit_computation");
         pme_gpu_reinit_computation(pmedata, wcycle);
+        roctxRangePop();
     }
 
     if (runScheduleWork.domainWork.haveGpuBondedWork && runScheduleWork.stepWork.computeEnergy)
@@ -1048,9 +1052,13 @@ static void launchGpuEndOfStepTasks(nonbonded_verlet_t*               nbv,
         // in principle this should be included in the DD balancing region,
         // but generally it is infrequent so we'll omit it for the sake of
         // simpler code
+        roctxRangePush("waitAccumulateEnergyTerms");
         listedForcesGpu->waitAccumulateEnergyTerms(enerd);
-
+        roctxRangePop();
+        
+        roctxRangePush("clearEnergies");
         listedForcesGpu->clearEnergies();
+        roctxRangePop();
     }
 }
 
