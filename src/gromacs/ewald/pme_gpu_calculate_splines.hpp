@@ -112,7 +112,7 @@ static bool __device__ __forceinline__ pme_gpu_check_atom_charge(const float coe
 }
 
 //! Controls if the atom and charge data is prefeched into shared memory or loaded per thread from global
-static const bool c_useAtomDataPrefetch = true;
+static const bool c_useAtomDataPrefetch = false;
 
 /*! \brief Asserts if the argument is finite.
  *
@@ -224,7 +224,7 @@ static __device__ __forceinline__ void calculate_splines(const PmeGpuCudaKernelP
     const int orderIndex      = threadLocalIdXY / DIM;
     /* Dimension index */
     const int dimIndex = threadLocalIdXY % DIM;
-    
+
     /* Multi-purpose index of rvec/ivec atom data */
     const int sharedMemoryIndex = atomIndexLocal * DIM + dimIndex;
 
