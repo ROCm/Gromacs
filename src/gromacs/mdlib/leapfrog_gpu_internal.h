@@ -71,6 +71,10 @@ void launchLeapFrogKernel(int                          numAtoms,
                           DeviceBuffer<Float3>         d_x,
                           DeviceBuffer<Float3>         d_xp,
                           DeviceBuffer<Float3>         d_v,
+#if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
+                          const int                    realGridSize, 
+                          DeviceBuffer<float>          d_grid, 
+#endif
                           DeviceBuffer<Float3>         d_f,
                           DeviceBuffer<float>          d_inverseMasses,
                           float                        dt,
