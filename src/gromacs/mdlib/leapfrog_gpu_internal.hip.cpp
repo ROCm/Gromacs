@@ -85,6 +85,7 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  * \param[in,out] gm_x                             Coordinates to update upon integration.
  * \param[out]    gm_xp                            A copy of the coordinates before the integration (for constraints).
  * \param[in,out] gm_v                             Velocities to update.
+ * \param[in,out] gm_v                             PME grids to zero-out,
  * \param[in]     gm_f                             Atomic forces.
  * \param[in]     gm_inverseMasses                 Reciprocal masses.
  * \param[in]     dt                               Timestep.
@@ -98,6 +99,10 @@ __launch_bounds__(c_threadsPerBlock) __global__
                              float3* __restrict__ gm_x,
                              float3* __restrict__ gm_xp,
                              float3* __restrict__ gm_v,
+#if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
+                             const int            realGridSize, 
+                             float*  __restrict__ gm_grid,
+#endif
                              const float3* __restrict__ gm_f,
                              const float* __restrict__ gm_inverseMasses,
                              const float dt,
@@ -155,6 +160,16 @@ __launch_bounds__(c_threadsPerBlock) __global__
         gm_v[threadIndex] = v;
         gm_x[threadIndex] = x;
     }
+
+// #if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
+#if 0
+    int stride = gridDim.x * blockDim.x;
+    for(int k = threadIndex; k < realGridSize; k += stride)
+    {
+        // zero-out pme_grid
+        gm_grid[k] = 0;
+    }
+#endif
 }
 
 /*! \brief Select templated kernel.
@@ -221,6 +236,8 @@ void launchLeapFrogKernel(const int                          numAtoms,
                           DeviceBuffer<Float3>               d_x,
                           DeviceBuffer<Float3>               d_xp,
                           DeviceBuffer<Float3>               d_v,
+                          const int                          realGridSize, 
+                          DeviceBuffer<float>                d_realGrid,
                           const DeviceBuffer<Float3>         d_f,
                           const DeviceBuffer<float>          d_inverseMasses,
                           const float                        dt,
@@ -245,7 +262,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
 
     auto kernelPtr =
             selectLeapFrogKernelPtr(doTemperatureScaling, numTempScaleValues, prVelocityScalingType);
-
+    fprintf(stderr, "Starting to prepare gpu kernel arguments\n");
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr,
                                                       kernelLaunchConfig,
                                                       &numAtoms,
@@ -253,11 +270,16 @@ void launchLeapFrogKernel(const int                          numAtoms,
                                                       asFloat3Pointer(&d_xp),
                                                       asFloat3Pointer(&d_v),
                                                       asFloat3Pointer(&d_f),
+#if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
+                                                      &realGridSize,
+                                                      &d_realGrid,
+#endif
                                                       &d_inverseMasses,
                                                       &dt,
                                                       &d_lambdas,
                                                       &d_tempScaleGroups,
                                                       &prVelocityScalingMatrixDiagonal);
+    fprintf(stderr, "Finishing preparing gpu kernel arguments\n");
     launchGpuKernel(kernelPtr, kernelLaunchConfig, deviceStream, nullptr, "leapfrog_kernel", kernelArgs);
 }
 

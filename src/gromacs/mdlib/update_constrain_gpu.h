@@ -50,6 +50,7 @@
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/arrayref.h"
+// #include "gromacs/ewald/pme_gpu_types.h"
 
 class DeviceContext;
 class DeviceStream;
@@ -98,6 +99,7 @@ public:
      *
      * \param[in]  fReadyOnDevice           Event synchronizer indicating that the forces are
      *                                      ready in the device memory.
+     * \param[in]  pmeKernelData            Gets PME Data to zero it out later
      * \param[in]  dt                       Timestep.
      * \param[in]  updateVelocities         If the velocities should be constrained.
      * \param[in]  computeVirial            If virial should be updated.
@@ -108,6 +110,7 @@ public:
      * \param[in]  dtPressureCouple         Period between pressure coupling steps.
      * \param[in]  prVelocityScalingMatrix  Parrinello-Rahman velocity scaling matrix.
      */
+
     void integrate(GpuEventSynchronizer*             fReadyOnDevice,
                    real                              dt,
                    bool                              updateVelocities,
@@ -147,6 +150,8 @@ public:
     void set(DeviceBuffer<RVec>            d_x,
              DeviceBuffer<RVec>            d_v,
              DeviceBuffer<RVec>            d_f,
+             const int                     realGridSize, 
+             DeviceBuffer<float>           d_grid, 
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
 

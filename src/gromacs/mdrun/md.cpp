@@ -200,6 +200,8 @@ void gmx::LegacySimulator::do_md()
     gmx_bool bPMETunePrinting = FALSE;
 
     bool bInteractiveMDstep = false;
+    int realGridSize = 0;
+    DeviceBuffer<float> d_grid;
 
     SimulationSignals signals;
     // Most global communnication stages don't propagate mdrun
@@ -1503,6 +1505,10 @@ void gmx::LegacySimulator::do_md()
                     integrator->set(stateGpu->getCoordinates(),
                                     stateGpu->getVelocities(),
                                     stateGpu->getForces(),
+#if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
+                                    realGridSize,
+                                    d_grid,
+#endif
                                     top->idef,
                                     *md);
 
