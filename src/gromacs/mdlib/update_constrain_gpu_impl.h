@@ -151,7 +151,7 @@ public:
     void set(DeviceBuffer<Float3>          d_x,
              DeviceBuffer<Float3>          d_v,
              const int                     realGridSize, 
-             DeviceBuffer<float>           d_grid, 
+             DeviceBuffer<real>*           d_grid, 
              DeviceBuffer<Float3>          d_f,
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
@@ -199,7 +199,7 @@ private:
     //! Local copy of the pointer to the device forces buffer
     DeviceBuffer<Float3> d_f_;
     //! Local copy of the pointer to the first PME real grid for zeroing-out
-    DeviceBuffer<float> d_grid_;
+    DeviceBuffer<real>* d_grid_;
     //! Number of real grid poitns
     int realGridSize_;
 

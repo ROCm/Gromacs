@@ -149,9 +149,9 @@ public:
      */
     void set(DeviceBuffer<RVec>            d_x,
              DeviceBuffer<RVec>            d_v,
-             DeviceBuffer<RVec>            d_f,
              const int                     realGridSize, 
-             DeviceBuffer<float>           d_grid, 
+             DeviceBuffer<real>*           d_grid, 
+             DeviceBuffer<RVec>            d_f,
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
 

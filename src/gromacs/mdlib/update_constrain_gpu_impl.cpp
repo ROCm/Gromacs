@@ -97,7 +97,7 @@ void UpdateConstrainGpu::Impl::integrate(GpuEventSynchronizer*             fRead
     // The integrate should save a copy of the current coordinates in d_xp_ and write updated
     // once into d_x_. The d_xp_ is only needed by constraints.
     integrator_->integrate(
-            d_x_, d_xp_, d_v_, realGridSize_, d_grid_, 
+            d_x_, d_xp_, d_v_, realGridSize_, *d_grid_, 
             d_f_, dt, doTemperatureScaling, tcstat, doParrinelloRahman, dtPressureCouple, prVelocityScalingMatrix);
     // Constraints need both coordinates before (d_x_) and after (d_xp_) update. However, after constraints
     // are applied, the d_x_ can be discarded. So we intentionally swap the d_x_ and d_xp_ here to avoid the
@@ -171,7 +171,7 @@ UpdateConstrainGpu::Impl::~Impl() {}
 void UpdateConstrainGpu::Impl::set(DeviceBuffer<Float3>          d_x,
                                    DeviceBuffer<Float3>          d_v,
                                    const int                     realGridSize, 
-                                   DeviceBuffer<float>           d_grid, 
+                                   DeviceBuffer<real>*           d_grid, 
                                    const DeviceBuffer<Float3>    d_f,
                                    const InteractionDefinitions& idef,
                                    const t_mdatoms&              md)
@@ -271,9 +271,9 @@ void UpdateConstrainGpu::scaleVelocities(const matrix scalingMatrix)
 
 void UpdateConstrainGpu::set(DeviceBuffer<Float3>          d_x,
                              DeviceBuffer<Float3>          d_v,
-                             const DeviceBuffer<Float3>    d_f,
                              const int                     realGridSize, 
-                             DeviceBuffer<float>           d_grid,
+                             DeviceBuffer<real>*           d_grid,
+                             const DeviceBuffer<Float3>    d_f,
                              const InteractionDefinitions& idef,
                              const t_mdatoms&              md)
 {

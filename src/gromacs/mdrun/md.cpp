@@ -1198,7 +1198,9 @@ void gmx::LegacySimulator::do_md()
                      ed ? ed->getLegacyED() : nullptr,
                      fr->longRangeNonbondeds.get(),
                      (bNS ? GMX_FORCE_NS : 0) | force_flags,
-                     ddBalanceRegionHandler);
+                     ddBalanceRegionHandler,
+                     &realGridSize,  
+                     &d_grid);
         }
 
         // VV integrators do not need the following velocity half step
@@ -1504,11 +1506,9 @@ void gmx::LegacySimulator::do_md()
                 {
                     integrator->set(stateGpu->getCoordinates(),
                                     stateGpu->getVelocities(),
-                                    stateGpu->getForces(),
-#if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
                                     realGridSize,
-                                    d_grid,
-#endif
+                                    &d_grid,
+                                    stateGpu->getForces(),
                                     top->idef,
                                     *md);
 

@@ -444,9 +444,7 @@ void pme_gpu_reinit_computation(const gmx_pme_t* pme, gmx_wallcycle* wcycle)
 
     pme_gpu_update_timings(pme->gpu);
     roctxRangePush("pme_gpu_clear_grids");
-#if !defined(GMX_CLEAN_GRIDS_IN_KERNEL)
-    pme_gpu_clear_grids(pme->gpu);
-#endif
+    // pme_gpu_clear_grids(pme->gpu);
     roctxRangePop();
 
     roctxRangePush("pme_gpu_clear_energy_virial");
@@ -482,4 +480,9 @@ GpuEventSynchronizer* pme_gpu_get_f_ready_synchronizer(const gmx_pme_t* pme)
     }
 
     return pme_gpu_get_forces_ready_synchronizer(pme->gpu);
+}
+
+void pme_register_grid_and_size(const gmx_pme_t* pme, int* realGridSize, DeviceBuffer<real>* d_grid){
+    const PmeGpu* gpu = pme->gpu;
+    pme_set_grid_and_size(gpu, realGridSize, d_grid);
 }
