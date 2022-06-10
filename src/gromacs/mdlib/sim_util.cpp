@@ -1337,7 +1337,9 @@ void do_force(FILE*                               fplog,
               gmx_edsam*                          ed,
               CpuPpLongRangeNonbondeds*           longRangeNonbondeds,
               int                                 legacyFlags,
-              const DDBalanceRegionHandler&       ddBalanceRegionHandler)
+              const DDBalanceRegionHandler&       ddBalanceRegionHandler, 
+              int*                                realGridSize, 
+              DeviceBuffer<float>*                d_grid)
 {
     auto force = forceView->forceWithPadding();
     GMX_ASSERT(force.unpaddedArrayRef().ssize() >= fr->natoms_force_constr,
@@ -2699,4 +2701,6 @@ void do_force(FILE*                               fplog,
     roctxRangePush("openBeforeForceComputationCpu");
     ddBalanceRegionHandler.openBeforeForceComputationCpu(DdAllowBalanceRegionReopen::no);
     roctxRangePop();
+
+    pme_register_grid_and_size(fr->pmedata, realGridSize, d_grid);
 }

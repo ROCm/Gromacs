@@ -127,10 +127,8 @@ public:
     void integrate(DeviceBuffer<Float3>              d_x,
                    DeviceBuffer<Float3>              d_xp,
                    DeviceBuffer<Float3>              d_v,
-#if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
                    const int                         realGridSize,
                    DeviceBuffer<float>               d_grids,
-#endif
                    DeviceBuffer<Float3>              d_f,
                    float                             dt,
                    bool                              doTemperatureScaling,
