@@ -443,13 +443,13 @@ void pme_gpu_reinit_computation(const gmx_pme_t* pme, gmx_wallcycle* wcycle)
     wallcycle_sub_start_nocount(wcycle, WallCycleSubCounter::LaunchGpuPme);
 
     pme_gpu_update_timings(pme->gpu);
-    roctxRangePush("pme_gpu_clear_grids");
+    hipRangePush("pme_gpu_clear_grids");
     // pme_gpu_clear_grids(pme->gpu);
-    roctxRangePop();
+    hipRangePop();
 
-    roctxRangePush("pme_gpu_clear_energy_virial");
+    hipRangePush("pme_gpu_clear_energy_virial");
     pme_gpu_clear_energy_virial(pme->gpu);
-    roctxRangePop();
+    hipRangePop();
 
     wallcycle_sub_stop(wcycle, WallCycleSubCounter::LaunchGpuPme);
     wallcycle_stop(wcycle, WallCycleCounter::LaunchGpu);

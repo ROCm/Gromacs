@@ -76,6 +76,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/pleasecite.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
 
 #include "bias.h"
 #include "biassharing.h"
@@ -360,7 +361,7 @@ real Awh::applyBiasForcesAndUpdateBias(PbcType                pbcType,
          *       to supports bias sharing within a single simulation.
          */
 
-        roctxRangePush("calcForceAndUpdateBias");
+        hipRangePush("calcForceAndUpdateBias");
         gmx::ArrayRef<const double> biasForce =
                 biasCts.bias_.calcForceAndUpdateBias(coordValue,
                                                      neighborLambdaEnergies,
@@ -371,7 +372,7 @@ real Awh::applyBiasForcesAndUpdateBias(PbcType                pbcType,
                                                      step,
                                                      seed_,
                                                      fplog);
-        roctxRangePop();
+        hipRangePop();
 
         awhPotential += biasPotential;
 
@@ -383,7 +384,7 @@ real Awh::applyBiasForcesAndUpdateBias(PbcType                pbcType,
          * so that it can be added externally to the correct energy data block.
          */
         numLambdaDimsCounted = 0;
-        roctxRangePush("apply_external_pull_coord_force");
+        hipRangePush("apply_external_pull_coord_force");
         for (int d = 0; d < biasCts.bias_.ndim(); d++)
         {
             if (biasCts.bias_.dimParams()[d].isPullDimension())
@@ -402,7 +403,7 @@ real Awh::applyBiasForcesAndUpdateBias(PbcType                pbcType,
                 numLambdaDimsCounted += 1;
             }
         }
-        roctxRangePop();
+        hipRangePop();
 
         if (isOutputStep(step))
         {
