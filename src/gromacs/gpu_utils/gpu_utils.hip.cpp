@@ -261,3 +261,15 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
         GMX_LOG(mdlog.info).asParagraph().appendTextFormatted("%s", message.c_str());
     }
 }
+
+void hipRangePush(const char* msg){
+#ifdef GMX_USE_ROCTX
+    roctxRangePush(msg);
+#endif
+}
+
+void hipRangePop(){
+#ifdef GMX_USE_ROCTX
+    roctxRangePop(msg);
+#endif
+}

@@ -43,7 +43,6 @@
  */
 
 #include "gmxpre.h"
-#include "roctx.h"
 
 #include "bias.h"
 
@@ -72,6 +71,7 @@
 #include "correlationgrid.h"
 #include "correlationhistory.h"
 #include "pointstate.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
 
 namespace gmx
 {
@@ -148,10 +148,10 @@ gmx::ArrayRef<const double> Bias::calcForceAndUpdateBias(const awh_dvec         
 
         if (isSampleCoordStep)
         {
-            roctxRangePush("updateForceCorrelationGrid");
+            hipRangePush("updateForceCorrelationGrid");
             updateForceCorrelationGrid(probWeightNeighbor, neighborLambdaDhdl, t);
             state_.sampleCoordAndPmf(dimParams_, grid_, probWeightNeighbor, convolvedBias);
-            roctxRangePop();
+            hipRangePop();
         }
     }
 
@@ -165,14 +165,14 @@ gmx::ArrayRef<const double> Bias::calcForceAndUpdateBias(const awh_dvec         
     double potential;
     if (params_.convolveForce)
     {
-        roctxRangePush("calcConvolvedForce");
+        hipRangePush("calcConvolvedForce");
         state_.calcConvolvedForce(dimParams_,
                                   grid_,
                                   probWeightNeighbor,
                                   moveUmbrella ? neighborLambdaDhdl : ArrayRef<const double>{},
                                   tempForce_,
                                   biasForce_);
-        roctxRangePop();
+        hipRangePop();
 
         potential = -convolvedBias * params_.invBeta;
     }
@@ -182,14 +182,14 @@ gmx::ArrayRef<const double> Bias::calcForceAndUpdateBias(const awh_dvec         
         GMX_RELEASE_ASSERT(state_.points()[coordState.umbrellaGridpoint()].inTargetRegion(),
                            "AWH bias grid point for the umbrella reference value is outside of the "
                            "target region.");
-        roctxRangePush("calcUmbrellaForceAndPotential");
+        hipRangePush("calcUmbrellaForceAndPotential");
         potential = state_.calcUmbrellaForceAndPotential(
                 dimParams_,
                 grid_,
                 coordState.umbrellaGridpoint(),
                 moveUmbrella ? neighborLambdaDhdl : ArrayRef<const double>{},
                 biasForce_);
-        roctxRangePop();
+        hipRangePop();
 
         /* Moving the umbrella results in a force correction and
          * a new potential. The umbrella center is sampled as often as
@@ -215,18 +215,18 @@ gmx::ArrayRef<const double> Bias::calcForceAndUpdateBias(const awh_dvec         
     /* Update the free energy estimates and bias and other history dependent method parameters */
     if (params_.isUpdateFreeEnergyStep(step))
     {
-        roctxRangePush("updateFreeEnergyAndAddSamplesToHistogram");
+        hipRangePush("updateFreeEnergyAndAddSamplesToHistogram");
         state_.updateFreeEnergyAndAddSamplesToHistogram(
                 dimParams_, grid_, params_, t, step, fplog, &updateList_);
-        roctxRangePop();
+        hipRangePop();
 
         if (params_.convolveForce)
         {
             /* The update results in a potential jump, so we need the new convolved potential. */
-            roctxRangePush("calcConvolvedBias");
+            hipRangePush("calcConvolvedBias");
             double newPotential = -calcConvolvedBias(coordState.coordValue()) * params_.invBeta;
             *potentialJump      = newPotential - potential;
-            roctxRangePop();
+            hipRangePop();
         }
     }
     /* If there is a lambda axis it is still controlled using an umbrella even if the force
@@ -234,7 +234,7 @@ gmx::ArrayRef<const double> Bias::calcForceAndUpdateBias(const awh_dvec         
     if (moveUmbrella && params_.convolveForce && grid_.hasLambdaAxis())
     {
         const bool onlySampleUmbrellaGridpoint = true;
-        roctxRangePush("moveUmbrella");
+        hipRangePush("moveUmbrella");
         state_.moveUmbrella(dimParams_,
                             grid_,
                             probWeightNeighbor,
@@ -244,7 +244,7 @@ gmx::ArrayRef<const double> Bias::calcForceAndUpdateBias(const awh_dvec         
                             seed,
                             params_.biasIndex,
                             onlySampleUmbrellaGridpoint);
-        roctxRangePop();
+        hipRangePop();
     }
 
     /* Return the potential. */

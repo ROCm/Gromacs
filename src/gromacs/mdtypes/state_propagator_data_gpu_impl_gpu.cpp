@@ -55,8 +55,7 @@
 #    include "gromacs/utility/classhelpers.h"
 
 #    include "state_propagator_data_gpu_impl.h"
-#    include "roctx.h"
-
+#    include "gromacs/gpu_utils/gpu_utils.h"
 
 namespace gmx
 {
@@ -265,10 +264,10 @@ void StatePropagatorDataGpu::Impl::copyFromDevice(gmx::ArrayRef<gmx::RVec> h_dat
 
     int atomsStartAt, numAtomsToCopy;
     // std tie =?? how fast?????
-    roctxRangePush("copyFromDevice_std::tie()");
+    hipRangePush("copyFromDevice_std::tie()");
     std::tie(atomsStartAt, numAtomsToCopy) = getAtomRangesFromAtomLocality(atomLocality);
-    roctxRangePop();
-    roctxRangePush("copyFromDeviceBuffer");
+    hipRangePop();
+    hipRangePush("copyFromDeviceBuffer");
     if (numAtomsToCopy != 0)
     {
         GMX_ASSERT(atomsStartAt + numAtomsToCopy <= dataSize,
@@ -284,7 +283,7 @@ void StatePropagatorDataGpu::Impl::copyFromDevice(gmx::ArrayRef<gmx::RVec> h_dat
                              transferKind_,
                              nullptr);
     }
-    roctxRangePop();
+    hipRangePop();
 }
 
 void StatePropagatorDataGpu::Impl::clearOnDevice(DeviceBuffer<RVec>  d_data,
@@ -439,9 +438,9 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
 
     copyFromDevice(h_x, d_x_, d_xSize_, atomLocality, *deviceStream);
     // Note: unlike copyCoordinatesToGpu this is not used in OpenCL, and the conditional is not needed.
-    roctxRangePush("copyCoordinatesFromGPU::markEvent");
+    hipRangePush("copyCoordinatesFromGPU::markEvent");
     //xReadyOnHost_[atomLocality].markEvent(*deviceStream);
-    roctxRangePop();
+    hipRangePop();
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchStatePropagatorData);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
 }
