@@ -283,16 +283,6 @@ convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon, float* c
     *c12   = *c6 * sigma6;
 }
 
-static __forceinline__ __device__ void
-                       convert_sigma_epsilon_to_c6_c12(const float2 sigma, const float2 epsilon, float2* c6, float2* c12)
-{
-    float2 sigma2, sigma6;
-
-    sigma2 = sigma * sigma;
-    sigma6 = sigma2 * sigma2 * sigma2;
-    *c6    = epsilon * sigma6;
-    *c12   = *c6 * sigma6;
-}
 /*! Apply force switch,  force + energy version. */
 static __forceinline__ __device__ void
 calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float inv_r, float r2, float* F_invr)
@@ -313,26 +303,6 @@ calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float in
                + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
 }
 
-// For float2 type
-static __forceinline__ __device__ void
-                       calculate_force_switch_F(const NBParamGpu nbparam, float2 c6, float2 c12, float2 inv_r, float2 r2, float2* F_invr)
-{
-    float2 r, r_switch;
-
-    /* force switch constants */
-    float2 disp_shift_V2 = {nbparam.dispersion_shift.c2, nbparam.dispersion_shift.c2};
-    float2 disp_shift_V3 = {nbparam.dispersion_shift.c3, nbparam.dispersion_shift.c3};
-    float2 repu_shift_V2 = {nbparam.repulsion_shift.c2, nbparam.repulsion_shift.c2};
-    float2 repu_shift_V3 = {nbparam.repulsion_shift.c3, nbparam.repulsion_shift.c3};
-
-    r        = r2 * inv_r;
-    r_switch = {r.x - nbparam.rvdw_switch, r.y - nbparam.rvdw_switch};
-    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
-    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
-
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
-}
 /*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
                                                                   float            c6,
@@ -365,37 +335,6 @@ static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamG
              - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
 }
 
-static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
-                                                                  float2            c6,
-                                                                  float2            c12,
-                                                                  float2            inv_r,
-                                                                  float2            r2,
-                                                                  float2*           F_invr,
-                                                                  float2*           E_lj)
-{
-    float2 r, r_switch;
-
-    /* force switch constants */
-    float disp_shift_V2 = nbparam.dispersion_shift.c2;
-    float disp_shift_V3 = nbparam.dispersion_shift.c3;
-    float repu_shift_V2 = nbparam.repulsion_shift.c2;
-    float repu_shift_V3 = nbparam.repulsion_shift.c3;
-
-    float disp_shift_F2 = nbparam.dispersion_shift.c2 / 3;
-    float disp_shift_F3 = nbparam.dispersion_shift.c3 / 4;
-    float repu_shift_F2 = nbparam.repulsion_shift.c2 / 3;
-    float repu_shift_F3 = nbparam.repulsion_shift.c3 / 4;
-
-    r        = r2 * inv_r;
-    r_switch = r - nbparam.rvdw_switch;
-    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
-    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
-
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
-    *E_lj += c6 * (disp_shift_F2 + disp_shift_F3 * r_switch) * r_switch * r_switch * r_switch
-             - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
-}
 /*! Apply potential switch, force-only version. */
 static __forceinline__ __device__ void calculate_potential_switch_F(const NBParamGpu& nbparam,
                                                                     float             inv_r,
