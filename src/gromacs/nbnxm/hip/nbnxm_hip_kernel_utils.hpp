@@ -272,20 +272,22 @@ void nbnxn_kernel_bucket_sci_sort(
 }
 
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
-static __forceinline__ __device__ void
-convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon, float* c6, float* c12)
+static __forceinline__ __device__ float2
+convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon)
 {
     float sigma2, sigma6;
+    float2 c6c12;
 
-    sigma2 = sigma * sigma;
-    sigma6 = sigma2 * sigma2 * sigma2;
-    *c6    = epsilon * sigma6;
-    *c12   = *c6 * sigma6;
+    sigma2  = sigma * sigma;
+    sigma6  = sigma2 * sigma2 * sigma2;
+    c6c12.x = epsilon * sigma6;
+    c6c12.y = c6c12.x * sigma6;
+    return c6c12;
 }
 
-/*! Apply force switch,  force + energy version. */
+/*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void
-calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float inv_r, float r2, float* F_invr)
+calculate_force_switch_F(const NBParamGpu nbparam, float2 c6c12, float inv_r, float r2, float* F_invr)
 {
     float r, r_switch;
 
@@ -299,14 +301,13 @@ calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float in
     r_switch = r - nbparam.rvdw_switch;
     r_switch = r_switch >= 0.0F ? r_switch : 0.0F;
 
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
+    float2 f = c6c12 * (float2(disp_shift_V2, repu_shift_V2) + float2(disp_shift_V3, repu_shift_V3) * r_switch);
+    *F_invr += (-f.x + f.y) * r_switch * r_switch * inv_r;
 }
 
-/*! Apply force switch, force-only version. */
+/*! Apply force switch, force + energy version. */
 static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
-                                                                  float            c6,
-                                                                  float            c12,
+                                                                  float2           c6c12,
                                                                   float            inv_r,
                                                                   float            r2,
                                                                   float*           F_invr,
@@ -329,10 +330,10 @@ static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamG
     r_switch = r - nbparam.rvdw_switch;
     r_switch = r_switch >= 0.0F ? r_switch : 0.0F;
 
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
-    *E_lj += c6 * (disp_shift_F2 + disp_shift_F3 * r_switch) * r_switch * r_switch * r_switch
-             - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
+    float2 f = c6c12 * (float2(disp_shift_V2, repu_shift_V2) + float2(disp_shift_V3, repu_shift_V3) * r_switch);
+    *F_invr += (-f.x + f.y) * r_switch * r_switch * inv_r;
+    float2 e = c6c12 * (float2(disp_shift_F2, repu_shift_F2) + float2(disp_shift_F3, repu_shift_F3) * r_switch);
+    *E_lj += (e.x - e.y) * r_switch * r_switch * r_switch;
 }
 
 /*! Apply potential switch, force-only version. */
@@ -593,16 +594,13 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
  *  using direct load, texture objects, or texrefs.
  */
 // NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, const NBParamGpu nbparam, unsigned int baseIndex)
+static __forceinline__ __device__ float2 fetch_nbfp_c6_c12(const NBParamGpu nbparam, unsigned int baseIndex)
 {
-    float2 c6c12;
 #    if DISABLE_HIP_TEXTURES
-    c6c12 = fast_load(nbparam.nbfp, baseIndex);
+    return fast_load(nbparam.nbfp, baseIndex);
 #    else
-    c6c12 = tex1Dfetch<float2>(nbparam.nbfp_texobj, baseIndex);
+    return tex1Dfetch<float2>(nbparam.nbfp_texobj, baseIndex);
 #    endif // DISABLE_HIP_TEXTURES
-    c6  = c6c12.x;
-    c12 = c6c12.y;
 }
 
 

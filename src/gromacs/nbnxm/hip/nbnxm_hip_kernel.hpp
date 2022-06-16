@@ -239,7 +239,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     int          i, jm, j4, wexcl_idx;
     float        qi, qj_f, r2, inv_r, inv_r2;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
-    float        inv_r6, c6, c12;
+    float        inv_r6;
+    float2       c6c12;
 #    endif
 #    ifdef LJ_COMB_LB
     float        sigma, epsilon;
@@ -461,21 +462,20 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         /* LJ 6*C6 and 12*C12 */
                         typei = atib[i * c_clSize + tidxi];
 #        ifdef __gfx1030__
-                        fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
+                        c6c12 = fetch_nbfp_c6_c12(nbparam, ntypes * typei + typej);
 #        else
-                        fetch_nbfp_c6_c12(c6, c12, nbparam, __mul24(ntypes, typei) + typej);
+                        c6c12 = fetch_nbfp_c6_c12(nbparam, __mul24(ntypes, typei) + typej);
 #        endif
 #    else
                         ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM
-                        c6           = ljcp_i.x * ljcp_j.x;
-                        c12          = ljcp_i.y * ljcp_j.y;
+                        c6c12        = ljcp_i * ljcp_j;
 #        else
                         /* LJ 2^(1/6)*sigma and 12*epsilon */
                         sigma   = ljcp_i.x + ljcp_j.x;
                         epsilon = ljcp_i.y * ljcp_j.y;
 #            if defined CALC_ENERGIES || defined LJ_FORCE_SWITCH || defined LJ_POT_SWITCH
-                        convert_sigma_epsilon_to_c6_c12(sigma, epsilon, &c6, &c12);
+                        c6c12 = convert_sigma_epsilon_to_c6_c12(sigma, epsilon);
 #            endif
 #        endif /* LJ_COMB_GEOM */
 #    endif     /* LJ_COMB */
@@ -493,11 +493,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         inv_r6 *= int_bit;
 #        endif /* EXCLUSION_FORCES */
 
-                        F_invr = inv_r6 * (c12 * inv_r6 - c6) * inv_r2;
+                        F_invr = inv_r6 * (c6c12.y * inv_r6 - c6c12.x) * inv_r2;
 #        if defined CALC_ENERGIES || defined LJ_POT_SWITCH
                         E_lj_p = int_bit
-                                 * (c12 * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
-                                    - c6 * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
+                                 * (c6c12.y * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
+                                    - c6c12.x * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
 #        endif
 #    else /* !LJ_COMB_LB || CALC_ENERGIES */
                         float sig_r  = sigma * inv_r;
@@ -512,9 +512,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
 #    ifdef LJ_FORCE_SWITCH
 #        ifdef CALC_ENERGIES
-                        calculate_force_switch_F_E(nbparam, c6, c12, inv_r, r2, &F_invr, &E_lj_p);
+                        calculate_force_switch_F_E(nbparam, c6c12, inv_r, r2, &F_invr, &E_lj_p);
 #        else
-                        calculate_force_switch_F(nbparam, c6, c12, inv_r, r2, &F_invr);
+                        calculate_force_switch_F(nbparam, c6c12, inv_r, r2, &F_invr);
 #        endif /* CALC_ENERGIES */
 #    endif     /* LJ_FORCE_SWITCH */
 
