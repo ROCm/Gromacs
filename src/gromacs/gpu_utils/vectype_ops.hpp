@@ -45,47 +45,6 @@ static __forceinline__ __host__ __device__ float3 make_float3(float4 a)
 {
     return make_float3(a.x, a.y, a.z);
 }
-static __forceinline__ __host__ __device__ float3 operator-(const float3& a)
-{
-    return make_float3(-a.x, -a.y, -a.z);
-}
-static __forceinline__ __host__ __device__ float3 operator+(float3 a, float3 b)
-{
-    return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
-}
-static __forceinline__ __host__ __device__ float3 operator-(float3 a, float3 b)
-{
-    return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-static __forceinline__ __host__ __device__ float3 operator*(float3 a, float k)
-{
-    return make_float3(k * a.x, k * a.y, k * a.z);
-}
-static __forceinline__ __host__ __device__ float3 operator*(float k, float3 a)
-{
-    return make_float3(k * a.x, k * a.y, k * a.z);
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator+=(float3& a, float3 b)
-{
-    a.x += b.x;
-    a.y += b.y;
-    a.z += b.z;
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator+=(float3& a, float4 b)
-{
-    a.x += b.x;
-    a.y += b.y;
-    a.z += b.z;
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator-=(float3& a, float3 b)
-{
-    a.x -= b.x;
-    a.y -= b.y;
-    a.z -= b.z;
-}
 static __forceinline__ __host__ __device__ float norm(float3 a)
 {
     return sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
@@ -97,24 +56,6 @@ static __forceinline__ __host__ __device__ float norm2(float3 a)
 static __forceinline__ __host__ __device__ float dist3(float3 a, float3 b)
 {
     return norm(b - a);
-}
-static __forceinline__ __host__ __device__ float3 operator*(float3 a, float3 b)
-{
-    return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator*=(float3& a, float3 b)
-{
-    a.x *= b.x;
-    a.y *= b.y;
-    a.z *= b.z;
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator*=(float3& a, float b)
-{
-    a.x *= b;
-    a.y *= b;
-    a.z *= b;
 }
 static __forceinline__ __device__ void atomicAdd(float3* addr, float3 val)
 {
@@ -133,42 +74,9 @@ static __forceinline__ __host__ __device__ float4 make_float4(float3 a)
 {
     return make_float4(a.x, a.y, a.z, 0.0F);
 }
-static __forceinline__ __host__ __device__ float4 operator+(float4 a, float4 b)
-{
-    return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
-}
 static __forceinline__ __host__ __device__ float4 operator+(float4 a, float3 b)
 {
     return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w);
-}
-static __forceinline__ __host__ __device__ float4 operator-(float4 a, float4 b)
-{
-    return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
-}
-static __forceinline__ __host__ __device__ float4 operator*(float4 a, float k)
-{
-    return make_float4(k * a.x, k * a.y, k * a.z, k * a.w);
-}
-static __forceinline__ __host__ __device__ void operator+=(float4& a, float4 b)
-{
-    a.x += b.x;
-    a.y += b.y;
-    a.z += b.z;
-    a.w += b.w;
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator+=(float4& a, float3 b)
-{
-    a.x += b.x;
-    a.y += b.y;
-    a.z += b.z;
-}
-// NOLINTNEXTLINE(google-runtime-references)
-static __forceinline__ __host__ __device__ void operator-=(float4& a, float3 b)
-{
-    a.x -= b.x;
-    a.y -= b.y;
-    a.z -= b.z;
 }
 
 static __forceinline__ __host__ __device__ float norm(float4 a)
