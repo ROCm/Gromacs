@@ -132,10 +132,17 @@
  */
 #define NTHREAD_Z 1
 
-#ifdef CALC_ENERGIES
-#    define MIN_BLOCKS_PER_MP 6
+// MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
+// we can use twice as many registers as on MI100 and earlier devices without spilling.
+// Also it looks like spilling to global memory causes segfaults for some versions of the kernel.
+#if defined(__gfx90a__)
+#    define MIN_BLOCKS_PER_MP 1
 #else
-#    define MIN_BLOCKS_PER_MP 8
+#    ifdef CALC_ENERGIES
+#        define MIN_BLOCKS_PER_MP 6
+#    else
+#        define MIN_BLOCKS_PER_MP 8
+#    endif
 #endif
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
