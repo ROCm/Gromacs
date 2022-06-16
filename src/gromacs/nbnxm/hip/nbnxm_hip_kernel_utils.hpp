@@ -579,7 +579,8 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
 {
     float normalized   = nbparam.coulomb_tab_scale * r;
     unsigned int index = static_cast<unsigned int>(normalized);
-    float fraction     = normalized - index;
+    // For some reason the compiler does not generate v_fract_f32 for normalized - floorf(normalized)
+    float fraction     = __builtin_amdgcn_fractf(normalized);
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
