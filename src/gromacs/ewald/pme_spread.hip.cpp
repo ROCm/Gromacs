@@ -157,7 +157,7 @@ __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kern
                 const float thetaX = sm_theta[splineIndexX];
                 assert(isfinite(thetaX));
                 assert(isfinite(gm_grid[gridIndexGlobal]));
-                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
+                atomicAdd(gm_grid + gridIndexGlobal, thetaX * Val);
             }
         }
     }

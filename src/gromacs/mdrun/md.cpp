@@ -1170,6 +1170,21 @@ void gmx::LegacySimulator::do_md()
              * This is parallellized as well, and does communication too.
              * Check comments in sim_util.c
              */
+            // Register biasing coordinates
+            if (useGpuForUpdate && awh){
+                // here?
+                if(bNS) { // rebuild data
+                    // how to parse awh turned on for this simulation?
+                    awh->buildIndexData();
+                    const std::vector<int>& bIndex = awh->getIndexData();
+                    // try to pin x before using it
+                    changePinningPolicy(&state->x, PinningPolicy::PinnedIfSupported);
+                    integrator->updateBiasingCoordinates(bIndex.size(), 
+                        &bIndex, 
+                        state->x);
+                }
+                if(!bFirstStep) integrator->flushNecessaryPositions();
+            }
             do_force(fplog,
                      cr,
                      ms,

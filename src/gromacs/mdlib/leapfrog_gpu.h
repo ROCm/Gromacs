@@ -137,6 +137,13 @@ public:
                    float                             dtPressureCouple,
                    const matrix                      prVelocityScalingMatrix);
 
+    void flushNecessaryPositions(
+        const int numAtoms, 
+        const int numBiasAtoms,
+        const DeviceBuffer<Float3> d_x_,
+        const DeviceBuffer<int> d_biasAtoms_, 
+        float3* h_x);
+
     /*! \brief Set the integrator
      *
      * Allocates memory for inverse masses, and, if needed for temperature scaling factor(s)

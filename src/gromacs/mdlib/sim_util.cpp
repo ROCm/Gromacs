@@ -1443,7 +1443,10 @@ void do_force(FILE*                               fplog,
             || simulationWork.computeMuTot))
     {
         hipRangePush("copyCoordinatesFromGPU_ifUpdateGPU_andLocalCPUWork_orComputeVirial");
-        stateGpu->copyCoordinatesFromGpu(x.unpaddedArrayRef(), AtomLocality::Local);
+        // launch another kernel here if we have to copy coordinates from gpu
+        // stateGpu->copyCoordinatesFromGpu(x.unpaddedArrayRef(), AtomLocality::Local);
+        // stateGpu->flushNecessaryPositions();
+        // we already launched this. Do we need to mark anything? 
         haveCopiedXFromGpu = true;
         hipRangePop();
     }

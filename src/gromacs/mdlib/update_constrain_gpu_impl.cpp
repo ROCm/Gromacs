@@ -150,6 +150,16 @@ void UpdateConstrainGpu::Impl::scaleVelocities(const matrix scalingMatrix)
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
 }
 
+void UpdateConstrainGpu::Impl::flushNecessaryPositions()
+{
+    wallcycle_start_nocount(wcycle_, WallCycleCounter::LaunchGpu);
+    wallcycle_sub_start(wcycle_, WallCycleSubCounter::LaunchGpuUpdateConstrain);
+    integrator_->flushNecessaryPositions(numAtoms_, numBiasAtoms_, d_x_, d_biasAtoms_, h_x_);
+
+    wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchGpuUpdateConstrain);
+    wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
+}
+
 UpdateConstrainGpu::Impl::Impl(const t_inputrec&    ir,
                                const gmx_mtop_t&    mtop,
                                const int            numTempScaleValues,
@@ -167,6 +177,17 @@ UpdateConstrainGpu::Impl::Impl(const t_inputrec&    ir,
 }
 
 UpdateConstrainGpu::Impl::~Impl() {}
+
+void UpdateConstrainGpu::Impl::updateBiasingCoordinates( 
+    const int numBiasAtoms, 
+    const std::vector<int>*  biasIndex, 
+    gmx::ArrayRef<gmx::RVec> h_x)
+{
+    h_x_ = reinterpret_cast<float3*>( &(h_x.data()[0]));
+    // allocate biasing array
+    reallocateDeviceBuffer(&d_biasAtoms_, numBiasAtoms, &numBiasAtoms_, &numBiasAtomsAlloc_, deviceContext_); 
+    copyToDeviceBuffer(&d_biasAtoms_, biasIndex->data(), 0, numBiasAtoms, deviceStream_, GpuApiCallBehavior::Async, nullptr);
+}
 
 void UpdateConstrainGpu::Impl::set(DeviceBuffer<Float3>          d_x,
                                    DeviceBuffer<Float3>          d_v,
@@ -267,6 +288,18 @@ void UpdateConstrainGpu::scaleCoordinates(const matrix scalingMatrix)
 void UpdateConstrainGpu::scaleVelocities(const matrix scalingMatrix)
 {
     impl_->scaleVelocities(scalingMatrix);
+}
+
+void UpdateConstrainGpu::flushNecessaryPositions(){
+    impl_->flushNecessaryPositions();
+}
+
+void UpdateConstrainGpu::updateBiasingCoordinates( 
+    const int numBiasAtoms, 
+    const std::vector<int>*  biasIndex, 
+    gmx::ArrayRef<gmx::RVec> h_x)
+{
+    impl_->updateBiasingCoordinates(numBiasAtoms, biasIndex, h_x);
 }
 
 void UpdateConstrainGpu::set(DeviceBuffer<Float3>          d_x,

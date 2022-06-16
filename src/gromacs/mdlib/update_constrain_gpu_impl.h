@@ -178,6 +178,14 @@ public:
      */
     static bool isNumCoupledConstraintsSupported(const gmx_mtop_t& mtop);
 
+
+    void updateBiasingCoordinates(
+        const int numBiasAtoms, 
+        const std::vector<int>* biasIndex,
+        gmx::ArrayRef<gmx::RVec> h_x);
+
+    void flushNecessaryPositions();
+
 private:
     //! GPU context object
     const DeviceContext& deviceContext_;
@@ -202,6 +210,17 @@ private:
     DeviceBuffer<real>* d_grid_;
     //! Number of real grid poitns
     int realGridSize_;
+
+    //! Local copy of the pointer to host-pinned positions
+    float3* h_x_;
+
+    //! indices of bias atoms
+    DeviceBuffer<int> d_biasAtoms_;
+    
+    //! Number of biasing atoms that need to be calculated
+    int numBiasAtoms_ = -1;
+
+    int numBiasAtomsAlloc_ = -1;
 
     //! Device buffer for intermediate positions (maintained internally)
     DeviceBuffer<Float3> d_xp_;

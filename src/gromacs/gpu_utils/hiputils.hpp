@@ -285,7 +285,7 @@ void launchGpuKernel(void (*kernel)(Args...),
 {
     dim3 blockSize(config.blockSize[0], config.blockSize[1], config.blockSize[2]);
     dim3 gridSize(config.gridSize[0], config.gridSize[1], config.gridSize[2]);
-    hipLaunchKernel(reinterpret_cast<void*>(kernel),
+    hipError_t err = hipLaunchKernel(reinterpret_cast<void*>(kernel),
                      gridSize,
                      blockSize,
                      const_cast<void**>(kernelArgs.data()),

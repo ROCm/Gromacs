@@ -70,6 +70,7 @@
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
+#include "gromacs/pulling/pull_internal.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/trajectory/energyframe.h"
 #include "gromacs/utility/arrayref.h"
@@ -619,7 +620,24 @@ std::unique_ptr<Awh> prepareAwhModule(FILE*                 fplog,
         // Initialize the AWH history here
         stateGlobal->awhHistory = awh->initHistoryFromState();
     }
+    awh->buildIndexData();
     return awh;
+}
+
+void Awh::buildIndexData(){
+    biasAtomIndex.clear();
+    // fprintf(stderr, " constructing build index data here\n");
+    for(unsigned int i = 0; i < pull_->group.size() ; i++)
+    {
+        // each pull group countain a bunch of atoms, so we need to account for those
+        ArrayRef<const int> g_i = pull_->group[i].atomSet.globalIndex();
+        for(unsigned int i = 0; i < g_i.size(); i++)
+        {
+            int idx = g_i[i];
+            biasAtomIndex.emplace_back(idx);
+            // fprintf(stderr, "emplacing back atom %d\n", idx); // looks like this is what I need indeed
+        }
+    }
 }
 
 } // namespace gmx

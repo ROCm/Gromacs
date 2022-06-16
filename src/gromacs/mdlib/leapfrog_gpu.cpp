@@ -59,6 +59,8 @@
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/utility/arrayref.h"
+#include "gromacs/gpu_utils/pinning.h"
+
 
 namespace gmx
 {
@@ -175,6 +177,27 @@ void LeapFrogGpu::set(const int numAtoms, const real* inverseMasses, const unsig
         copyToDeviceBuffer(
                 &d_tempScaleGroups_, tempScaleGroups, 0, numAtoms_, deviceStream_, GpuApiCallBehavior::Sync, nullptr);
     }
+}
+
+void LeapFrogGpu::flushNecessaryPositions(
+        const int numAtoms, 
+        const int numBiasAtoms,
+        const DeviceBuffer<Float3> d_x,
+        const DeviceBuffer<int> d_biasAtoms, 
+        float3* h_x)
+{
+    // does it work?
+    // float3* h_x_aux = reinterpret_cast<float3*>(&(h_x.unpaddedArrayRef().data()[0]));
+    // fprintf(stderr, "Hey trying to allocate %d, working with %d biasing atoms\n", 
+    //    numAtoms, numBiasAtoms);
+    // hipHostMalloc((void**) &h_x_aux, sizeof(float3)*numAtoms);
+    // this needs to be visible through the GPU and I don't think it is right now
+    float3* d_h_x = NULL;
+    hipHostGetDevicePointer((void**)&d_h_x, h_x, 0); // how fast is this?
+    launchFlushNecessaryPositions(numBiasAtoms, d_x, d_biasAtoms, 
+        d_h_x, deviceStream_);
+    // hipStreamSynchronize(deviceStream_.stream());
+    // hipFreeHost(h_x_aux);
 }
 
 } // namespace gmx

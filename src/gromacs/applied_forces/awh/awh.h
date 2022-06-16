@@ -269,6 +269,12 @@ public:
      */
     bool hasFepLambdaDimension() const;
 
+    /*! \brief Internal function that builds an appropriate flat index data for necessary bias atoms
+     */
+    void buildIndexData();
+
+    const std::vector<int>& getIndexData(){ return biasAtomIndex; }
+
 private:
     /*! \brief Returns whether we need to write output at the current step.
      *
@@ -286,6 +292,7 @@ private:
     double potentialOffset_; /**< The offset of the bias potential which changes due to bias updates. */
     const int numFepLambdaStates_; /**< The number of free energy lambda states of the system. */
     int       fepLambdaState_;     /**< The current free energy lambda state. */
+    std::vector<int> biasAtomIndex; /**< Saves the index of atom biases */
 };
 
 /*! \brief Makes an Awh and prepares to use it if the user input

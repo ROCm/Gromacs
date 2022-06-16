@@ -68,6 +68,24 @@ constexpr static int c_threadsPerBlock = 64;
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
 
+// for aws
+__launch_bounds__(c_threadsPerBlock) __global__
+    void flush_necessary_positions(const int     numPullAtoms,
+                                   const float3* gm_x,
+                                   const int*    pullgroup_indices, 
+                                   float3*       hm_x)
+{
+    // great, now let's pull the groups!
+    int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
+    if(threadIndex < numPullAtoms){
+        int localID = pullgroup_indices[threadIndex];
+        // flushes coordinate
+        hm_x[localID] = gm_x[localID]; 
+    }
+}
+
+
+
 /*! \brief Main kernel for Leap-Frog integrator.
  *
  *  The coordinates and velocities are updated on the GPU. Also saves the intermediate values of the coordinates for
@@ -272,12 +290,34 @@ void launchLeapFrogKernel(const int                          numAtoms,
                                                       &d_lambdas,
                                                       &d_tempScaleGroups,
                                                       &prVelocityScalingMatrixDiagonal);
-    // hipError_t err = hipStreamSynchronize(deviceStream.stream());                                                  
-    // fprintf(stderr, "Finishing preparing gpu kernel arguments, error = %d\n", err);
-    // fprintf(stderr, "realGridSize %d d_grid %p\n", realGridSize, d_realGrid);
     launchGpuKernel(kernelPtr, kernelLaunchConfig, deviceStream, nullptr, "leapfrog_kernel", kernelArgs);
-    // err = hipStreamSynchronize(deviceStream.stream());
-    // fprintf(stderr, " finished leapFrogKernel, error = %d\n", err);
+}
+
+
+void launchFlushNecessaryPositions(const int                    numPullAtoms,
+                                   const DeviceBuffer<Float3>   gm_x,
+                                   const DeviceBuffer<int>      pullgroup_indices, 
+                                   float3*                      hm_x, // a device buffer only in shape, not in spirit :] 
+                                   const DeviceStream&          deviceStream)
+{
+
+    KernelLaunchConfig kernelLaunchConfig;
+
+    kernelLaunchConfig.gridSize[0]      = (numPullAtoms + c_threadsPerBlock - 1) / c_threadsPerBlock;
+    kernelLaunchConfig.blockSize[0]     = c_threadsPerBlock;
+    kernelLaunchConfig.blockSize[1]     = 1;
+    kernelLaunchConfig.blockSize[2]     = 1;
+    kernelLaunchConfig.sharedMemorySize = 0;
+
+    auto kernelPtr = &flush_necessary_positions; // does this work?
+    const auto kernelArgs = prepareGpuKernelArguments(kernelPtr,
+                                                      kernelLaunchConfig,
+                                                      &numPullAtoms,
+                                                      asFloat3Pointer(&gm_x),
+                                                      &pullgroup_indices, 
+                                                      &hm_x);
+    launchGpuKernel(kernelPtr, kernelLaunchConfig, deviceStream, nullptr, 
+        "flush_coordinates", kernelArgs); 
 }
 
 } // namespace gmx

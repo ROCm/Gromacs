@@ -50,6 +50,7 @@
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/arrayref.h"
+#include "gromacs/math/arrayrefwithpadding.h"
 // #include "gromacs/ewald/pme_gpu_types.h"
 
 class DeviceContext;
@@ -184,6 +185,15 @@ public:
      * Currently true for CUDA, false for others.
      */
     static bool areConstraintsSupported();
+
+
+    void flushNecessaryPositions();
+
+    void updateBiasingCoordinates(
+        const int numBiasAtoms, 
+        const std::vector<int>* biasIndex,
+        gmx::ArrayRef<gmx::RVec> h_x);
+
 
 private:
     class Impl;

@@ -85,6 +85,12 @@ void launchLeapFrogKernel(int                          numAtoms,
                           const DeviceStream&          deviceStream);
 
 
+void launchFlushNecessaryPositions(const int                    numPullAtoms,
+                                   const DeviceBuffer<Float3>   gm_x,
+                                   const DeviceBuffer<int>      pullgroup_indices, 
+                                   float3*                      hm_x,
+                                   const DeviceStream&          deviceStream);
+
 } // namespace gmx
 
 #endif
