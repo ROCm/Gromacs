@@ -92,8 +92,7 @@ static __forceinline__ __device__ T fetchFromParamLookupTable(const T*          
     T result;
 #if DISABLE_HIP_TEXTURES
     GMX_UNUSED_VALUE(texObj);
-    result = *reinterpret_cast<const T*>(reinterpret_cast<const char*>(d_ptr) + index * static_cast<unsigned int>(sizeof(T)));
-    //result = LDG(d_ptr + index);
+    result = LDG(d_ptr + index);
 #else
     GMX_UNUSED_VALUE(d_ptr);
     result = fetchFromTexture<T>(texObj, index);
