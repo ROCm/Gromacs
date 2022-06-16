@@ -138,14 +138,10 @@ enum class ThreadsPerAtom : int
  */
 
 //! Spreading max block width in warps picked among powers of 2 (2, 4, 8, 16) for max. occupancy and min. runtime in most cases
-#ifdef GMX_NAVI_BUILD
+#if GMX_NAVI_BUILD
 constexpr int c_spreadMaxWarpsPerBlock = 8;
 #else
-#if GMX_GPU_HIP
-constexpr int c_spreadMaxWarpsPerBlock = 2;
-#else
 constexpr int c_spreadMaxWarpsPerBlock = 4;
-#endif
 #endif
 
 //! Solving kernel max block width in warps picked among powers of 2 (2, 4, 8, 16) for max.
