@@ -254,8 +254,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
     unsigned int wexcl, imask, mask_ji;
     float4       xqbuf;
-    float3       xi, xj, rv, f_ij, fcj_buf;
-    float3       fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
+    fast_float3  xi, xj, rv, n2, f_ij, fcj_buf;
+    fast_float3  fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
     nbnxn_sci_t  nb_sci;
 
     /*! i-cluster interaction mask for a super-cluster with all c_nbnxnGpuNumClusterPerSupercluster=8 bits set */
@@ -299,8 +299,14 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         /* Pre-load i-atom x and q into shared memory */
         ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
         ai = ci * c_clSize + tidxi;
-        const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
-        xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
+        const float3 shift = shift_vec[nb_sci.shift];
+        xqbuf = xq[ai];
+        // TODO: Remove `-` and reverse operators in `xi + xj` and `+- f_ij` when it's fixed.
+        // For some reason the compiler does not generate v_pk_add_f32 and v_sub_f32 for `xi - xj`
+        // but generates 3 v_sub_f32. Hence all this mess with signs.
+        xqbuf.x = -(xqbuf.x + shift.x);
+        xqbuf.y = -(xqbuf.y + shift.y);
+        xqbuf.z = -(xqbuf.z + shift.z);
         xqbuf.w *= nbparam.epsfac;
         xqib[tidxj * c_clSize + tidxi] = xqbuf;
 
@@ -316,7 +322,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
-        fci_buf[i] = make_float3(0.0F);
+        fci_buf[i] = make_fast_float3(0.0F);
     }
 
 #    ifdef LJ_EWALD
@@ -415,7 +421,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
             /* load j atom data */
             xqbuf = xq[aj];
-            xj    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
+            xj    = make_fast_float3(xqbuf);
             qj_f  = xqbuf.w;
 #    ifndef LJ_COMB
             typej = atom_types[aj];
@@ -423,7 +429,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             ljcp_j = lj_comb[aj];
 #    endif
 
-            fcj_buf = make_float3(0.0F);
+            fcj_buf = make_fast_float3(0.0F);
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
@@ -433,10 +439,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
                     /* all threads load an atom from i cluster ci into shmem! */
                     xqbuf = xqib[i * c_clSize + tidxi];
-                    xi    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
+                    xi    = make_fast_float3(xqbuf);
 
                     /* distance between i and j atoms */
-                    rv = xi - xj;
+                    rv = xi + xj;
                     r2 = norm2(rv);
 
 #    ifdef PRUNE_NBL
@@ -610,10 +616,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         f_ij = rv * F_invr;
 
                         /* accumulate j forces in registers */
-                        fcj_buf = fcj_buf - f_ij;
+                        fcj_buf = fcj_buf + f_ij;
 
                         /* accumulate i forces in registers */
-                        fci_buf[i] = fci_buf[i] + f_ij;
+                        fci_buf[i] = fci_buf[i] - f_ij;
                     }
                 }
 
