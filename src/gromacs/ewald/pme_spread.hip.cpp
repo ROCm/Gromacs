@@ -156,8 +156,8 @@ __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kern
                         getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
                 const float thetaX = sm_theta[splineIndexX];
                 assert(isfinite(thetaX));
-                assert(isfinite(*reinterpret_cast<float*>(reinterpret_cast<char*>(gm_grid) + (gridIndexGlobal * static_cast<unsigned int>(sizeof(float))))));
-                atomicAdd(reinterpret_cast<float*>(reinterpret_cast<char*>(gm_grid) + (gridIndexGlobal * static_cast<unsigned int>(sizeof(float)))), thetaX * Val);
+                assert(isfinite(gm_grid[gridIndexGlobal]));
+                atomicAddNoRet(gm_grid + gridIndexGlobal, thetaX * Val);
             }
         }
     }
@@ -185,10 +185,10 @@ template<int order, bool computeSplines, bool spreadCharges, bool wrapX, bool wr
 LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
         void pme_spline_and_spread_kernel(const PmeGpuCudaKernelParams kernelParams)
 {
-    constexpr int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
-    constexpr int atomsPerBlock       = c_spreadMaxThreadsPerBlock / threadsPerAtomValue;
+    const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
+    const int atomsPerBlock       = c_spreadMaxThreadsPerBlock / threadsPerAtomValue;
     // Number of atoms processed by a single warp in spread and gather
-    constexpr int atomsPerWarp = warpSize/ threadsPerAtomValue;
+    const int atomsPerWarp = warpSize/ threadsPerAtomValue;
     // Gridline indices, ivec
     __shared__ int sm_gridlineIndices[atomsPerBlock * DIM];
     // Charges

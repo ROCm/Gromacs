@@ -52,24 +52,6 @@
 #include "pme_gpu_calculate_splines.hpp"
 #include "pme_grid.h"
 
-template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
-__device__ inline
-T warp_move_dpp(const T& input) {
-    constexpr int words_no = (sizeof(T) + sizeof(int) - 1) / sizeof(int);
-
-    struct V { int words[words_no]; };
-    V a = __builtin_bit_cast(V, input);
-    #pragma unroll
-    for (int i = 0; i < words_no; i++) {
-        a.words[i] = __builtin_amdgcn_update_dpp(
-          0, a.words[i],
-          dpp_ctrl, row_mask, bank_mask, bound_ctrl
-        );
-    }
-
-    return __builtin_bit_cast(T, a);
-}
-
 /*! \brief
  * An inline HIP function: unroll the dynamic index accesses to the constant grid sizes to avoid local memory operations.
  */
@@ -123,17 +105,17 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
                       "TODO: rework for atomDataSize > warpSize (order 8 or larger)");
         const int width = atomDataSize;
 
-        fx += warp_move_dpp<float, /* row_shl:1 */ 0x101>(fx);
-        fy += warp_move_dpp<float, /* row_shr:1 */ 0x111>(fy);
-        fz += warp_move_dpp<float, /* row_shl:1 */ 0x101>(fz);
+        fx += __shfl_down(fx, 1, width);
+        fy += __shfl_up(fy, 1, width);
+        fz += __shfl_down(fz, 1, width);
 
         if (splineIndex & 1)
         {
             fx = fy;
         }
 
-        fx += warp_move_dpp<float, /* row_shl:2 */ 0x102>(fx);
-        fz += warp_move_dpp<float, /* row_shr:2 */ 0x112>(fz);
+        fx += __shfl_down(fx, 2, width);
+        fz += __shfl_up(fz, 2, width);
 
         if (splineIndex & 2)
         {
@@ -306,7 +288,7 @@ __device__ __forceinline__ void sumForceComponents(float* __restrict__ fx,
             }
             const int gridIndexGlobal = ix * pny * pnz + constOffset;
             assert(gridIndexGlobal >= 0);
-            const float gridValue = *reinterpret_cast<const float*>(reinterpret_cast<const char*>(gm_grid) + gridIndexGlobal * static_cast<unsigned int>(sizeof(float)));
+            const float gridValue = gm_grid[gridIndexGlobal];
             assert(isfinite(gridValue));
             const int splineIndexX = getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
             const float2 tdx       = make_float2(sm_theta[splineIndexX], sm_dtheta[splineIndexX]);
