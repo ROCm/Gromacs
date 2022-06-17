@@ -91,6 +91,14 @@ struct fast_float3
     {
         return float3{ x, y, z };
     }
+
+    __host__ __device__
+    fast_float3& operator=(const fast_float3& x)
+    {
+        dxy = x.dxy;
+        dz = x.dz;
+        return *this;
+    }
 };
 static_assert(sizeof(fast_float3) == 12);
 
