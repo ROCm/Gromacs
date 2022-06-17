@@ -132,10 +132,17 @@
  */
 #define NTHREAD_Z 1
 
-#ifdef CALC_ENERGIES
-#    define MIN_BLOCKS_PER_MP 6
+// MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
+// we can use twice as many registers as on MI100 and earlier devices without spilling.
+// Also it looks like spilling to global memory causes segfaults for some versions of the kernel.
+#if defined(__gfx90a__)
+#    define MIN_BLOCKS_PER_MP 1
 #else
-#    define MIN_BLOCKS_PER_MP 8
+#    ifdef CALC_ENERGIES
+#        define MIN_BLOCKS_PER_MP 6
+#    else
+#        define MIN_BLOCKS_PER_MP 8
+#    endif
 #endif
 #define THREADS_PER_BLOCK (c_clSize * c_clSize * NTHREAD_Z)
 
@@ -232,7 +239,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     int          i, jm, j4, wexcl_idx;
     float        qi, qj_f, r2, inv_r, inv_r2;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
-    float        inv_r6, c6, c12;
+    float        inv_r6;
+    float2       c6c12;
 #    endif
 #    ifdef LJ_COMB_LB
     float        sigma, epsilon;
@@ -246,8 +254,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
     unsigned int wexcl, imask, mask_ji;
     float4       xqbuf;
-    float3       xi, xj, rv, f_ij, fcj_buf;
-    float3       fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
+    fast_float3  xi, xj, rv, n2, f_ij, fcj_buf;
+    fast_float3  fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
     nbnxn_sci_t  nb_sci;
 
     /*! i-cluster interaction mask for a super-cluster with all c_nbnxnGpuNumClusterPerSupercluster=8 bits set */
@@ -291,8 +299,14 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         /* Pre-load i-atom x and q into shared memory */
         ci = sci * c_nbnxnGpuNumClusterPerSupercluster + tidxj;
         ai = ci * c_clSize + tidxi;
-        const float* shiftptr = reinterpret_cast<const float*>(&shift_vec[nb_sci.shift]);
-        xqbuf = xq[ai] + make_float4(LDG(shiftptr), LDG(shiftptr + 1), LDG(shiftptr + 2), 0.0F);
+        const float3 shift = shift_vec[nb_sci.shift];
+        xqbuf = xq[ai];
+        // TODO: Remove `-` and reverse operators in `xi + xj` and `+- f_ij` when it's fixed.
+        // For some reason the compiler does not generate v_pk_add_f32 and v_sub_f32 for `xi - xj`
+        // but generates 3 v_sub_f32. Hence all this mess with signs.
+        xqbuf.x = -(xqbuf.x + shift.x);
+        xqbuf.y = -(xqbuf.y + shift.y);
+        xqbuf.z = -(xqbuf.z + shift.z);
         xqbuf.w *= nbparam.epsfac;
         xqib[tidxj * c_clSize + tidxi] = xqbuf;
 
@@ -308,7 +322,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
-        fci_buf[i] = make_float3(0.0F);
+        fci_buf[i] = make_fast_float3(0.0F);
     }
 
 #    ifdef LJ_EWALD
@@ -407,7 +421,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
             /* load j atom data */
             xqbuf = xq[aj];
-            xj    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
+            xj    = make_fast_float3(xqbuf);
             qj_f  = xqbuf.w;
 #    ifndef LJ_COMB
             typej = atom_types[aj];
@@ -415,7 +429,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             ljcp_j = lj_comb[aj];
 #    endif
 
-            fcj_buf = make_float3(0.0F);
+            fcj_buf = make_fast_float3(0.0F);
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
@@ -425,10 +439,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
                     /* all threads load an atom from i cluster ci into shmem! */
                     xqbuf = xqib[i * c_clSize + tidxi];
-                    xi    = make_float3(xqbuf.x, xqbuf.y, xqbuf.z);
+                    xi    = make_fast_float3(xqbuf);
 
                     /* distance between i and j atoms */
-                    rv = xi - xj;
+                    rv = xi + xj;
                     r2 = norm2(rv);
 
 #    ifdef PRUNE_NBL
@@ -454,21 +468,20 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         /* LJ 6*C6 and 12*C12 */
                         typei = atib[i * c_clSize + tidxi];
 #        ifdef __gfx1030__
-                        fetch_nbfp_c6_c12(c6, c12, nbparam, ntypes * typei + typej);
+                        c6c12 = fetch_nbfp_c6_c12(nbparam, ntypes * typei + typej);
 #        else
-                        fetch_nbfp_c6_c12(c6, c12, nbparam, __mul24(ntypes, typei) + typej);
+                        c6c12 = fetch_nbfp_c6_c12(nbparam, __mul24(ntypes, typei) + typej);
 #        endif
 #    else
                         ljcp_i       = ljcpib[i * c_clSize + tidxi];
 #        ifdef LJ_COMB_GEOM
-                        c6           = ljcp_i.x * ljcp_j.x;
-                        c12          = ljcp_i.y * ljcp_j.y;
+                        c6c12        = ljcp_i * ljcp_j;
 #        else
                         /* LJ 2^(1/6)*sigma and 12*epsilon */
                         sigma   = ljcp_i.x + ljcp_j.x;
                         epsilon = ljcp_i.y * ljcp_j.y;
 #            if defined CALC_ENERGIES || defined LJ_FORCE_SWITCH || defined LJ_POT_SWITCH
-                        convert_sigma_epsilon_to_c6_c12(sigma, epsilon, &c6, &c12);
+                        c6c12 = convert_sigma_epsilon_to_c6_c12(sigma, epsilon);
 #            endif
 #        endif /* LJ_COMB_GEOM */
 #    endif     /* LJ_COMB */
@@ -486,11 +499,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         inv_r6 *= int_bit;
 #        endif /* EXCLUSION_FORCES */
 
-                        F_invr = inv_r6 * (c12 * inv_r6 - c6) * inv_r2;
+                        F_invr = inv_r6 * (c6c12.y * inv_r6 - c6c12.x) * inv_r2;
 #        if defined CALC_ENERGIES || defined LJ_POT_SWITCH
                         E_lj_p = int_bit
-                                 * (c12 * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
-                                    - c6 * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
+                                 * (c6c12.y * (inv_r6 * inv_r6 + nbparam.repulsion_shift.cpot) * c_oneTwelveth
+                                    - c6c12.x * (inv_r6 + nbparam.dispersion_shift.cpot) * c_oneSixth);
 #        endif
 #    else /* !LJ_COMB_LB || CALC_ENERGIES */
                         float sig_r  = sigma * inv_r;
@@ -505,9 +518,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
 #    ifdef LJ_FORCE_SWITCH
 #        ifdef CALC_ENERGIES
-                        calculate_force_switch_F_E(nbparam, c6, c12, inv_r, r2, &F_invr, &E_lj_p);
+                        calculate_force_switch_F_E(nbparam, c6c12, inv_r, r2, &F_invr, &E_lj_p);
 #        else
-                        calculate_force_switch_F(nbparam, c6, c12, inv_r, r2, &F_invr);
+                        calculate_force_switch_F(nbparam, c6c12, inv_r, r2, &F_invr);
 #        endif /* CALC_ENERGIES */
 #    endif     /* LJ_FORCE_SWITCH */
 
@@ -603,10 +616,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         f_ij = rv * F_invr;
 
                         /* accumulate j forces in registers */
-                        fcj_buf = fcj_buf - f_ij;
+                        fcj_buf = fcj_buf + f_ij;
 
                         /* accumulate i forces in registers */
-                        fci_buf[i] = fci_buf[i] + f_ij;
+                        fci_buf[i] = fci_buf[i] - f_ij;
                     }
                 }
 
