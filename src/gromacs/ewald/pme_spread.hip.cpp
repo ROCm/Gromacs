@@ -224,13 +224,36 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
         return;
     }
     /* Charges, required for both spline and spread */
-    atomCharge = kernelParams.atoms.d_coefficients[0][atomIndexGlobal];
+    if (c_useAtomDataPrefetch)
+    {
+        pme_gpu_stage_atom_data<float, atomsPerBlock, 1>(
+                sm_coefficients, &kernelParams.atoms.d_coefficients[0][kernelParams.pipelineAtomStart]);
+        __syncthreads();
+        atomCharge = sm_coefficients[atomIndexLocal];
+    }
+    else
+    {
+        atomCharge = kernelParams.atoms.d_coefficients[0][atomIndexGlobal];
+    }
 
     if (computeSplines)
     {
         const float3* __restrict__ gm_coordinates =
                 asFloat3(&kernelParams.atoms.d_coordinates[kernelParams.pipelineAtomStart]);
-        atomX = gm_coordinates[atomIndexGlobal];
+        if (c_useAtomDataPrefetch)
+        {
+            // Coordinates
+            __shared__ float3 sm_coordinates[atomsPerBlock];
+
+            /* Staging coordinates */
+            pme_gpu_stage_atom_data<float3, atomsPerBlock, 1>(sm_coordinates, gm_coordinates);
+            __syncthreads();
+            atomX = sm_coordinates[atomIndexLocal];
+        }
+        else
+        {
+            atomX = gm_coordinates[atomIndexGlobal];
+        }
         calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, numGrids>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
         // __syncwarp();
@@ -264,7 +287,17 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
     if (numGrids == 2)
     {
         __syncthreads();
-        atomCharge = kernelParams.atoms.d_coefficients[1][atomIndexGlobal];
+        if (c_useAtomDataPrefetch)
+        {
+            pme_gpu_stage_atom_data<float, atomsPerBlock, 1>(sm_coefficients,
+                                                             kernelParams.atoms.d_coefficients[1]);
+            __syncthreads();
+            atomCharge = sm_coefficients[atomIndexLocal];
+        }
+        else
+        {
+            atomCharge = kernelParams.atoms.d_coefficients[1][atomIndexGlobal];
+        }
         if (spreadCharges && atomIndexGlobal < kernelParams.atoms.nAtoms)
         {
             if (!kernelParams.usePipeline || (atomIndexGlobal < kernelParams.pipelineAtomEnd))
