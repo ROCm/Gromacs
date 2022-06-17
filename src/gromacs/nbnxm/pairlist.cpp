@@ -77,7 +77,7 @@
 #include "pairlistsets.h"
 #include "pairlistwork.h"
 #include "pairsearch.h"
-
+#include <omp.h>
 using namespace gmx; // TODO: Remove when this file is moved into gmx namespace
 
 using BoundingBox   = Nbnxm::BoundingBox;   // TODO: Remove when refactoring this file
@@ -4046,6 +4046,9 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
     const real rlist = params_.rlistOuter;
 
     const int numLists = (isCpuType_ ? cpuLists_.size() : gpuLists_.size());
+#ifdef TIME_PAIRLIST
+    double times[10] = {0};
+#endif
 
     if (debug)
     {
@@ -4145,7 +4148,14 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
              * load balancing for local only or non-local with 2 zones.
              */
             const bool progBal = (locality == InteractionLocality::Local || ddZones->n <= 2);
+#ifdef TIME_PAIRLIST
+            fprintf(stderr, "isCpuType = %d numLists at pairlist generation = %d\n", 
+                isCpuType_, numLists);
 
+            times[0] = omp_get_wtime();
+    
+#endif
+            // This region benefits from hyperthreading - Using both HW threads
 #pragma omp parallel for num_threads(numLists) schedule(static)
             for (int th = 0; th < numLists; th++)
             {
@@ -4220,8 +4230,13 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
                 }
                 GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
             }
+#ifdef TIME_PAIRLIST
+            times[1] = omp_get_wtime();
+#endif
             searchCycleCounting->stop(enbsCCsearch);
-
+#ifdef TIME_PAIRLIST
+            times[2] = omp_get_wtime();
+#endif
             int np_tot = 0;
             int np_noq = 0;
             int np_hlj = 0;
@@ -4243,6 +4258,9 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
                     np_tot += nbl.nci_tot;
                 }
             }
+#ifdef TIME_PAIRLIST
+            times[3] = omp_get_wtime();
+#endif
             const int nap = isCpuType_ ? cpuLists_[0].na_ci * cpuLists_[0].na_cj
                                        : gmx::square(gpuLists_[0].na_ci);
 
@@ -4260,6 +4278,9 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
 
                 searchCycleCounting->stop(enbsCCcombine);
             }
+#ifdef TIME_PAIRLIST
+            times[4] = omp_get_wtime();
+#endif
         }
     }
 
@@ -4292,13 +4313,21 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
                 GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
             }
         }
+#ifdef TIME_PAIRLIST
+        times[5] = omp_get_wtime();
+#endif
     }
 
+#ifdef TIME_PAIRLIST
+    times[6] = omp_get_wtime();
+#endif
     if (nbat->bUseBufferFlags)
     {
         reduce_buffer_flags(searchWork, numLists, nbat->buffer_flags);
     }
-
+#ifdef TIME_PAIRLIST
+    times[7] = omp_get_wtime();
+#endif
     if (gridSet.haveFep())
     {
         /* Balance the free-energy lists over all the threads */
@@ -4358,6 +4387,12 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
     {
         prepareListsForDynamicPruning(cpuLists_);
     }
+#ifdef TIME_PAIRLIST
+    fprintf(stderr, "Times \n");
+    for(int i = 1; i <= 7; i++){
+        fprintf(stderr, "time[%d] %lf\n",i, (times[i] - times[i-1]));
+    }
+#endif
 }
 
 void PairlistSets::construct(const InteractionLocality iLocality,
