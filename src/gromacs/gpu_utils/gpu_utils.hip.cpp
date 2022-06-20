@@ -48,6 +48,7 @@
 #include <stdlib.h>
 
 #include <hip/hip_profile.h>
+#include <roctx.h>
 
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/device_context.h"
@@ -270,6 +271,6 @@ void hipRangePush(const char* msg){
 
 void hipRangePop(){
 #ifdef GMX_USE_ROCTX
-    roctxRangePop(msg);
+    roctxRangePop();
 #endif
 }
