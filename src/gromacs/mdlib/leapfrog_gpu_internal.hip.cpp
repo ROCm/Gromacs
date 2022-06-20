@@ -159,15 +159,12 @@ __launch_bounds__(c_threadsPerBlock) __global__
         gm_x[threadIndex] = x;
     }
 
-// #if defined(GMX_CLEAN_GRIDS_IN_KERNEL)
-#if 1
     int stride = gridDim.x * blockDim.x;
     for(int k = threadIndex; k < realGridSize; k += stride)
     {
         // zero-out pme_grid
         gm_grid[k] = 0;
     }
-#endif
 }
 
 /*! \brief Select templated kernel.
