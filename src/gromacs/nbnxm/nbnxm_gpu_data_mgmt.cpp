@@ -223,8 +223,8 @@ static inline void init_plist(gpu_plist* pl)
     pl->sci_count           = nullptr;
     pl->sci_sorted          = nullptr;
     pl->cj4                 = nullptr;
-    pl->cj_sorted      = nullptr;
-    pl->cj4_sorted     = nullptr;
+    pl->cj_sorted           = nullptr;
+    pl->cj4_sorted          = nullptr;
     pl->imask               = nullptr;
     pl->excl                = nullptr;
 
@@ -244,10 +244,10 @@ static inline void init_plist(gpu_plist* pl)
     pl->sci_sorted_nalloc          = -1;
     pl->ncj4                       = -1;
     pl->cj4_nalloc                 = -1;
-    pl->ncj4_sorted            = -1;
-    pl->cj4_sorted_nalloc      = -1;
-    pl->ncj_sorted             = -1;
-    pl->cj_sorted_nalloc       = -1;
+    pl->ncj4_sorted                = -1;
+    pl->cj4_sorted_nalloc          = -1;
+    pl->ncj_sorted                 = -1;
+    pl->cj_sorted_nalloc           = -1;
     pl->nimask                     = -1;
     pl->imask_nalloc               = -1;
     pl->nexcl                      = -1;
@@ -649,7 +649,6 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
    reallocateDeviceBuffer(
         &d_plist->cj_sorted, h_plist->cj4.size() * c_subGroupJ4Size, &d_plist->ncj_sorted, &d_plist->cj_sorted_nalloc, deviceContext);
 
-
     reallocateDeviceBuffer(
         &d_plist->cj4_sorted, h_plist->cj4.size(), &d_plist->ncj4_sorted, &d_plist->cj4_sorted_nalloc, deviceContext);
 
@@ -669,7 +668,7 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
                        GpuApiCallBehavior::Async,
                        bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
 
-   if(h_plist->sci.size())
+   /*if(h_plist->sci.size())
    {
        constexpr char kernelNameSort[] = "k_prune_sort";
        const auto     kernelSort = nbnxn_kernel_sort_j_hip<true>;
@@ -681,13 +680,13 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
        configSort.blockSize[1]     = c_clSize;
        configSort.blockSize[2]     = num_threads_sort_z;
        configSort.gridSize[0]      = h_plist->sci.size();
-       configSort.sharedMemorySize = std::max(c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(float4) + num_threads_sort_z * c_clSize * (BITTYPES + 2) * sizeof(int), num_threads_sort_z * c_clSize * c_clSize * sizeof(unsigned char));
+       configSort.sharedMemorySize = c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(float4) + 2 * (BITTYPES + 2) * sizeof(int) + num_threads_sort_z * c_clSize * c_clSize * sizeof(int);
 
        int numParts = 1, part = 0;
        const auto kernelSortArgs = prepareGpuKernelArguments(kernelSort, configSort, nb->atdat, nb->nbparam, d_plist, &numParts, &part);
        launchGpuKernel(kernelSort, configSort, deviceStream, bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr, kernelNameSort, kernelSortArgs);
 
-       /*std::vector<nbnxn_sci_t> host_sci(d_plist->nsci);
+       std::vector<nbnxn_sci_t> host_sci(d_plist->nsci);
 
        hipError_t  stat = hipMemcpy(host_sci.data(),
                                     *reinterpret_cast<nbnxn_sci_t**>(&(d_plist->sci)),
@@ -729,8 +728,8 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
            cj4sortedfile << std::endl;
        }
        cj4sortedfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
-       cj4sortedfile.close();*/
-   }
+       cj4sortedfile.close();
+   }*/
 
     if (bDoTime)
     {
@@ -1144,6 +1143,8 @@ void gpu_copy_xq_to_gpu(NbnxmGpu* nb, const nbnxn_atomdata_t* nbatom, const Atom
                        deviceStream,
                        GpuApiCallBehavior::Async,
                        nullptr);
+
+    //std::cout << "Coordinates update" << std::endl;
 
     if (bDoTime)
     {

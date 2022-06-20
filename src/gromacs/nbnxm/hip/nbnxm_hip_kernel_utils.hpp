@@ -236,7 +236,6 @@ void nbnxn_kernel_bucket_sci_sort(
     const nbnxn_sci_t* pl_sci = plist.sci;
     nbnxn_sci_t* pl_sci_sort  = plist.sci_sorted;
     const int* pl_sci_count   = plist.sci_count;
-
     int* pl_sci_offset        = plist.sci_offset;
 
     int sci_count[ItemsPerThread];

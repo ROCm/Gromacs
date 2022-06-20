@@ -419,6 +419,8 @@ static inline int calc_shmem_required_nonbonded(const int               num_thre
         shmem += c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(int);
     }
 
+    //shmem += 4 * c_nbnxnGpuJgroupSize * c_clSize * sizeof(int);
+
     return shmem;
 }
 
@@ -520,6 +522,8 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
                 config.sharedMemorySize);
     }
 
+    //std::cout << "NB kernel start" << std::endl;
+
     auto*      timingEvent = bDoTime ? timers->interaction[iloc].nb_k.fetchNextEvent() : nullptr;
     const auto kernel =
             select_nbnxn_kernel(nbp->elecType,
@@ -567,6 +571,49 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
             kernelSumUpArgs
         );
     }
+
+    /*std::vector<float3> host_force(adat->numAtoms);
+    int stat = hipMemcpy(host_force.data(),
+                     *reinterpret_cast<float3**>(&(adat->f)),
+                     adat->numAtomsAlloc,
+                     hipMemcpyDeviceToHost);
+
+    static int index = 0;
+    std::stringstream sstream;
+    sstream << "force_" << index << ".dat";
+
+    std::ofstream force_file;
+    force_file.open(sstream.str());
+    force_file << "---------------START--------------- " << nbp->rcoulomb_sq << " , " << nbp->rlistInner_sq << " , " << nbp->rlistOuter_sq <<  std::endl;
+
+    for(unsigned int index = 0; index < adat->numAtoms; index++)
+    {
+        force_file << host_force[index].x << " ; " << host_force[index].y << " ; " << host_force[index].z << std::endl;
+    }
+    force_file.close();
+
+    std::vector<float4> host_coordinates(adat->numAtoms);
+    stat = hipMemcpy(host_coordinates.data(),
+                     *reinterpret_cast<float4**>(&(adat->xq)),
+                     adat->numAtoms * sizeof(float4),
+                     hipMemcpyDeviceToHost);
+
+    std::stringstream sstream2;
+    sstream2 << "cooridnates_" << index << ".dat";
+
+    std::ofstream coordindate_file;
+    coordindate_file.open(sstream2.str());
+    coordindate_file << "---------------------START-------------------- " << std::endl;
+
+    for(unsigned int index = 0; index < adat->numAtoms; index++)
+    {
+        coordindate_file << host_coordinates[index].x << " ; " << host_coordinates[index].y << " ; " << host_coordinates[index].z << " ; " << host_coordinates[index].w  << std::endl;
+    }
+    coordindate_file.close();
+
+    index++;*/
+
+    //std::cout << "---------------FINISHED---------------" << std::endl;
 
     if (bDoTime)
     {
@@ -707,11 +754,36 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
         configSort.blockSize[1]     = c_clSize;
         configSort.blockSize[2]     = num_threads_sort_z;
         configSort.gridSize[0]      = nblock;
-        configSort.sharedMemorySize = std::max(calc_shmem_required_prune(num_threads_sort_z) + num_threads_sort_z * c_clSize * (BITTYPES + 2) * sizeof(int), num_threads_sort_z * c_clSize * c_clSize * sizeof(unsigned char));
+        configSort.sharedMemorySize = calc_shmem_required_prune(num_threads_sort_z) + 2 * (BITTYPES + 2) * sizeof(int) + num_threads_sort_z * c_clSize * c_clSize * sizeof(int);
+
+        //std::cout << "j sort" << std::endl;
 
         const auto kernelSortArgs = prepareGpuKernelArguments(kernelSort, configSort, adat, nbp, plist, &numParts, &part);
         launchGpuKernel(kernelSort, configSort, deviceStream, timingEventSort, kernelNameSort, kernelSortArgs);
 
+        /*{
+            std::vector<float4> host_coordinates(adat->numAtoms);
+            int stat = hipMemcpy(host_coordinates.data(),
+                                 *reinterpret_cast<float4**>(&(adat->xq)),
+                                 adat->numAtoms * sizeof(float4),
+                                 hipMemcpyDeviceToHost);
+
+            static int index = 0;
+            std::stringstream sstream2;
+            sstream2 << "cooridnates_before_" << index << ".dat";
+
+            std::ofstream coordindate_file;
+            coordindate_file.open(sstream2.str(), std::ios::app);
+            coordindate_file << "---------------------START-------------------- " << std::endl;
+
+            for(unsigned int index = 0; index < adat->numAtoms; index++)
+            {
+                coordindate_file << host_coordinates[index].x << " ; " << host_coordinates[index].y << " ; " << host_coordinates[index].z << " ; " << host_coordinates[index].w  << std::endl;
+            }
+            coordindate_file.close();
+
+            index++;
+        }
         std::vector<nbnxn_sci_t> host_sci(plist->nsci);
 
         hipError_t  stat = hipMemcpy(host_sci.data(),
@@ -730,6 +802,17 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
         scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
         scifile.close();
 
+        std::vector<nbnxn_cj4_ext_t> host_cj4_sorted(plist->ncj4_sorted);
+
+        stat = hipMemcpy(host_cj4_sorted.data(),
+                         *reinterpret_cast<nbnxn_cj4_ext_t**>(&(plist->cj4_sorted)),
+                         plist->ncj4_sorted * sizeof(nbnxn_cj4_ext_t),
+                         hipMemcpyDeviceToHost);
+
+        std::ofstream countfile2;
+        countfile2.open("countfile_before.out", std::ios::app);
+        countfile2 << "---------------------START-------------------- " << std::endl;
+
         std::vector<nbnxn_cj_sort_t> host_cj_sorted(plist->ncj_sorted);
 
         stat = hipMemcpy(host_cj_sorted.data(),
@@ -738,28 +821,126 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
                          hipMemcpyDeviceToHost);
 
         std::ofstream cjsortedfile;
-        cjsortedfile.open("cjsorted_before.out", std::ios::app);
+        cjsortedfile.open("cjsorted.out", std::ios::app);
         cjsortedfile << "---------------------START-------------------- " << stat << std::endl;
         for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
         {
             for (int j4 = host_sci[index_sci].cj4_ind_start; j4 < host_sci[index_sci].cj4IndEnd(); j4++)
             {
-                for (int j = 0; j < 4; j++)
+                for( unsigned int index = 0; index < 32; index++)
                 {
-                    for (int i = 0; i < 8; i++)
-                    {
-                        cjsortedfile << static_cast<int>(host_cj_sorted[j4 * 32 + j * 8 + i].mask) << " ; ";
-                        cjsortedfile << static_cast<int>(host_cj_sorted[j4 * 32 + j * 8 + i].type) << " ; ";
-                    }
+                    cjsortedfile << static_cast<int>(host_cj_sorted[j4 * 32 + index].mask) << " ; " <<  static_cast<int>(host_cj_sorted[j4 * 32 + index].type) << " ; " <<  host_cj_sorted[j4 * 32 + index].j << " ; ";
                     cjsortedfile << std::endl;
                 }
-                cjsortedfile << std::endl;
             }
+            cjsortedfile << std::endl;
             cjsortedfile << std::endl;
         }
         cjsortedfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
         cjsortedfile.close();
+
+        std::ofstream cj4sortedfile;
+        cj4sortedfile.open("cj4sorted_before.out", std::ios::app);
+        cj4sortedfile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            unsigned int count = 0;
+            for (int j4 = host_sci[index_sci].cj4_ind_start; j4 < host_sci[index_sci].cj4IndEnd(); j4++)
+            {
+                cj4sortedfile << host_cj4_sorted[j4].cj[0] << " ; " << host_cj4_sorted[j4].cj[1] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[2] << " ; " << host_cj4_sorted[j4].cj[3] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[4] << " ; " << host_cj4_sorted[j4].cj[5] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[6] << " ; " << host_cj4_sorted[j4].cj[7] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].cj[8] << " ; " << host_cj4_sorted[j4].cj[9] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[10] << " ; " << host_cj4_sorted[j4].cj[11] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[12] << " ; " << host_cj4_sorted[j4].cj[13] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[14] << " ; " << host_cj4_sorted[j4].cj[15] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].cj[16] << " ; " << host_cj4_sorted[j4].cj[17] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[18] << " ; " << host_cj4_sorted[j4].cj[19] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[20] << " ; " << host_cj4_sorted[j4].cj[21] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[22] << " ; " << host_cj4_sorted[j4].cj[23] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].cj[24] << " ; " << host_cj4_sorted[j4].cj[25] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[26] << " ; " << host_cj4_sorted[j4].cj[27] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[28] << " ; " << host_cj4_sorted[j4].cj[29] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].cj[30] << " ; " << host_cj4_sorted[j4].cj[31] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].imask[0] << " ; " << host_cj4_sorted[j4].imask[1] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[2] << " ; " << host_cj4_sorted[j4].imask[3] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[4] << " ; " << host_cj4_sorted[j4].imask[5] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[6] << " ; " << host_cj4_sorted[j4].imask[7] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].imask[8] << " ; " << host_cj4_sorted[j4].imask[9] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[10] << " ; " << host_cj4_sorted[j4].imask[11] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[12] << " ; " << host_cj4_sorted[j4].imask[13] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[14] << " ; " << host_cj4_sorted[j4].imask[15] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].imask[16] << " ; " << host_cj4_sorted[j4].imask[17] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[18] << " ; " << host_cj4_sorted[j4].imask[19] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[20] << " ; " << host_cj4_sorted[j4].imask[21] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[22] << " ; " << host_cj4_sorted[j4].imask[23] << " ; ";
+                cj4sortedfile << std::endl;
+
+                cj4sortedfile << host_cj4_sorted[j4].imask[24] << " ; " << host_cj4_sorted[j4].imask[25] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[26] << " ; " << host_cj4_sorted[j4].imask[27] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[28] << " ; " << host_cj4_sorted[j4].imask[29] << " ; ";
+                cj4sortedfile << host_cj4_sorted[j4].imask[30] << " ; " << host_cj4_sorted[j4].imask[31] << " ; ";
+                cj4sortedfile << std::endl;
+
+                //cj4sortedfile << host_cj4_sorted[j4].indices[0].cj[1] << " ; " << host_cj4_sorted[j4].indices[1].cj[1] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[2].cj[1] << " ; " << host_cj4_sorted[j4].indices[3].cj[1] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[4].cj[1] << " ; " << host_cj4_sorted[j4].indices[5].cj[1] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[6].cj[1] << " ; " << host_cj4_sorted[j4].indices[7].cj[1] << " ; ";
+                //cj4sortedfile << std::endl;
+
+                //cj4sortedfile << host_cj4_sorted[j4].indices[0].cj[2] << " ; " << host_cj4_sorted[j4].indices[1].cj[2] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[2].cj[2] << " ; " << host_cj4_sorted[j4].indices[3].cj[2] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[4].cj[2] << " ; " << host_cj4_sorted[j4].indices[5].cj[2] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[6].cj[2] << " ; " << host_cj4_sorted[j4].indices[7].cj[2] << " ; ";
+                //cj4sortedfile << std::endl;
+
+                //cj4sortedfile << host_cj4_sorted[j4].indices[0].cj[3] << " ; " << host_cj4_sorted[j4].indices[1].cj[3] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[2].cj[3] << " ; " << host_cj4_sorted[j4].indices[3].cj[3] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[4].cj[3] << " ; " << host_cj4_sorted[j4].indices[5].cj[3] << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[6].cj[3] << " ; " << host_cj4_sorted[j4].indices[7].cj[3] << " ; ";
+                //cj4sortedfile << std::endl;
+
+                //cj4sortedfile << host_cj4_sorted[j4].imei[0].imask << " ; " <<  host_cj4_sorted[j4].imei[1].imask << " ; ";
+                //cj4sortedfile << __builtin_popcount(host_cj4_sorted[j4].imei[0].imask & host_cj4_sorted[j4].imei[1].imask) << " ; " << __builtin_popcount(host_cj4_sorted[j4].imei[0].imask | host_cj4_sorted[j4].imei[1].imask) << " ; ";
+                //cj4sortedfile << std::endl;
+
+                //count += __builtin_popcount(host_cj4_sorted[j4].imei[0].imask | host_cj4_sorted[j4].imei[1].imask);
+
+                cj4sortedfile << host_cj4_sorted[j4].imei[0].imask << " ; ";
+                cj4sortedfile << __builtin_popcount(host_cj4_sorted[j4].imei[0].imask) << " ; ";
+                cj4sortedfile << std::endl;
+
+                count += __builtin_popcount(host_cj4_sorted[j4].imei[0].imask);
+
+                //cj4sortedfile << host_cj4_sorted[j4].indices[0].excl_ind << " ; " << host_cj4_sorted[j4].indices[1].excl_ind << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[2].excl_ind << " ; " << host_cj4_sorted[j4].indices[3].excl_ind << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[4].excl_ind << " ; " << host_cj4_sorted[j4].indices[5].excl_ind << " ; ";
+                //cj4sortedfile << host_cj4_sorted[j4].indices[6].excl_ind << " ; " << host_cj4_sorted[j4].indices[7].excl_ind << " ; ";
+                //cj4sortedfile << std::endl;
+            }
+            cj4sortedfile << std::endl;
+
+            countfile2 << index_sci << " , " << count << std::endl;
+        }
+        cj4sortedfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cj4sortedfile.close();
+        countfile2.close();*/
     }
+
+    //std::cout << "Prune kernel" << std::endl;
 
     auto*          timingEvent  = bDoTime ? timer->fetchNextEvent() : nullptr;
     constexpr char kernelName[] = "k_pruneonly";

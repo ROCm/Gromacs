@@ -287,6 +287,19 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float2* ljcpib = reinterpret_cast<float2*>(sm_nextSlotPtr);
     sm_nextSlotPtr += (c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(*ljcpib));
 #    endif
+
+    /*int* j_new_arr = reinterpret_cast<int*>(sm_nextSlotPtr);
+    sm_nextSlotPtr += (c_nbnxnGpuJgroupSize * c_clSize * sizeof(int));
+
+    int* cj_arr = reinterpret_cast<int*>(sm_nextSlotPtr);
+    sm_nextSlotPtr += (c_nbnxnGpuJgroupSize * c_clSize * sizeof(int));
+
+    int* imask_v_arr = reinterpret_cast<int*>(sm_nextSlotPtr);
+    sm_nextSlotPtr += (c_nbnxnGpuJgroupSize * c_clSize * sizeof(int));
+
+    int* wexcl_idx_arr = reinterpret_cast<int*>(sm_nextSlotPtr);
+    sm_nextSlotPtr += (c_nbnxnGpuJgroupSize * c_clSize * sizeof(int));*/
+
     /*********************************************************************/
 
     nb_sci     = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
@@ -406,7 +419,27 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             continue;
         }
 #    endif
-        imask_v  = pl_cj4[j4].imask[gidxj];
+
+        //if((cij4_start + nb_sci.cj4_length_poped) <= j4 && imask > 0u && tidx == 0)
+        //    printf("%u %d %d %d %d %d %d\n", imask, sci, bidx, j4, cij4_start + nb_sci.cj4_length_poped, cij4_end, tidx);
+
+        /*if(tidxz == 0 && tidxi == 0)
+        {
+#           pragma unroll
+            for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
+            {
+                int sm_index = jm * c_clSize + tidxj;
+                int j_new = pl_cj4[j4].j[jm * c_clSize + gidxj];
+
+                imask_v_arr[sm_index]   = pl_cj4[j4].imask[jm * c_clSize + gidxj];
+                wexcl_idx_arr[sm_index] = pl_cj4[j4].excl_ind[jm * c_clSize + gidxj];
+                j_new_arr[sm_index]     = j_new;
+                cj_arr[sm_index]        = pl_cj4[j4].cj[jm * c_clSize + gidxj];
+            }
+        }
+        __syncthreads();*/
+
+
 
 #       pragma unroll
         for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
@@ -419,18 +452,20 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
             mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-            int sm_index   = jm * c_clSize + tidxj;
-
             int j_new      = pl_cj4[j4].j[jm * c_clSize + gidxj];
+            //int j_new      = j_new_arr[jm * c_clSize + tidxj];
             int tidxj_orig = j_new & (c_subGroupN - 1);
             int tidx_orig  = tidxi + c_clSize * tidxj_orig;
             int jm_orig    = (j_new & (c_subGroupJ4Size - 1)) / c_subGroupN;
 
+            imask_v   = pl_cj4[j4].imask[jm * c_clSize + gidxj];
             wexcl_idx = pl_cj4[j4].excl_ind[jm * c_clSize + gidxj];
             cj        = pl_cj4[j4].cj[jm * c_clSize + gidxj];
+            //cj        = cj_arr[jm * c_clSize + tidxj];
             aj        = cj * c_clSize + tidxj_orig;
 
             wexcl = excl[wexcl_idx].pair[tidx_orig & (c_subWarp - 1)];
+            //wexcl = excl[wexcl_idx_arr[jm * c_clSize + tidxj]].pair[tidx_orig & (c_subWarp - 1)];
 
 #    ifdef EXCLUSION_FORCES
             const int nonSelfInteraction = !(nb_sci.shift == gmx::c_centralShiftIndex & tidxj_orig <= tidxi);
@@ -450,7 +485,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
-                if (imask & mask_ji  & imask_v )
+                if( (imask & mask_ji) && (mask_ji & imask_v) )
                 {
                     ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i; /* i cluster index */
 
@@ -648,6 +683,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             float r = reduce_force_j_warp_shfl(fcj_buf, tidxi);
             if (tidxi < 3)
             {
+                /*if( aj == 17 )
+                    printf("aj %d %d %d %f %u %u\n", aj, tidxi, tidxj, r, imask, imask_v_arr[jm * c_clSize + tidxj]);*/
                 atomic_add_force(f, aj, tidxi, r);
             }
         }
@@ -671,6 +708,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
+        /*ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxj;
+        if( ai == 17 )
+            printf("ai first %d %d %d %d %f %f %f\n", ai, sci, tidxi, tidxj, fci_buf[i].x, fci_buf[i].y, fci_buf[i].z );*/
+
         fci[i] = reduce_force_i_warp_shfl(fci_buf[i], tidxi, tidxj);
         fshift_buf += fci[i];
     }
@@ -679,6 +720,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
         {
             ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxj;
+            /*if( ai == 17 )
+                printf("ai first %d %d %d %f\n", ai, tidxi, tidxj, fci[i]);*/
             atomic_add_force(f, ai, tidxi, fci[i]);
         }
     }

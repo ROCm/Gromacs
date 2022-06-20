@@ -230,16 +230,17 @@ typedef struct
     //! Original index into the exclusion array for 1 warp, default index 0 which means no exclusions
     int excl_ind[c_subGroupN * c_nbnxnGpuJgroupSize];
     //! The original i-cluster interactions mask for 1 warp
-    unsigned int imask[c_subGroupN];
+    unsigned int imask[c_subGroupN * c_nbnxnGpuJgroupSize];
     //! The i-cluster mask data for 2 warps
     nbnxn_im_ei_ext_t imei[c_nbnxnGpuClusterpairSplit];
 } nbnxn_cj4_ext_t;
 
-#define BITTYPES 15
+#define BITTYPES 256
 
 typedef struct
 {
     int j;
+    unsigned int imask;
     unsigned char mask;
     unsigned char type;
 } nbnxn_cj_sort_t;

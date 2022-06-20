@@ -486,8 +486,8 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
 
     return FALSE;
 
-#elif GMX_SIMD_REAL_WIDTH == 8
-/*&& c_nbnxnGpuClusterSize ==8*/
+/*#elif GMX_SIMD_REAL_WIDTH == 8
+//&& c_nbnxnGpuClusterSize ==8
 
     SimdReal rc2_S = SimdReal(rlist2);
 
@@ -498,9 +498,9 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
     SimdReal iy_S0      = load<SimdReal>(x_i + si * dim_stride + 1 * GMX_SIMD_REAL_WIDTH);
     SimdReal iz_S0      = load<SimdReal>(x_i + si * dim_stride + 2 * GMX_SIMD_REAL_WIDTH);
 
-    /* We loop from the outer to the inner particles to maximize
-     * the chance that we find a pair in range quickly and return.
-     */
+    // We loop from the outer to the inner particles to maximize
+    // the chance that we find a pair in range quickly and return.
+
     int j0 = csj * c_nbnxnGpuClusterSize;
     int j1 = j0 + c_nbnxnGpuClusterSize - 1;
     while (j0 < j1)
@@ -526,7 +526,7 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
         jy1_S = SimdReal(x_j[j1 * stride + 1]);
         jz1_S = SimdReal(x_j[j1 * stride + 2]);
 
-        /* Calculate distance */
+        // Calculate distance
         dx_S0 = ix_S0 - jx0_S;
         dy_S0 = iy_S0 - jy0_S;
         dz_S0 = iz_S0 - jz0_S;
@@ -534,7 +534,7 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
         dy_S1 = iy_S0 - jy1_S;
         dz_S1 = iz_S0 - jz1_S;
 
-        /* rsq = dx*dx+dy*dy+dz*dz */
+        // rsq = dx*dx+dy*dy+dz*dz
         rsq_S0 = norm2(dx_S0, dy_S0, dz_S0);
         rsq_S1 = norm2(dx_S1, dy_S1, dz_S1);
 
@@ -553,7 +553,7 @@ clusterpair_in_range(const NbnxnPairlistGpuWork& work, int si, int csj, int stri
     }
 
 return FALSE;
-
+*/
 #else /* !GMX_SIMD4_HAVE_REAL */
 
     /* 4-wide SIMD version.

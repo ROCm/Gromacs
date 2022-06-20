@@ -170,7 +170,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
     /*********************************************************************/
 
 
-    nbnxn_sci_t nb_sci =
+    const nbnxn_sci_t nb_sci =
             pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
     int sci        = nb_sci.sci;           /* super-cluster */
     int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
@@ -238,14 +238,15 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
 #    pragma unroll
             for (int jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
+                unsigned int imask_v   = pl_cj4[j4].imask[jm * c_subGroupN + gidxj];
                 if (imaskCheck & (superClInteractionMask << (jm * c_nbnxnGpuNumClusterPerSupercluster)))
                 {
                     unsigned int mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    int j_new      = pl_cj4[j4].j[jm * c_clSize + gidxj];
+                    int j_new      = pl_cj4[j4].j[jm * c_subGroupN + gidxj];
                     int tidxj_orig = j_new & (c_subGroupN - 1);
 
-                    int cj      = pl_cj4[j4].cj[jm * c_clSize + gidxj];
+                    int cj      = pl_cj4[j4].cj[jm * c_subGroupN + gidxj];
                     int aj      = cj * c_clSize + tidxj_orig;
 
                     /* load j atom data */
@@ -268,15 +269,22 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                             /* If _none_ of the atoms pairs are in rlistOuter
                                range, the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            if (haveFreshList && !__nb_any(r2 < rlistOuter_sq, widx))
+                            if (haveFreshList && !__nb_any( (r2 < rlistOuter_sq) /*&& (imask_v & mask_ji)*/, widx))
                             {
                                 imaskFull &= ~mask_ji;
                             }
                             /* If any atom pair is within range, set the bit
                                corresponding to the current cluster-pair. */
-                            if (__nb_any(r2 < rlistInner_sq, widx))
+                            if (__nb_any( (r2 < rlistInner_sq) && (imask_v & mask_ji), widx ) )
                             {
                                 imaskNew |= mask_ji;
+
+
+                                /*int ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
+                                if( ( (imask_v & mask_ji) == 0 ) && r2 < rlistInner_sq )
+                                    printf("ai exception %d %d %d %d %d %d imask %u %u radius %f %f %f %f %f %f %f\n", ai, aj, sci, j4, tidxi, tidxj, imask_v, mask_ji, r2, xi.x, xi.y, xi.z, xj.x, xj.y, xj.z);
+                                /*if( ai == 17 )
+                                    printf("ai prune %d %d %d %d %d %f\n", ai, aj, sci, tidxi, tidxj, r2 );*/
                             }
                         }
 
@@ -294,34 +302,35 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                 #ifndef __gfx1030__
                     count += __popc(imaskNew);
                 #else
-                    count += __popc(imaskNew) + __popc(__shfl_up(imaskNew, 31, warpSize));
+                    count += __popc(imaskNew) + __popc(__shfl_up(count, 31, warpSize));
                 #endif
             }
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4_sorted[j4].imei[widx].imask = imaskNew;
-
-            if(imaskNew && cij4_last_valid < j4)
-                cij4_last_valid = j4;
         }
+
+        if(imaskNew && cij4_last_valid < j4)
+            cij4_last_valid = j4;
+
         // avoid shared memory WAR hazards between loop iterations
         __builtin_amdgcn_wave_barrier();
     }
 
-    int cij4_last_valid_temp = warp_move_dpp<int, 0x143>(cij4_last_valid);
-    cij4_last_valid = cij4_last_valid_temp > cij4_last_valid ? cij4_last_valid_temp : cij4_last_valid;
+    //int cij4_last_valid_temp = warp_move_dpp<int, 0x143>(cij4_last_valid);
+    //cij4_last_valid = cij4_last_valid_temp > cij4_last_valid ? cij4_last_valid_temp : cij4_last_valid;
     if ( tidx == 63 )
     {
         __syncthreads();
 
         char* sm_reuse = sm_dynamicShmem;
-        int* cij4_sm  =reinterpret_cast<int*>(sm_reuse);
-        cij4_sm[tidxz]  = cij4_last_valid;
+        int* cij4_sm = reinterpret_cast<int*>(sm_reuse);
+        cij4_sm[tidxz] = cij4_last_valid;
 
         __syncthreads();
 
-        if(tidxz == 0 && widx == 0)
+        if(tidxz == 0)
         {
-            for( unsigned int index_z = 1; index_z < NTHREAD_Z; index_z++ )
+            for( unsigned int index_z = 1; index_z < threadsZ; index_z++ )
             {
                 if( cij4_last_valid < cij4_sm[index_z] )
                     cij4_last_valid = cij4_sm[index_z];
