@@ -228,14 +228,9 @@ void nbnxn_kernel_bucket_sci_sort(
     const unsigned int block_id     = blockIdx.x;
     const unsigned int block_offset = blockIdx.x * BlockSize * ItemsPerThread;
 
-    /*const nbnxn_sci_t* pl_sci = haveFreshList ? plist.sci : plist.sci_sorted;
-    nbnxn_sci_t* pl_sci_sort  = haveFreshList ? plist.sci_sorted : plist.sci;
-    const int* pl_sci_count   = haveFreshList ? plist.sci_count : plist.sci_count_sorted;
-    int* pl_sci_count_sorted  = haveFreshList ? plist.sci_count_sorted : plist.sci_count;*/
     const nbnxn_sci_t* pl_sci = plist.sci;
     nbnxn_sci_t* pl_sci_sort  = plist.sci_sorted;
     const int* pl_sci_count   = plist.sci_count;
-    int* pl_sci_count_sorted  = plist.sci_count_sorted;
 
     int* pl_sci_offset        = plist.sci_offset;
 
@@ -266,7 +261,6 @@ void nbnxn_kernel_bucket_sci_sort(
         if( size > (block_offset + ItemsPerThread * flat_id + i) )
         {
             pl_sci_sort[sci_offset[i]] = sci[i];
-            pl_sci_count_sorted[sci_offset[i]] = sci_count[i];
         }
     }
 }

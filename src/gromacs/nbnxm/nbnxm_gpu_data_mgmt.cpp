@@ -212,12 +212,10 @@ static inline void init_plist(gpu_plist* pl)
     /* initialize to nullptr pointers to data that is not allocated here and will
        need reallocation in nbnxn_gpu_init_pairlist */
     pl->sci                 = nullptr;
-    pl->histogram_temporary = nullptr;
     pl->scan_temporary      = nullptr;
     pl->sci_histogram       = nullptr;
     pl->sci_offset          = nullptr;
     pl->sci_count           = nullptr;
-    pl->sci_count_sorted    = nullptr;
     pl->sci_sorted          = nullptr;
     pl->cj4                 = nullptr;
     pl->imask               = nullptr;
@@ -227,18 +225,14 @@ static inline void init_plist(gpu_plist* pl)
     pl->na_c                       = -1;
     pl->nsci                       = -1;
     pl->sci_nalloc                 = -1;
-    pl->nhistogram_temporary       = -1;
-    pl->histogram_temporary_nalloc = -1;
     pl->nscan_temporary            = -1;
     pl->scan_temporary_nalloc      = -1;
     pl->nsci_histogram             = -1;
     pl->sci_histogram_nalloc       = -1;
     pl->nsci_offset                = -1;
     pl->sci_offset_nalloc          = -1;
-    pl->nsci_counted               = -1;
-    pl->sci_counted_nalloc         = -1;
-    pl->nsci_count_sorted          = -1;
-    pl->sci_count_sorted_nalloc    = -1;
+    pl->nsci_count                 = -1;
+    pl->sci_count_nalloc           = -1;
     pl->nsci_sorted                = -1;
     pl->sci_sorted_nalloc          = -1;
     pl->ncj4                       = -1;
@@ -606,33 +600,13 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
                        bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
 
     reallocateDeviceBuffer(
-           &d_plist->sci_count, h_plist->sci.size(), &d_plist->nsci_counted, &d_plist->sci_counted_nalloc, deviceContext);
-
-
-    reallocateDeviceBuffer(
-           &d_plist->sci_count_sorted, h_plist->sci.size(), &d_plist->nsci_count_sorted, &d_plist->sci_count_sorted_nalloc, deviceContext);
-
-    clearDeviceBufferAsync(&d_plist->sci_count_sorted, 0, h_plist->sci.size(), deviceStream);
+           &d_plist->sci_count, h_plist->sci.size(), &d_plist->nsci_count, &d_plist->sci_count_nalloc, deviceContext);
 
     reallocateDeviceBuffer(
                 &d_plist->sci_histogram, c_sciHistogramSize + 1, &d_plist->nsci_histogram, &d_plist->sci_histogram_nalloc, deviceContext);
 
     reallocateDeviceBuffer(
                 &d_plist->sci_offset, c_sciHistogramSize, &d_plist->nsci_offset, &d_plist->sci_offset_nalloc, deviceContext);
-
-    size_t histogram_temporary_size = 0;
-
-    rocprim::histogram_even(
-        nullptr, histogram_temporary_size,
-        *reinterpret_cast<int**>(&d_plist->sci_count_sorted),
-        static_cast<unsigned int>(h_plist->sci.size()),
-        *reinterpret_cast<int**>(&d_plist->sci_histogram),
-        c_sciHistogramSize + 1, 0, c_sciHistogramSize,
-        deviceStream.stream()
-    );
-
-    reallocateDeviceBuffer(
-           &d_plist->histogram_temporary, (int)histogram_temporary_size, &d_plist->nhistogram_temporary, &d_plist->histogram_temporary_nalloc, deviceContext);
 
     size_t scan_temporary_size = 0;
 
@@ -1263,12 +1237,10 @@ void gpu_free(NbnxmGpu* nb)
     /* Free plist */
     auto* plist = nb->plist[InteractionLocality::Local];
     freeDeviceBuffer(&plist->sci);
-    freeDeviceBuffer(&plist->histogram_temporary);
     freeDeviceBuffer(&plist->scan_temporary);
     freeDeviceBuffer(&plist->sci_histogram);
     freeDeviceBuffer(&plist->sci_offset);
     freeDeviceBuffer(&plist->sci_count);
-    freeDeviceBuffer(&plist->sci_count_sorted);
     freeDeviceBuffer(&plist->sci_sorted);
     freeDeviceBuffer(&plist->cj4);
     freeDeviceBuffer(&plist->imask);
@@ -1278,12 +1250,10 @@ void gpu_free(NbnxmGpu* nb)
     {
         auto* plist_nl = nb->plist[InteractionLocality::NonLocal];
         freeDeviceBuffer(&plist_nl->sci);
-        freeDeviceBuffer(&plist_nl->histogram_temporary);
         freeDeviceBuffer(&plist_nl->scan_temporary);
         freeDeviceBuffer(&plist_nl->sci_histogram);
         freeDeviceBuffer(&plist_nl->sci_offset);
         freeDeviceBuffer(&plist_nl->sci_count);
-        freeDeviceBuffer(&plist_nl->sci_count_sorted);
         freeDeviceBuffer(&plist_nl->sci_sorted);
         freeDeviceBuffer(&plist_nl->cj4);
         freeDeviceBuffer(&plist_nl->imask);
