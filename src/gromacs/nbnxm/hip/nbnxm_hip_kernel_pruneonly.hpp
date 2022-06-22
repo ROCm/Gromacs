@@ -271,7 +271,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                 plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
 
                 #ifndef __gfx1030__
-                    count += __popc(imaskNew | warp_move_dpp<int, 0x143>(imaskNew));
+                    count += __popc(imaskNew);
                 #else
                     count += __popc(imaskNew) + __popc(__shfl_up(imaskNew, 31, warpSize));
                 #endif
@@ -285,7 +285,6 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
     }
 
     if (haveFreshList && tidx == 63)
-    //if (tidx == 63)
     {
         if (threadsZ > 1)
         {
@@ -304,15 +303,13 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
         if(tidxz == 0)
         {
             int index = max(c_sciHistogramSize - (int)count - 1, 0);
-            if(haveFreshList)
-            {
-                int* pl_sci_histogram = plist.sci_histogram;
-                atomicAdd(pl_sci_histogram + index, 1);
-            }
-            int* pl_sci_count  =  haveFreshList ? plist.sci_count : plist.sci_count_sorted;
+            int* pl_sci_histogram = plist.sci_histogram;
+            atomicAdd(pl_sci_histogram + index, 1);
+            int* pl_sci_count  =  plist.sci_count;
             pl_sci_count[bidx * numParts + part] = index;
         }
     }
+
 }
 #endif /* FUNCTION_DECLARATION_ONLY */
 
