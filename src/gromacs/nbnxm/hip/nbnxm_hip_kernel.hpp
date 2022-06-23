@@ -395,7 +395,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         imask     = pl_cj4[j4].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
         // so imask is stored in a vector register, making it scalar simplifies the code.
-        imask     = c_subWarp == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
+        imask     = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 #    ifndef PRUNE_NBL
         if (!imask)
         {
@@ -403,6 +403,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         }
 #    endif
         wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
+        // "Scalarize" wexcl_idx when possible, gives a slight performance increase for Mi2** GPUs
+        wexcl_idx = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(wexcl_idx) : wexcl_idx;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 
 #       pragma unroll
