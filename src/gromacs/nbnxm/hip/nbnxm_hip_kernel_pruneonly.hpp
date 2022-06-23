@@ -85,8 +85,16 @@
  */
 #define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize)
+
+// MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
+// we can use twice as many registers as on MI100 and earlier devices without spilling.
+// Also it looks like spilling to global memory causes segfaults for some versions of the kernel.
+#if defined(__gfx90a__)
+#define MIN_BLOCKS_PER_MP 1
+#else
 // we want 100% occupancy, so max threads/block
 #define MIN_BLOCKS_PER_MP 8
+#endif
 /**@}*/
 
 /*! \brief Nonbonded list pruning kernel.
@@ -179,8 +187,12 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
 
         /* We don't need q, but using float4 in shmem avoids bank conflicts.
            (but it also wastes L2 bandwidth). */
-        float4 tmp                    = xq[ai];
-        float4 xi                     = tmp + shift_vec[nb_sci.shift];
+        const float4 tmp              = xq[ai];
+        const float3 shift            = shift_vec[nb_sci.shift];
+        float4 xi;
+        xi.x = -(tmp.x + shift.x);
+        xi.y = -(tmp.y + shift.y);
+        xi.z = -(tmp.z + shift.z);
         xib[tidxj * c_clSize + tidxi] = xi;
     }
     __syncthreads();
@@ -196,7 +208,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
         unsigned int imask = pl_cj4[j4].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
         // so imask is stored in a vector register, making it scalar simplifies the code.
-        imask     = __builtin_amdgcn_readfirstlane(imask);
+        imask = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 
         if (haveFreshList)
         {
@@ -210,6 +222,9 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
         {
             /* Read the mask from the "warp-pruned" by rlistOuter mask array */
             imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
+            // "Scalarize" imaskFull when possible, the compiler always generates vector load here
+            // so imaskFull is stored in a vector register, making it scalar simplifies the code.
+            imaskFull = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imaskFull) : imaskFull;
             /* Read the old rolling pruned mask, use as a base for new */
             imaskNew = imask;
             /* We only need to check pairs with different mask */
@@ -230,7 +245,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
 
                     /* load j atom data */
                     float4 tmp = xq[aj];
-                    float3 xj  = make_float3(tmp.x, tmp.y, tmp.z);
+                    fast_float3 xj  = make_fast_float3(tmp);
 
 #    pragma unroll
                     for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
@@ -238,10 +253,11 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                         if (imaskCheck & mask_ji)
                         {
                             /* load i-cluster coordinates from shmem */
-                            float4 xi = xib[i * c_clSize + tidxi];
+                            float4 tmp2    = xib[i * c_clSize + tidxi];
+                            fast_float3 xi = make_fast_float3(tmp2);
 
                             /* distance between i and j atoms */
-                            float3 rv = make_float3(xi.x, xi.y, xi.z) - xj;
+                            fast_float3 rv = xi + xj;
                             float  r2 = norm2(rv);
 
                             /* If _none_ of the atoms pairs are in rlistOuter
