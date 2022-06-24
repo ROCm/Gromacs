@@ -48,6 +48,7 @@
 #include "gromacs/math/math_constants.h"
 #include "gromacs/gpu_utils/hip_arch_utils.hpp"
 #include "gromacs/gpu_utils/hip_kernel_utils.hpp"
+#include "gromacs/gpu_utils/vectype_ops.hpp"
 
 #include "pme.hpp"
 
@@ -178,19 +179,19 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
         /* We should skip the k-space point (0,0,0) */
         const bool notZeroPoint = (kMinor > 0) | (kMajor > 0) | (kMiddle > 0);
 
-        float mX, mY, mZ;
+        fast_float3 mm;
         switch (gridOrdering)
         {
             case GridOrdering::YZX:
-                mX = mMinor;
-                mY = mMajor;
-                mZ = mMiddle;
+                mm.x = mMinor;
+                mm.y = mMajor;
+                mm.z = mMiddle;
                 break;
 
             case GridOrdering::XYZ:
-                mX = mMajor;
-                mY = mMiddle;
-                mZ = mMinor;
+                mm.x = mMajor;
+                mm.y = mMiddle;
+                mm.z = mMinor;
                 break;
 
             default: assert(false);
@@ -217,31 +218,42 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
             default: assert(false);
         }
 
+        // TODO: use textures for gm_splineValue
+        float vMajor  = LDG(gm_splineValueMajor + kMajor);
+        float vMiddle = LDG(gm_splineValueMiddle + kMiddle);
+        float vMinor  = LDG(gm_splineValueMinor + kMinor);
+
         if (notZeroPoint)
         {
-            const float mhxk = mX * kernelParams.current.recipBox[XX][XX];
-            const float mhyk = mX * kernelParams.current.recipBox[XX][YY]
-                               + mY * kernelParams.current.recipBox[YY][YY];
-            const float mhzk = mX * kernelParams.current.recipBox[XX][ZZ]
-                               + mY * kernelParams.current.recipBox[YY][ZZ]
-                               + mZ * kernelParams.current.recipBox[ZZ][ZZ];
+            fast_float3 mhk, recip1, recip2, recip3;
+            recip1.x = kernelParams.current.recipBox[XX][XX];
+            recip1.y = kernelParams.current.recipBox[XX][YY];
+            recip1.z = kernelParams.current.recipBox[XX][ZZ];
+            recip2.x = 0.0f;
+            recip2.y = kernelParams.current.recipBox[YY][YY];
+            recip2.z = kernelParams.current.recipBox[YY][ZZ];
+            recip3.x = 0.0f;
+            recip3.y = 0.0f;
+            recip3.z = kernelParams.current.recipBox[ZZ][ZZ];
+            fast_float3 a = mm.x * recip1;
+            fast_float3 b = mm.y * recip2;
+            fast_float3 c = mm.z * recip3;
+            mhk = a + b + c;
 
-            const float m2k = mhxk * mhxk + mhyk * mhyk + mhzk * mhzk;
+            const float m2k = norm2(mhk);
             assert(m2k != 0.0F);
-            // TODO: use LDG/textures for gm_splineValue
+
             float denom = m2k * float(HIPRT_PI_F) * kernelParams.current.boxVolume
-                          * gm_splineValueMajor[kMajor] * gm_splineValueMiddle[kMiddle]
-                          * gm_splineValueMinor[kMinor];
+                          * vMajor * vMiddle * vMinor;
             assert(isfinite(denom));
             assert(denom != 0.0F);
 
             const float tmp1   = __expf(-kernelParams.grid.ewaldFactor * m2k);
             const float etermk = kernelParams.constants.elFactor * tmp1 / denom;
 
-            float2       gridValue    = *gm_gridCell;
+            float2 gridValue = *gm_gridCell;
             const float2 oldGridValue = gridValue;
-            gridValue.x *= etermk;
-            gridValue.y *= etermk;
+            gridValue = gridValue * etermk;
             *gm_gridCell = gridValue;
 
             if (computeEnergyAndVirial)
@@ -255,12 +267,12 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
 
                 float ets2vf = ets2 * vfactor;
 
-                virxx = ets2vf * mhxk * mhxk - ets2;
-                virxy = ets2vf * mhxk * mhyk;
-                virxz = ets2vf * mhxk * mhzk;
-                viryy = ets2vf * mhyk * mhyk - ets2;
-                viryz = ets2vf * mhyk * mhzk;
-                virzz = ets2vf * mhzk * mhzk - ets2;
+                virxx = ets2vf * mhk.x * mhk.x - ets2;
+                virxy = ets2vf * mhk.x * mhk.y;
+                virxz = ets2vf * mhk.x * mhk.z;
+                viryy = ets2vf * mhk.y * mhk.y - ets2;
+                viryz = ets2vf * mhk.y * mhk.z;
+                virzz = ets2vf * mhk.z * mhk.z - ets2;
             }
         }
     }
