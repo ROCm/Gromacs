@@ -1188,8 +1188,8 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
      * Only if a j-group contains a single cluster-pair, we try to prune
      * that pair based on atom distances on the CPU to avoid empty j-groups.
      */
-#define PRUNE_LIST_CPU_ONE 0
-#define PRUNE_LIST_CPU_ALL 1
+#define PRUNE_LIST_CPU_ONE 1
+#define PRUNE_LIST_CPU_ALL 0
 
 #if PRUNE_LIST_CPU_ONE
     int ci_last = -1;
