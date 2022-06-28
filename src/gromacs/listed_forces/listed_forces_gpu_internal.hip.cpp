@@ -145,7 +145,17 @@ __device__ __forceinline__ void storeForce(float3 gm_f[], int i, float3 f)
         f = hipHeadSegmentedSum(f, head);
         if (head)
         {
-            atomicAdd(&gm_f[i], f);
+            // Reduce the number of conflicts that left after combining consecutive forces
+            // by a factor of 3: different lanes write x, y and z in a different order
+            int3 j = make_int3(0, 1, 2);
+            f = (threadIdx.x % 3 == 0) ? make_float3(f.y, f.z, f.x) : f;
+            j = (threadIdx.x % 3 == 0) ? make_int3(j.y, j.z, j.x) : j;
+            f = (threadIdx.x % 3 <= 1) ? make_float3(f.y, f.z, f.x) : f;
+            j = (threadIdx.x % 3 <= 1) ? make_int3(j.y, j.z, j.x) : j;
+
+            atomicAdd(&gm_f[i].x + j.x, f.x);
+            atomicAdd(&gm_f[i].x + j.y, f.y);
+            atomicAdd(&gm_f[i].x + j.z, f.z);
         }
     }
     else
