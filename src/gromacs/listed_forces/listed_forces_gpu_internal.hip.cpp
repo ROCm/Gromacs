@@ -862,7 +862,6 @@ namespace gmx
 {
 
 template<bool calcVir, bool calcEner>
-__launch_bounds__(64, 2)
 __global__ void exec_kernel_gpu(
                  //! Periodic boundary data
                  PbcAiuc pbcAiuc,
@@ -909,17 +908,18 @@ __global__ void exec_kernel_gpu(
         __syncthreads();
     }
 
-    int  fType;
     int  fType_shared_index = -1;
 #pragma unroll
     for (int j = 0; j < numFTypesOnGpu; j++)
     {
-        if (tid >= fTypeRangeStart[j] && tid <= fTypeRangeEnd[j])
+        const int      numBonds = numFTypeBonds[j];
+        const int      fTypeTid = tid - fTypeRangeStart[j];
+        const t_iatom* iatoms   = d_iatoms[j];
+        const int      fType    = fTypesOnGpu[j];
+        const int      start    = fTypeRangeStart[j];
+        const int      end      = fTypeRangeEnd[j];
+        if (tid >= start && tid <= end)
         {
-            const int      numBonds = numFTypeBonds[j];
-            int            fTypeTid = tid - fTypeRangeStart[j];
-            const t_iatom* iatoms   = d_iatoms[j];
-            fType                   = fTypesOnGpu[j];
             fType_shared_index      = j;
 
             switch (fType)
@@ -1014,6 +1014,7 @@ __global__ void exec_kernel_gpu(
 	#pragma unroll
         for (int j = 0; j < numFTypesOnGpu; j++)
         {
+            int fType = fTypesOnGpu[j];
             if (__any(j == fType_shared_index))
             {
                 float vtot_shuffle = j == fType_shared_index ? vtot_loc : 0.0f;
@@ -1024,7 +1025,6 @@ __global__ void exec_kernel_gpu(
                 }
                 if((threadIdx.x & (warpSize - 1)) == 0)
                 {
-                    fType = fTypesOnGpu[j];
                     hipGlobalAtomicAdd((d_vTot + fType), vtot_shuffle);
                 }
             }
