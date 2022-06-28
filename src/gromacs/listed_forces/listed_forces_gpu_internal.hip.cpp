@@ -1071,47 +1071,42 @@ void ListedForcesGpu::Impl::launchKernel()
     wallcycle_start_nocount(wcycle_, WallCycleCounter::LaunchGpu);
     wallcycle_sub_start(wcycle_, WallCycleSubCounter::LaunchGpuBonded);
 
-    int fTypeRangeEnd = kernelParams_.fTypeRangeEnd[numFTypesOnGpu - 1];
-
-    if (fTypeRangeEnd < 0)
+    if (kernelParams_.fTypeRangeEnd[numFTypesOnGpu - 1] < 0)
     {
         return;
     }
 
     auto kernelPtr = exec_kernel_gpu<calcVir, calcEner>;
 
-    //const auto kernelArgs = prepareGpuKernelArguments(
-    //        kernelPtr, kernelLaunchConfig_, &kernelParams_, &d_xq_, &d_f_, &d_fShift_);
+    fixed_array<int> fTypesOnGpu(kernelParams_.fTypesOnGpu);
+    fixed_array<int> numFTypeIAtoms(kernelParams_.numFTypeIAtoms);
+    fixed_array<int> numFTypeBonds(kernelParams_.numFTypeBonds);
+    fixed_array<int> fTypeRangeStart(kernelParams_.fTypeRangeStart);
+    fixed_array<int> fTypeRangeEnd(kernelParams_.fTypeRangeEnd);
+    fixed_array<t_iatom*> d_iatoms(kernelParams_.d_iatoms);
+    const auto kernelArgs = prepareGpuKernelArguments(
+           kernelPtr,
+           kernelLaunchConfig_,
+           &kernelParams_.pbcAiuc,
+           &kernelParams_.electrostaticsScaleFactor,
+           &fTypesOnGpu,
+           &numFTypeIAtoms,
+           &numFTypeBonds,
+           &fTypeRangeStart,
+           &fTypeRangeEnd,
+           &kernelParams_.d_forceParams,
+           &d_xq_,
+           &d_f_,
+           &d_fShift_,
+           &kernelParams_.d_vTot,
+           &d_iatoms);
 
-    //launchGpuKernel(kernelPtr,
-    //                kernelLaunchConfig_,
-    //                deviceStream_,
-    //                nullptr,
-    //                "exec_kernel_gpu<calcVir, calcEner>",
-    //                kernelArgs);
-
-    dim3 blockSize(kernelLaunchConfig_.blockSize[0], kernelLaunchConfig_.blockSize[1], kernelLaunchConfig_.blockSize[2]);
-    dim3 gridSize(kernelLaunchConfig_.gridSize[0], kernelLaunchConfig_.gridSize[1], kernelLaunchConfig_.gridSize[2]);
-
-    hipLaunchKernelGGL(kernelPtr,
-        gridSize,
-        blockSize,
-        kernelLaunchConfig_.sharedMemorySize,
-        deviceStream_.stream(),
-        kernelParams_.pbcAiuc,
-        kernelParams_.electrostaticsScaleFactor,
-        fixed_array<int>(kernelParams_.fTypesOnGpu),
-        fixed_array<int>(kernelParams_.numFTypeIAtoms),
-        fixed_array<int>(kernelParams_.numFTypeBonds),
-        fixed_array<int>(kernelParams_.fTypeRangeStart),
-        fixed_array<int>(kernelParams_.fTypeRangeEnd),
-        kernelParams_.d_forceParams,
-        d_xq_,
-        d_f_,
-        d_fShift_,
-        kernelParams_.d_vTot,
-        fixed_array<t_iatom*>(kernelParams_.d_iatoms)
-    );
+    launchGpuKernel(kernelPtr,
+                    kernelLaunchConfig_,
+                    deviceStream_,
+                    nullptr,
+                    "exec_kernel_gpu<calcVir, calcEner>",
+                    kernelArgs);
 
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchGpuBonded);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
