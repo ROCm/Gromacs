@@ -668,7 +668,8 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
                        GpuApiCallBehavior::Async,
                        bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
 
-   /*if(h_plist->sci.size())
+   // We need a simple fill kernel here
+   if(h_plist->sci.size())
    {
        constexpr char kernelNameSort[] = "k_prune_sort";
        const auto     kernelSort = nbnxn_kernel_sort_j_hip<true>;
@@ -686,7 +687,7 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
        const auto kernelSortArgs = prepareGpuKernelArguments(kernelSort, configSort, nb->atdat, nb->nbparam, d_plist, &numParts, &part);
        launchGpuKernel(kernelSort, configSort, deviceStream, bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr, kernelNameSort, kernelSortArgs);
 
-       std::vector<nbnxn_sci_t> host_sci(d_plist->nsci);
+       /*std::vector<nbnxn_sci_t> host_sci(d_plist->nsci);
 
        hipError_t  stat = hipMemcpy(host_sci.data(),
                                     *reinterpret_cast<nbnxn_sci_t**>(&(d_plist->sci)),
@@ -728,8 +729,8 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
            cj4sortedfile << std::endl;
        }
        cj4sortedfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
-       cj4sortedfile.close();
-   }*/
+       cj4sortedfile.close();*/
+   }
 
     if (bDoTime)
     {

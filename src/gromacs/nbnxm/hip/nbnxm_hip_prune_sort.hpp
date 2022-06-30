@@ -187,10 +187,10 @@ nbnxn_kernel_sort_j_hip<false>(const NBAtomDataGpu, const NBParamGpu, const Nbnx
                     float3 rv = make_float3(xi.x, xi.y, xi.z) - xj;
                     float  r2 = norm2(rv);
 
-                    if (!__nb_any((r2 < rlistOuter_sq) && (wexcl & mask_ji), widx))
+                    /*if (!__nb_any((r2 < rlistOuter_sq) && (wexcl & mask_ji), widx))
                     {
                         imaskFull &= ~mask_ji;
-                    }
+                    }*/
 
                     /* If any atom pair is within range, set the bit
                        corresponding to the current cluster-pair. */
