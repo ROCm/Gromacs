@@ -111,6 +111,10 @@ struct LincsGpuKernelParameters
     DeviceBuffer<float> d_matrixA;
     //! Mass factors (GPU)
     DeviceBuffer<float> d_massFactors;
+
+    //! constraints-ordered masses for LINCS - Little bit of extra memory for fully-coalesced memory accesses since these don't change;
+    DeviceBuffer<float> d_inverseMassI;
+    DeviceBuffer<float> d_inverseMassJ;
 };
 
 /*! \internal \brief Class with interfaces and data for GPU version of LINCS. */

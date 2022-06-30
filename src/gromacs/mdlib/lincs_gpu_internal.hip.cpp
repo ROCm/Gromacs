@@ -106,6 +106,8 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     const float* __restrict__ gm_massFactors             = kernelParams.d_massFactors;
     float* __restrict__ gm_matrixA                       = kernelParams.d_matrixA;
     const float* __restrict__ gm_inverseMasses           = kernelParams.d_inverseMasses;
+    const float* __restrict__ gm_inverseMassesI          = kernelParams.d_inverseMassI;
+    const float* __restrict__ gm_inverseMassesJ          = kernelParams.d_inverseMassJ;
     float* __restrict__ gm_virialScaled                  = kernelParams.d_virialScaled;
 
     const int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
@@ -153,8 +155,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     {
         // Collecting data
         targetLength    = gm_constraintsTargetLengths[threadIndex];
-        inverseMassi    = gm_inverseMasses[i];
-        inverseMassj    = gm_inverseMasses[j];
+        inverseMassi = gm_inverseMassesI[threadIndex];
+        inverseMassj = gm_inverseMassesJ[threadIndex];
+        
+        // inverseMassi    = gm_inverseMasses[i];
+        // inverseMassj    = gm_inverseMasses[j];
         sqrtReducedMass = __frsqrt_rn(inverseMassi + inverseMassj);
 
         xi = gm_x[i];
@@ -169,7 +174,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     sm_r[threadIdx.x] = rc;
     // Make sure that all r's are saved into shared memory
     // before they are accessed in the loop below
-    __syncthreads();
+    // __syncthreads();
 
     /*
      * Constructing LINCS matrix (A)

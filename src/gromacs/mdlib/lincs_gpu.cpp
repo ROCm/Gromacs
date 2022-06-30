@@ -354,6 +354,10 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     std::vector<int> coupledConstraintsIndicesHost;
     // Mass factors (CPU)
     std::vector<float> massFactorsHost;
+    
+    // List of constraint-indexed atom pair masses
+    std::vector<float> inverseMassIHost;
+    std::vector<float> inverseMassJHost;
 
     // List of constrained atoms in local topology
     ArrayRef<const int> iatoms         = idef.il[F_CONSTR].iatoms;
@@ -411,6 +415,10 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     std::fill(constraintsHost.begin(), constraintsHost.end(), pair);
     constraintsTargetLengthsHost.resize(kernelParams_.numConstraintsThreads, 0.0);
     std::fill(constraintsTargetLengthsHost.begin(), constraintsTargetLengthsHost.end(), 0.0);
+    inverseMassIHost.resize(kernelParams_.numConstraintsThreads, 0);
+    inverseMassJHost.resize(kernelParams_.numConstraintsThreads, 0);
+    std::fill(inverseMassIHost.begin(), inverseMassIHost.end(), 0);
+    std::fill(inverseMassJHost.begin(), inverseMassJHost.end(), 0);
     for (int c = 0; c < numConstraints; c++)
     {
         int a1   = iatoms[stride * c + 1];
@@ -421,6 +429,8 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
         pair.i                                    = a1;
         pair.j                                    = a2;
         constraintsHost[splitMap[c]]              = pair;
+        inverseMassIHost[splitMap[c]]             = invmass[a1];
+        inverseMassJHost[splitMap[c]]             = invmass[a2];
         constraintsTargetLengthsHost[splitMap[c]] = idef.iparams[type].constr.dA;
     }
 
@@ -533,6 +543,8 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
             freeDeviceBuffer(&kernelParams_.d_coupledConstraintsIndices);
             freeDeviceBuffer(&kernelParams_.d_massFactors);
             freeDeviceBuffer(&kernelParams_.d_matrixA);
+            freeDeviceBuffer(&kernelParams_.d_inverseMassI);
+            freeDeviceBuffer(&kernelParams_.d_inverseMassJ);
         }
 
         numConstraintsThreadsAlloc_ = kernelParams_.numConstraintsThreads;
@@ -555,6 +567,10 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
         allocateDeviceBuffer(&kernelParams_.d_matrixA,
                              maxCoupledConstraints * kernelParams_.numConstraintsThreads,
                              deviceContext_);
+        allocateDeviceBuffer(
+                &kernelParams_.d_inverseMassI, kernelParams_.numConstraintsThreads, deviceContext_);
+        allocateDeviceBuffer(
+                &kernelParams_.d_inverseMassJ, kernelParams_.numConstraintsThreads, deviceContext_);
     }
 
     // (Re)allocate the memory, if the number of atoms has increased.
@@ -578,6 +594,20 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
                        nullptr);
     copyToDeviceBuffer(&kernelParams_.d_constraintsTargetLengths,
                        constraintsTargetLengthsHost.data(),
+                       0,
+                       kernelParams_.numConstraintsThreads,
+                       deviceStream_,
+                       GpuApiCallBehavior::Sync,
+                       nullptr);
+    copyToDeviceBuffer(&kernelParams_.d_inverseMassI,
+                       inverseMassIHost.data(),
+                       0,
+                       kernelParams_.numConstraintsThreads,
+                       deviceStream_,
+                       GpuApiCallBehavior::Sync,
+                       nullptr);
+    copyToDeviceBuffer(&kernelParams_.d_inverseMassJ,
+                       inverseMassJHost.data(),
                        0,
                        kernelParams_.numConstraintsThreads,
                        deviceStream_,
