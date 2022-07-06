@@ -123,6 +123,7 @@ public:
      * \param[in]     doParrinelloRahman       If current step is a Parrinello-Rahman pressure coupling step.
      * \param[in]     dtPressureCouple         Period between pressure coupling steps
      * \param[in]     prVelocityScalingMatrix  Parrinello-Rahman velocity scaling matrix
+     * \param[in]     isPmeRank                If this rank has ONE grid that needs cleanings
      */
     void integrate(DeviceBuffer<Float3>              d_x,
                    DeviceBuffer<Float3>              d_xp,
@@ -135,6 +136,7 @@ public:
                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                    bool                              doParrinelloRahman,
                    float                             dtPressureCouple,
+                   bool                              isPmeRank, 
                    const matrix                      prVelocityScalingMatrix);
 
     /*! \brief Set the integrator

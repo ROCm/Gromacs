@@ -121,6 +121,7 @@ public:
                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                    bool                              doParrinelloRahman,
                    float                             dtPressureCouple,
+                   const bool                        isPmeRank, 
                    const matrix                      prVelocityScalingMatrix);
 
     /*! \brief Scale coordinates on the GPU for the pressure coupling.

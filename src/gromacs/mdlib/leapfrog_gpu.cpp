@@ -75,6 +75,7 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                             gmx::ArrayRef<const t_grp_tcstat> tcstat,
                             const bool                        doParrinelloRahman,
                             const float                       dtPressureCouple,
+                            const bool                        isPmeRank, 
                             const matrix                      prVelocityScalingMatrix)
 {
 
@@ -121,6 +122,7 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                          d_x,
                          d_xp,
                          d_v,
+                         isPmeRank,
                          realGridSize, 
                          d_grid,
                          d_f,

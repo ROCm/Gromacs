@@ -82,6 +82,7 @@ void UpdateConstrainGpu::Impl::integrate(GpuEventSynchronizer*             fRead
                                          gmx::ArrayRef<const t_grp_tcstat> tcstat,
                                          const bool                        doParrinelloRahman,
                                          const float                       dtPressureCouple,
+                                         const bool                        isPmeRank, 
                                          const matrix                      prVelocityScalingMatrix)
 {
     wallcycle_start_nocount(wcycle_, WallCycleCounter::LaunchGpu);
@@ -98,7 +99,7 @@ void UpdateConstrainGpu::Impl::integrate(GpuEventSynchronizer*             fRead
     // once into d_x_. The d_xp_ is only needed by constraints.
     integrator_->integrate(
             d_x_, d_xp_, d_v_, realGridSize_, *d_grid_, 
-            d_f_, dt, doTemperatureScaling, tcstat, doParrinelloRahman, dtPressureCouple, prVelocityScalingMatrix);
+            d_f_, dt, doTemperatureScaling, tcstat, doParrinelloRahman, dtPressureCouple, isPmeRank,  prVelocityScalingMatrix);
     // Constraints need both coordinates before (d_x_) and after (d_xp_) update. However, after constraints
     // are applied, the d_x_ can be discarded. So we intentionally swap the d_x_ and d_xp_ here to avoid the
     // d_xp_ -> d_x_ copy after constraints. Note that the integrate saves them in the wrong order as well.
@@ -245,6 +246,7 @@ void UpdateConstrainGpu::integrate(GpuEventSynchronizer*             fReadyOnDev
                                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                                    const bool                        doParrinelloRahman,
                                    const float                       dtPressureCouple,
+                                   const bool                        isPmeRank, 
                                    const matrix                      prVelocityScalingMatrix)
 {
     impl_->integrate(fReadyOnDevice,
@@ -256,6 +258,7 @@ void UpdateConstrainGpu::integrate(GpuEventSynchronizer*             fReadyOnDev
                      tcstat,
                      doParrinelloRahman,
                      dtPressureCouple,
+                     isPmeRank, 
                      prVelocityScalingMatrix);
 }
 

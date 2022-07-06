@@ -99,6 +99,7 @@ __launch_bounds__(c_threadsPerBlock) __global__
                              float3* __restrict__ gm_x,
                              float3* __restrict__ gm_xp,
                              float3* __restrict__ gm_v,
+                             const bool           isPmeRank, 
                              const int            realGridSize, 
                              float*  __restrict__ gm_grid,
                              const float3* __restrict__ gm_f,
@@ -159,11 +160,15 @@ __launch_bounds__(c_threadsPerBlock) __global__
         gm_x[threadIndex] = x;
     }
 
-    int stride = gridDim.x * blockDim.x;
-    for(int k = threadIndex; k < realGridSize; k += stride)
-    {
-        // zero-out pme_grid
-        gm_grid[k] = 0;
+    // TODO remove as if updateGPU is true we obviously have a single-rank
+    if(isPmeRank){
+        // printf("hey doin isPmerank!\n");
+        int stride = gridDim.x * blockDim.x;
+        for(int k = threadIndex; k < realGridSize; k += stride)
+        {
+            // zero-out pme_grid
+            gm_grid[k] = 0;
+        }
     }
 }
 
@@ -231,6 +236,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
                           DeviceBuffer<Float3>               d_x,
                           DeviceBuffer<Float3>               d_xp,
                           DeviceBuffer<Float3>               d_v,
+                          const bool                         isPmeRank, 
                           const int                          realGridSize, 
                           DeviceBuffer<real>                 d_realGrid,
                           const DeviceBuffer<Float3>         d_f,
@@ -264,6 +270,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
                                                       asFloat3Pointer(&d_x),
                                                       asFloat3Pointer(&d_xp),
                                                       asFloat3Pointer(&d_v),
+                                                      &isPmeRank, 
                                                       &realGridSize,
                                                       &d_realGrid,
                                                       asFloat3Pointer(&d_f),

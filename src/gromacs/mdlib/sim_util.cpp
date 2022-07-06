@@ -2701,6 +2701,6 @@ void do_force(FILE*                               fplog,
     hipRangePush("openBeforeForceComputationCpu");
     ddBalanceRegionHandler.openBeforeForceComputationCpu(DdAllowBalanceRegionReopen::no);
     hipRangePop();
-
-    pme_register_grid_and_size(fr->pmedata, realGridSize, d_grid);
+    // this needs to happen only if we have PME work on this node
+    if(stepWork.haveGpuPmeOnThisRank && simulationWork.useGpuUpdate) pme_register_grid_and_size(fr->pmedata, realGridSize, d_grid);
 }

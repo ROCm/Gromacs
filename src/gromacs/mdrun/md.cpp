@@ -1552,6 +1552,7 @@ void gmx::LegacySimulator::do_md()
                                       ekind->tcstat,
                                       doParrinelloRahman,
                                       ir->nstpcouple * ir->delta_t,
+                                      runScheduleWork->stepWork.haveGpuPmeOnThisRank, 
                                       M);
             }
             else

@@ -201,6 +201,9 @@ struct PmeGpu
 
     /*! \brief The pointer to GPU-framework specific host-side data, such as CUDA streams and events. */
     std::shared_ptr<PmeGpuSpecific> archSpecific; /* FIXME: make it an unique_ptr */
+
+    /*! \brief Flags if update is true to skip zeroing-out kernels */
+    bool cleangrid = true;
 };
 
 #endif
