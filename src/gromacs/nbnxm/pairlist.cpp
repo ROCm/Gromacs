@@ -3907,6 +3907,10 @@ static bool checkRebalanceSimpleLists(gmx::ArrayRef<const NbnxnPairlistCpu> list
  */
 static void sort_sci(NbnxnPairlistGpu* nbl)
 {
+    #if GMX_GPU_HIP
+    return;
+    #endif
+
     if (nbl->cj4.size() <= nbl->sci.size())
     {
         /* nsci = 0 or all sci have size 1, sorting won't change the order */
