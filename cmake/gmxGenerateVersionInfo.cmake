@@ -122,7 +122,7 @@ execute_process(COMMAND ${GIT_EXECUTABLE} rev-list -n1 "--pretty=format:%ci" HEA
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 string(REGEX REPLACE "\n| " ";" HEAD_DATE "${HEAD_DATE}")
-IF(${HEAD_DATE})
+IF("${HEAD_DATE}")
     list(GET HEAD_DATE 2 HEAD_DATE)
     string(REGEX REPLACE "-" "" HEAD_DATE "${HEAD_DATE}")
 ENDIF()
