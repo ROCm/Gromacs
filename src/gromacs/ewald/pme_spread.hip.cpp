@@ -85,10 +85,9 @@ template<int order, bool wrapX, bool wrapY, int gridIndex, ThreadsPerAtom thread
 __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kernelParams,
                                                const float*                 atomCharge,
                                                const int* __restrict__ sm_gridlineIndices,
-                                               const float* __restrict__ sm_theta)
+                                               const float* __restrict__ sm_theta,
+                                               float* __restrict__ gm_grid)
 {
-    /* Global memory pointer to the output grid */
-    float* __restrict__ gm_grid = kernelParams.grid.d_realGrid[gridIndex];
 
     // Number of atoms processed by a single warp in spread and gather
     const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
@@ -215,6 +214,25 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
     const int atomIndexLocal = warpIndex * atomsPerWarp + atomWarpIndex;
     /* Atom index w.r.t. global memory */
     const int atomIndexGlobal = atomIndexOffset + atomIndexLocal;
+    float* __restrict__ gm_grid;
+#ifdef BIN_GRIDS
+    // templated - all good
+    if(numGrids == 1)
+    {
+        // use thread local id maybe?
+        const int nx = kernelParams.grid.realGridSize[XX];
+        const int ny = kernelParams.grid.realGridSize[YY];
+        const int nz = kernelParams.grid.realGridSize[ZZ];
+        // this kernel has a bidimensional grid
+        int bin = (blockIdx.x + (blockIdx.y * gridDim.x)) % NGRID_BINS; // assuming row-major grid but doesn't really matter
+        // jumping pointer to match appropriate bin
+        gm_grid = &(kernelParams.grid.d_binGrids[(nx*ny*nz)*bin]); 
+    }
+    else
+#endif
+    {
+        gm_grid = kernelParams.grid.d_realGrid[0]; // just gets the main grid for now
+    }
 
     /* Early return for fully empty blocks at the end
      * (should only happen for billions of input atoms)
@@ -281,7 +299,7 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
         if (!kernelParams.usePipeline || (atomIndexGlobal < kernelParams.pipelineAtomEnd))
         {
             spread_charges<order, wrapX, wrapY, 0, threadsPerAtom>(
-                    kernelParams, &atomCharge, sm_gridlineIndices, sm_theta);
+                    kernelParams, &atomCharge, sm_gridlineIndices, sm_theta, gm_grid);
         }
     }
     if (numGrids == 2)
@@ -302,12 +320,39 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
         {
             if (!kernelParams.usePipeline || (atomIndexGlobal < kernelParams.pipelineAtomEnd))
             {
+                gm_grid = kernelParams.grid.d_realGrid[1]; // just gets the main grid for now
                 spread_charges<order, wrapX, wrapY, 1, threadsPerAtom>(
-                        kernelParams, &atomCharge, sm_gridlineIndices, sm_theta);
+                        kernelParams, &atomCharge, sm_gridlineIndices, sm_theta, gm_grid);
             }
         }
     }
 }
+
+#ifdef BIN_GRIDS
+LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
+        void merge_bins_into_grid_kernel(const PmeGpuCudaKernelParams kernelParams)
+{
+    const int nx = kernelParams.grid.realGridSize[XX];
+    const int ny = kernelParams.grid.realGridSize[YY];
+    const int nz = kernelParams.grid.realGridSize[ZZ];
+    
+    int tid = threadIdx.x + (blockIdx.x * blockDim.x);
+
+    float* __restrict__ gm_grid = kernelParams.grid.d_realGrid[0]; // only works for single-grids
+    float* __restrict__ binned_grids = kernelParams.grid.d_binGrids;
+
+    // I don't think unrolling helps here but let's try
+    const int grid_size = nx * ny * nz;
+    if(tid < grid_size )
+    {
+#pragma unroll
+        for(int i = 0; i < NGRID_BINS; i++) {
+            gm_grid[tid] += binned_grids[grid_size*i + tid];
+            binned_grids[grid_size*i + tid] = 0; // this avoids having to clear the extra grids for spread_and_spline
+        }
+    }
+}
+#endif
 
 //! Kernel instantiations
 // clang-format off

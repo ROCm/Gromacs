@@ -131,6 +131,8 @@ extern template __global__ void pme_gather_kernel<c_pmeOrder, c_wrapX, c_wrapY, 
 extern template __global__ void pme_gather_kernel<c_pmeOrder, c_wrapX, c_wrapY, 2, false, ThreadsPerAtom::OrderSquared>  (const PmeGpuCudaKernelParams);
 // clang-format on
 
+extern __global__ void merge_bins_into_grid_kernel(PmeGpuCudaKernelParams kernelParams);
+
 PmeGpuProgramImpl::PmeGpuProgramImpl(const DeviceContext& deviceContext) :
     deviceContext_(deviceContext)
 {
@@ -177,6 +179,7 @@ PmeGpuProgramImpl::PmeGpuProgramImpl(const DeviceContext& deviceContext) :
     solveXYZEnergyKernelB                             = pme_solve_kernel<GridOrdering::XYZ, true, c_stateB>;
     solveYZXKernelB                                   = pme_solve_kernel<GridOrdering::YZX, false, c_stateB>;
     solveYZXEnergyKernelB                             = pme_solve_kernel<GridOrdering::YZX, true, c_stateB>;
+    mergeBinsIntoGrid                                 = merge_bins_into_grid_kernel;
     // clang-format on
 }
 

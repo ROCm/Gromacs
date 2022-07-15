@@ -129,6 +129,7 @@ struct PmeGpuProgramImpl
     PmeKernelHandle splineAndSpreadKernelThPerAtom4Dual;
     PmeKernelHandle splineAndSpreadKernelWriteSplinesDual;
     PmeKernelHandle splineAndSpreadKernelWriteSplinesThPerAtom4Dual;
+    PmeKernelHandle mergeBinsIntoGrid;
     //@}
 
     //@{
