@@ -414,6 +414,20 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
             // the size might get used later for copying the grid
         }
     }
+#ifdef BIN_GRIDS
+    // Let's have the bucketed grid here
+    if(pmeGpu->common->ngrids == 1)
+    {
+        const int newGridsSize = newRealGridSize* NGRID_BINS;
+        reallocateDeviceBuffer(&kernelParamsPtr->grid.d_binGrids, 
+            newGridsSize, 
+            &kernelParamsPtr->grid.binGridSize,
+            &kernelParamsPtr->grid.binGridCapacity, 
+            pmeGpu->archSpecific->deviceContext_);
+
+    }
+    pme_gpu_clear_grids(pmeGpu);
+#endif
 
     // allocate overlap buffers needed for PME grid halo exchanges
     if (pmeGpu->settings.useDecomposition)
@@ -611,6 +625,12 @@ void pme_gpu_free_grids(const PmeGpu* pmeGpu)
 
 void pme_gpu_clear_grids(const PmeGpu* pmeGpu)
 {
+#ifdef BIN_GRIDS
+    clearDeviceBufferAsync(&pmeGpu->kernelParams->grid.d_binGrids,
+                           0,
+                           pmeGpu->archSpecific->realGridSize[0]*NGRID_BINS, 
+                           pmeGpu->archSpecific->pmeStream_);
+#endif
     for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
     {
         clearDeviceBufferAsync(&pmeGpu->kernelParams->grid.d_realGrid[gridIndex],
@@ -1719,10 +1739,34 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                                               &kernelParamsPtr->grid.d_gridlineIndicesTable,
                                               &kernelParamsPtr->atoms.d_coefficients[FEP_STATE_A],
                                               &kernelParamsPtr->atoms.d_coefficients[FEP_STATE_B],
-                                              &kernelParamsPtr->atoms.d_coordinates);
+                                              &kernelParamsPtr->atoms.d_coordinates
+#ifdef BIN_GRIDS
+                                             ,&kernelParamsPtr->grid.d_binGrids,
+                                              &kernelParamsPtr->grid.binGridSize,
+                                              &kernelParamsPtr->grid.binGridCapacity
+#endif
+                                              
+                                              );
 #endif
 
             launchGpuKernel(kernelPtr, config, *launchStream, timingEvent, "PME spline/spread", kernelArgs);
+#ifdef BIN_GRIDS
+            if(pmeGpu->common->ngrids == 1){ 
+                const int nblocks = 256;
+                const int realGridSize = kernelParamsPtr->grid.realGridSizePadded[XX]
+                                * kernelParamsPtr->grid.realGridSizePadded[YY]
+                                * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+                int ngrid = (realGridSize / nblocks)/nblocks + 1;
+                config.blockSize[0] = nblocks;
+                config.blockSize[1] = 1;
+                config.blockSize[2] = 1;
+                config.gridSize[0]  = ngrid;
+                config.gridSize[1]  = 1;
+                config.gridSize[2]  = 1;
+                auto kernelPtr = pmeGpu->programHandle_->impl_->mergeBinsIntoGrid;
+                launchGpuKernel(kernelPtr, config, *launchStream, timingEvent, "PME merge grids", kernelArgs);
+            }
+#endif
         }
         // Set dependencies for PME stream on all pipeline streams
         for (int i = 0; i < pmeCoordinateReceiverGpu->ppCommNumSenderRanks(); i++)
@@ -1755,7 +1799,13 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                                           &kernelParamsPtr->grid.d_gridlineIndicesTable,
                                           &kernelParamsPtr->atoms.d_coefficients[FEP_STATE_A],
                                           &kernelParamsPtr->atoms.d_coefficients[FEP_STATE_B],
-                                          &kernelParamsPtr->atoms.d_coordinates);
+                                          &kernelParamsPtr->atoms.d_coordinates
+#ifdef BIN_GRIDS
+                                         ,&kernelParamsPtr->grid.d_binGrids,
+                                          &kernelParamsPtr->grid.binGridSize,
+                                          &kernelParamsPtr->grid.binGridCapacity
+#endif
+                                          );
 #endif
 
         launchGpuKernel(kernelPtr,
@@ -1764,6 +1814,23 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                         timingEvent,
                         "PME spline/spread",
                         kernelArgs);
+#ifdef BIN_GRIDS
+        if(pmeGpu->common->ngrids == 1){ 
+                const int nblocks = 256;
+                const int realGridSize = kernelParamsPtr->grid.realGridSizePadded[XX]
+                                * kernelParamsPtr->grid.realGridSizePadded[YY]
+                                * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+                int ngrid = (realGridSize / nblocks)/nblocks + 1;
+                auto kernelPtr = pmeGpu->programHandle_->impl_->mergeBinsIntoGrid;
+                config.blockSize[0] = nblocks;
+                config.blockSize[1] = 1;
+                config.blockSize[2] = 1;
+                config.gridSize[0]  = ngrid;
+                config.gridSize[1]  = 1;
+                config.gridSize[2]  = 1;
+                launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME merge grids", kernelArgs);
+            }
+#endif
     }
 
     pme_gpu_stop_timing(pmeGpu, timingId);

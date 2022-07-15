@@ -44,6 +44,8 @@
 #ifndef GMX_EWALD_PME_GPU_TYPES_H
 #define GMX_EWALD_PME_GPU_TYPES_H
 
+#define NGRID_BINS 4
+
 /*
  * In OpenCL, the structures must be laid out on the host and device exactly the same way.
  * If something is off, one might get an error CL_INVALID_ARG_SIZE if any structure's sizes don't
@@ -144,6 +146,12 @@ struct PmeGpuGridParams
 
     /*! \brief Offsets for the complex grid in pme_solve */
     int kOffsets[DIM];
+#ifdef BIN_GRIDS
+    // just one huge array is fine
+    int binGridSize;
+    int binGridCapacity;
+    HIDE_FROM_OPENCL_COMPILER(DeviceBuffer<float>) d_binGrids;
+#endif
 
     /* Grid arrays */
     /*! \brief Real space PME grid. */
