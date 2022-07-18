@@ -41,7 +41,6 @@
  *  \ingroup module_fft
  */
 
-#include <heffte_common.h>
 #include "gmxpre.h"
 
 #include "gpu_3dfft.h"
@@ -136,7 +135,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                                                            realGrid,
                                                            complexGrid);
             break;
-        default: 
+        default:
             GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_HIP,
                                "Unsupported FFT backend requested");
             //GMX_THROW(InternalError("Unsupported FFT backend requested"));
