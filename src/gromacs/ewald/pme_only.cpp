@@ -265,6 +265,8 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
     int status = -1;
     int nat    = 0;
 
+    hipRangePush("gmx_pme_recv_coeffs_coords");
+
 #if GMX_MPI
     int  messages       = 0;
     bool atomSetChanged = false;
@@ -534,6 +536,8 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
         *natoms = nat;
     }
 
+    hipRangePop();
+
     return status;
 }
 
@@ -545,6 +549,8 @@ static void gmx_pme_send_force_vir_ener(const gmx_pme_t& pme,
                                         real             dvdlambda_lj,
                                         float            cycles)
 {
+
+    hipRangePush("gmx_pme_send_force_vir_ener");
 #if GMX_MPI
     gmx_pme_comm_vir_ene_t cve;
     int                    messages, ind_start, ind_end;
@@ -631,6 +637,7 @@ static void gmx_pme_send_force_vir_ener(const gmx_pme_t& pme,
     GMX_UNUSED_VALUE(dvdlambda_lj);
     GMX_UNUSED_VALUE(cycles);
 #endif
+    hipRangePop();
 }
 
 int gmx_pmeonly(struct gmx_pme_t*               pme,

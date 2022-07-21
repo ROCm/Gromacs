@@ -439,7 +439,7 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
     copyFromDevice(h_x, d_x_, d_xSize_, atomLocality, *deviceStream);
     // Note: unlike copyCoordinatesToGpu this is not used in OpenCL, and the conditional is not needed.
     hipRangePush("copyCoordinatesFromGPU::markEvent");
-    //xReadyOnHost_[atomLocality].markEvent(*deviceStream);
+    xReadyOnHost_[atomLocality].markEvent(*deviceStream);
     hipRangePop();
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchStatePropagatorData);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
@@ -448,8 +448,8 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
 void StatePropagatorDataGpu::Impl::waitCoordinatesReadyOnHost(AtomLocality atomLocality)
 {
     wallcycle_start(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);
-    // xReadyOnHost_[atomLocality].waitForEvent();
-    hipStreamSynchronize(xCopyStreams_[atomLocality]->stream());
+    xReadyOnHost_[atomLocality].waitForEvent();
+    // hipStreamSynchronize(xCopyStreams_[atomLocality]->stream());
     wallcycle_stop(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);
 }
 
