@@ -474,16 +474,19 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
                         }
                         else
                         {
+                            hipRangePush("pme_PP->pmeCoordinateReceiverGpu");
                             pme_pp->pmeCoordinateReceiverGpu->launchReceiveCoordinatesFromPpCudaMpi(
                                     stateGpu->getCoordinates(),
                                     nat,
                                     sender.numAtoms * sizeof(rvec),
                                     sender.rankId,
                                     senderCount);
+                            hipRangePop();
                         }
                     }
                     else
                     {
+                        hipRangePush("pme_PP_Irecv");
                         MPI_Irecv(pme_pp->x[nat],
                                   sender.numAtoms * sizeof(rvec),
                                   MPI_BYTE,
@@ -491,6 +494,7 @@ static int gmx_pme_recv_coeffs_coords(struct gmx_pme_t*            pme,
                                   eCommType_COORD,
                                   pme_pp->mpi_comm_mysim,
                                   &pme_pp->req[messages++]);
+                        hipRangePop();
                     }
                     nat += sender.numAtoms;
                     if (debug)
@@ -555,6 +559,7 @@ static void gmx_pme_send_force_vir_ener(const gmx_pme_t& pme,
     gmx_pme_comm_vir_ene_t cve;
     int                    messages, ind_start, ind_end;
     cve.cycles = cycles;
+    hipRangePush("gmx_pme_send_force_vir_ener");
 
     if (pme_pp->useGpuDirectComm)
     {
@@ -628,6 +633,7 @@ static void gmx_pme_send_force_vir_ener(const gmx_pme_t& pme,
 
     /* Wait for the forces to arrive */
     MPI_Waitall(messages, pme_pp->req.data(), pme_pp->stat.data());
+    hipRangePop();
 #else
     GMX_RELEASE_ASSERT(false, "Invalid call to gmx_pme_send_force_vir_ener");
     GMX_UNUSED_VALUE(pme);

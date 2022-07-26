@@ -523,7 +523,9 @@ static void recvFFromPme(gmx::PmePpCommGpu* pmePpCommGpu,
     {
         GMX_ASSERT(pmePpCommGpu != nullptr, "Need valid pmePpCommGpu");
         // Receive forces from PME rank
+        hipRangePush("pmePpCommGpu->receiveForceFromPme");
         pmePpCommGpu->receiveForceFromPme(static_cast<gmx::RVec*>(recvptr), n, receivePmeForceToGpu);
+        hipRangePop();
     }
     else
     {
@@ -568,6 +570,7 @@ void gmx_pme_receive_f(gmx::PmePpCommGpu*    pmePpCommGpu,
 
     if (!receivePmeForceToGpu)
     {
+        hipRangePush("notReceivePmeForceToGPU");
         /* Note that we would like to avoid this conditional by putting it
          * into the omp pragma instead, but then we still take the full
          * omp parallel for overhead (at least with gcc5).
@@ -587,6 +590,7 @@ void gmx_pme_receive_f(gmx::PmePpCommGpu*    pmePpCommGpu,
                 f[i] += buffer[i];
             }
         }
+        hipRangePop();
     }
 
     receive_virial_energy(cr, forceWithVirial, energy_q, energy_lj, dvdlambda_q, dvdlambda_lj, pme_cycles);

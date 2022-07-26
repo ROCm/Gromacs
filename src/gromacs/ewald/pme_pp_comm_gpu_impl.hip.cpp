@@ -133,7 +133,9 @@ void PmePpCommGpu::Impl::receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu
 void PmePpCommGpu::Impl::receiveForceFromPmeCudaMpi(float3* pmeForcePtr, int recvSize)
 {
 #if GMX_MPI
+    hipRangePush("ReceiveForceFromPmeCudaMPI");
     MPI_Recv(pmeForcePtr, recvSize * DIM, MPI_FLOAT, pmeRank_, 0, comm_, MPI_STATUS_IGNORE);
+    hipRangePop();
 #else
     GMX_UNUSED_VALUE(pmeForcePtr);
     GMX_UNUSED_VALUE(recvSize);
