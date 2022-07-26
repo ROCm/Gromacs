@@ -68,7 +68,9 @@
 #include "pme_grid.h"
 #include "pme_internal.h"
 #include "pme_solve.h"
+#ifdef GMX_USE_ROCTX
 #include "roctx.h"
+#endif
 
 /*! \brief
  * Finds out if PME is currently running on GPU.

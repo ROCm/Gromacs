@@ -35,8 +35,10 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 #include "gmxpre.h"
+#ifdef GMX_USE_ROCTX
 #include "roctracer.h"
 #include "roctx.h"
+#endif
 
 #include "config.h"
 

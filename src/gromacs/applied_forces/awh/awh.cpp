@@ -82,7 +82,9 @@
 #include "biassharing.h"
 #include "correlationgrid.h"
 #include "pointstate.h"
+#ifdef GMX_USE_ROCTX
 #include "roctx.h"
+#endif
 
 namespace gmx
 {

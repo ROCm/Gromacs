@@ -48,7 +48,9 @@
 #include <stdlib.h>
 
 #include <hip/hip_profile.h>
+#ifdef GMX_USE_ROCTX
 #include <roctx.h>
+#endif
 
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/device_context.h"
