@@ -1552,8 +1552,11 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
             auto      dimGrid          = pmeGpuCreateGrid(pmeGpu, blockCount);
             config.gridSize[0]         = dimGrid.first;
             config.gridSize[1]         = dimGrid.second;
+#if SERIALIZE_PIPELINE_SPREAD
+            const DeviceStream* launchStream = &pmeGpu->archSpecific->pmeStream_;
+#else
             DeviceStream* launchStream = pmeCoordinateReceiverGpu->ppCommStream(senderRank);
-
+#endif
 
 #if c_canEmbedBuffers
             const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
@@ -1577,12 +1580,17 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
             launchGpuKernel(kernelPtr, config, *launchStream, timingEvent, "PME spline/spread", kernelArgs);
         }
         // Set dependencies for PME stream on all pipeline streams
+#ifdef SERIALIZE_PIPELINE_SPREAD
+        // TODO: check if we even need to synchronize the stream here
+        pme_gpu_synchronize(pmeGpu);
+#else
         for (int i = 0; i < pmeCoordinateReceiverGpu->ppCommNumSenderRanks(); i++)
         {
             GpuEventSynchronizer event;
             event.markEvent(*(pmeCoordinateReceiverGpu->ppCommStream(i)));
             event.enqueueWaitEvent(pmeGpu->archSpecific->pmeStream_);
         }
+#endif
     }
     else // pipelining is not in use
     {
