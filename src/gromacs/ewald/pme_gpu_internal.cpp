@@ -1523,9 +1523,15 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     pme_gpu_start_timing(pmeGpu, timingId);
     auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
 
+#if defined(GMX_GPU_HIP) && defined(GMX_THREAD_MPI)
+    // pipelining under thread-MPI makes the last pipeline step hang
+    // TODO Fix
+    kernelParamsPtr->usePipeline = 0;
+#else
     kernelParamsPtr->usePipeline = char(computeSplines && spreadCharges && useGpuDirectComm
                                     && (pmeCoordinateReceiverGpu->ppCommNumSenderRanks() > 1)
                                     && !writeGlobalOrSaveSplines);
+#endif
     if (kernelParamsPtr->usePipeline != 0)
     {
         int numStagesInPipeline = pmeCoordinateReceiverGpu->ppCommNumSenderRanks();
