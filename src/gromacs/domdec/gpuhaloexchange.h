@@ -96,7 +96,7 @@ public:
                     MPI_Comm             mpi_comm_mysim,
                     const DeviceContext& deviceContext,
                     int                  pulse,
-                    gmx_wallcycle*       wcycle);
+                    gmx_wallcycle*       wcycle, const DeviceStream&  streamNonLocal);
     ~GpuHaloExchange();
     GpuHaloExchange(GpuHaloExchange&& source) noexcept;
     GpuHaloExchange& operator=(GpuHaloExchange&& source) noexcept;

@@ -124,7 +124,7 @@ private:
      * Memory copy. This method is used with Thread-MPI.
      * \param[in] receivePmeForceToGpu Whether receive is to GPU, otherwise CPU
      */
-    void receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu);
+    void receiveForceFromPmeCudaDirect(bool receivePmeForceToGpu, int recvSize, float3* recvPtr);
 
     /*! \brief Pull force buffer directly from GPU memory on PME
      * rank to either GPU or CPU memory on PP task using CUDA-aware
@@ -162,6 +162,7 @@ private:
     const DeviceStream& pmePpCommStream_;
     //! Remote location of PME coordinate data buffer
     float3* remotePmeXBuffer_ = nullptr;
+    float3* remotePmeFBuffer_ = nullptr;
     //! communicator for simulation
     MPI_Comm comm_;
     //! Rank of PME task

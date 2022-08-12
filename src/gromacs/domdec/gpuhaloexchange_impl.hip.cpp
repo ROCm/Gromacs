@@ -205,7 +205,7 @@ void GpuHaloExchange::Impl::reinitHalo(float3* d_coordinatesBuffer, float3* d_fo
         std::copy(ind.index.begin(), ind.index.end(), h_indexMap_.begin());
 
         copyToDeviceBuffer(
-                &d_indexMap_, h_indexMap_.data(), 0, newSize, *haloStream_, GpuApiCallBehavior::Async, nullptr);
+                &d_indexMap_, h_indexMap_.data(), 0, newSize, haloStream_, GpuApiCallBehavior::Async, nullptr);
     }
 
 #if GMX_MPI
@@ -276,7 +276,7 @@ void GpuHaloExchange::Impl::enqueueWaitRemoteCoordinatesReadyEvent(GpuEventSynch
                  0,
                  mpi_comm_mysim_,
                  MPI_STATUS_IGNORE);
-    remoteCoordinatesReadyOnDeviceEvent->enqueueWaitEvent(*haloStream_);
+    remoteCoordinatesReadyOnDeviceEvent->enqueueWaitEvent(haloStream_);
 #else
     GMX_UNUSED_VALUE(coordinatesReadyOnDeviceEvent);
 #endif
@@ -288,7 +288,7 @@ GpuEventSynchronizer* GpuHaloExchange::Impl::communicateHaloCoordinates(const ma
     wallcycle_start(wcycle_, WallCycleCounter::LaunchGpu);
 
     // ensure stream waits until dependency has been satisfied
-    dependencyEvent->enqueueWaitEvent(*haloStream_);
+    dependencyEvent->enqueueWaitEvent(haloStream_);
 
     wallcycle_sub_start(wcycle_, WallCycleSubCounter::LaunchGpuMoveX);
 
@@ -324,7 +324,7 @@ GpuEventSynchronizer* GpuHaloExchange::Impl::communicateHaloCoordinates(const ma
         const auto kernelArgs = prepareGpuKernelArguments(
                 kernelFn, config, &sendBuf, &d_x, &indexMap, &size, &coordinateShift);
 
-        launchGpuKernel(kernelFn, config, *haloStream_, nullptr, "Domdec GPU Apply X Halo Exchange", kernelArgs);
+        launchGpuKernel(kernelFn, config, haloStream_, nullptr, "Domdec GPU Apply X Halo Exchange", kernelArgs);
     }
 
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchGpuMoveX);
@@ -344,7 +344,7 @@ GpuEventSynchronizer* GpuHaloExchange::Impl::communicateHaloCoordinates(const ma
     float3* recvPtr = GMX_THREAD_MPI ? remoteXPtr_ : &d_x_[atomOffset_];
     communicateHaloData(d_sendBuf_, xSendSize_, sendRankX_, recvPtr, xRecvSize_, recvRankX_);
 
-    coordinateHaloLaunched_.markEvent(*haloStream_);
+    coordinateHaloLaunched_.markEvent(haloStream_);
 
     wallcycle_stop(wcycle_, WallCycleCounter::MoveX);
 
@@ -364,7 +364,7 @@ void GpuHaloExchange::Impl::communicateHaloForces(bool accumulateForces,
     while (!dependencyEvents->empty())
     {
         auto* dependency = dependencyEvents->back();
-        dependency->enqueueWaitEvent(*haloStream_);
+        dependency->enqueueWaitEvent(haloStream_);
         dependencyEvents->pop_back();
     }
 
@@ -410,10 +410,10 @@ void GpuHaloExchange::Impl::communicateHaloForces(bool accumulateForces,
         const auto kernelArgs =
                 prepareGpuKernelArguments(kernelFn, config, &d_f, &recvBuf, &indexMap, &size);
 
-        launchGpuKernel(kernelFn, config, *haloStream_, nullptr, "Domdec GPU Apply F Halo Exchange", kernelArgs);
+        launchGpuKernel(kernelFn, config, haloStream_, nullptr, "Domdec GPU Apply F Halo Exchange", kernelArgs);
     }
 
-    fReadyOnDevice_.markEvent(*haloStream_);
+    fReadyOnDevice_.markEvent(haloStream_);
 
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchGpuMoveF);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
@@ -453,7 +453,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaMPI(float3* sendPtr,
         // before transferring to remote rank
 
         // ToDo: Replace stream synchronize with event synchronize
-        haloStream_->synchronize();
+        haloStream_.synchronize();
     }
 
     // perform halo exchange directly in device buffers
@@ -498,7 +498,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
                                sendPtr,
                                sendSize * DIM * sizeof(float),
                                hipMemcpyDeviceToDevice,
-                               haloStream_->stream());
+                               haloStream_.stream());
         HIP_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec HIP direct data transfer failed");
     }
 
@@ -512,7 +512,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
     GMX_ASSERT(haloDataTransferLaunched_ != nullptr,
                "Halo exchange requires valid event to synchronize data transfer initiated in "
                "remote rank");
-    haloDataTransferLaunched_->markEvent(*haloStream_);
+    haloDataTransferLaunched_->markEvent(haloStream_);
 
     MPI_Sendrecv(&haloDataTransferLaunched_,
                  sizeof(GpuEventSynchronizer*), //NOLINT(bugprone-sizeof-expression)
@@ -527,7 +527,7 @@ void GpuHaloExchange::Impl::communicateHaloDataWithCudaDirect(float3* sendPtr,
                  mpi_comm_mysim_,
                  MPI_STATUS_IGNORE);
 
-    haloDataTransferRemote->enqueueWaitEvent(*haloStream_);
+    haloDataTransferRemote->enqueueWaitEvent(haloStream_);
 #else
     GMX_UNUSED_VALUE(sendRank);
     GMX_UNUSED_VALUE(recvRank);
@@ -545,7 +545,8 @@ GpuHaloExchange::Impl::Impl(gmx_domdec_t*        dd,
                             MPI_Comm             mpi_comm_mysim,
                             const DeviceContext& deviceContext,
                             int                  pulse,
-                            gmx_wallcycle*       wcycle) :
+                            gmx_wallcycle*       wcycle,
+			    const DeviceStream&  streamNonLocal) :
     dd_(dd),
     sendRankX_(dd->neighbor[dimIndex][1]),
     recvRankX_(dd->neighbor[dimIndex][0]),
@@ -555,7 +556,8 @@ GpuHaloExchange::Impl::Impl(gmx_domdec_t*        dd,
     haloDataTransferLaunched_(GMX_THREAD_MPI ? new GpuEventSynchronizer() : nullptr),
     mpi_comm_mysim_(mpi_comm_mysim),
     deviceContext_(deviceContext),
-    haloStream_(new DeviceStream(deviceContext, DeviceStreamPriority::High, false)),
+    //haloStream_(new DeviceStream(deviceContext, DeviceStreamPriority::High, false)),
+    haloStream_(streamNonLocal),
     dimIndex_(dimIndex),
     pulse_(pulse),
     wcycle_(wcycle)
@@ -577,7 +579,7 @@ GpuHaloExchange::Impl::~Impl()
     freeDeviceBuffer(&d_recvBuf_);
     freeDeviceBuffer(&d_fShift_);
     delete haloDataTransferLaunched_;
-    delete haloStream_;
+    //delete haloStream_;
 }
 
 GpuHaloExchange::GpuHaloExchange(gmx_domdec_t*        dd,
@@ -585,8 +587,8 @@ GpuHaloExchange::GpuHaloExchange(gmx_domdec_t*        dd,
                                  MPI_Comm             mpi_comm_mysim,
                                  const DeviceContext& deviceContext,
                                  int                  pulse,
-                                 gmx_wallcycle*       wcycle) :
-    impl_(new Impl(dd, dimIndex, mpi_comm_mysim, deviceContext, pulse, wcycle))
+                                 gmx_wallcycle*       wcycle, const DeviceStream&  streamNonLocal) :
+    impl_(new Impl(dd, dimIndex, mpi_comm_mysim, deviceContext, pulse, wcycle, streamNonLocal))
 {
 }
 

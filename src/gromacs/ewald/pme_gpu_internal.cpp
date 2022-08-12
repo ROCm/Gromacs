@@ -1592,10 +1592,10 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     }
     else // pipelining is not in use
     {
-        if (useGpuDirectComm) // Sync all PME-PP communications to PME stream
-        {
-            pmeCoordinateReceiverGpu->synchronizeOnCoordinatesFromAllPpRanks(pmeGpu->archSpecific->pmeStream_);
-        }
+        //if (useGpuDirectComm) // Sync all PME-PP communications to PME stream
+        //{
+        //    pmeCoordinateReceiverGpu->synchronizeOnCoordinatesFromAllPpRanks(pmeGpu->archSpecific->pmeStream_);
+        //}
 
 #if c_canEmbedBuffers
         const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);

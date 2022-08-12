@@ -83,7 +83,7 @@ public:
          MPI_Comm             mpi_comm_mysim,
          const DeviceContext& deviceContext,
          int                  pulse,
-         gmx_wallcycle*       wcycle);
+         gmx_wallcycle*       wcycle, const DeviceStream&  streamNonLocal);
     ~Impl();
 
     /*! \brief
@@ -211,7 +211,8 @@ private:
     //! GPU context object
     const DeviceContext& deviceContext_;
     //! HIP stream for this halo exchange
-    DeviceStream* haloStream_;
+    //DeviceStream* haloStream_;
+    const DeviceStream& haloStream_;
     //! full coordinates buffer in GPU memory
     float3* d_x_ = nullptr;
     //! full forces buffer in GPU memory
