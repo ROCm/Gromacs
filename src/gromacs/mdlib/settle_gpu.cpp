@@ -48,6 +48,8 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <chrono>
+#include <iostream>
 
 #include <cmath>
 
@@ -229,11 +231,17 @@ SettleGpu::~SettleGpu()
     {
         return;
     }
+    auto start = std::chrono::steady_clock::now();
     freeDeviceBuffer(&d_virialScaled_);
     if (numAtomIdsAlloc_ > 0)
     {
         freeDeviceBuffer(&d_atomIds_);
     }
+    auto end = std::chrono::steady_clock::now();
+
+    std::cout << "[~SettleGpu] Elapsed time in microseconds: "
+              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+              << " µs" << std::endl;
 }
 
 void SettleGpu::set(const InteractionDefinitions& idef)
