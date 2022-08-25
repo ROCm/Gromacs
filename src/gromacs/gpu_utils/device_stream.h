@@ -124,9 +124,11 @@ private:
 #elif GMX_GPU_HIP
     //! Getter
     hipStream_t stream() const;
+    hipStream_t* stream_pointer() const;
 
 private:
     hipStream_t stream_ = nullptr;
+    hipStream_t* stream_pointer_ = nullptr;
 #elif GMX_GPU_SYCL
 
     /*! \brief
