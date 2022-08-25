@@ -33,12 +33,6 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-#VTSANG to-do
-# The earliest version of the CUDA toolkit that supports c++14 is 9.0
-#set(REQUIRED_CUDA_VERSION 9.0)
-#set(REQUIRED_CUDA_COMPUTE_CAPABILITY 3.0)
-
-set(GMX_GPU_HIP ON)
 IF (NOT DEFINED ROCM_PATH)
     IF(NOT DEFINED ENV{ROCM_PATH})
         set(ROCM_PATH "/opt/rocm")
@@ -49,84 +43,113 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH})
 message(STATUS "ROCM Path: " ${ROCM_PATH})
 
-if(GMX_DOUBLE)
-    message(FATAL_ERROR "HIP acceleration is not available in double precision")
-endif()
-
-# We need to call find_package even when we've already done the detection/setup
-find_package(hcc QUIET CONFIG PATHS ${ROCM_PATH})
-find_package(hip QUIET CONFIG PATHS ${ROCM_PATH})
-
-set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-if(NOT DEFINED HIP_PATH)
-    if(NOT DEFINED ENV{HIP_PATH})
-	    set(HIP_PATH ${ROCM_PATH}/hip CACHE PATH "Path to which HIP has been installed")
-	    set(HIP_CLANG_PATH ${ROCM_PATH}/llvm/bin CACHE PATH "Path to which HIP  clang has been installed")
-    else()
-        set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
-	set(HIP_CLANG_PATH ${ROCM_PATH}/llvm/bin CACHE PATH "Path to which HIP  clang has been installed")
+macro(check_hip_path)
+    if(NOT DEFINED HIP_PATH)
+        if(NOT DEFINED ENV{HIP_PATH})
+            set(HIP_PATH "${ROCM_PATH}/hip" CACHE PATH "Path to which HIP has been installed")
+        else()
+            set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
+        endif()
     endif()
-endif()
-
-#VTSANG to-do
-#can we install ROCM and build without AMD GPU?
-set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward). This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime.  ${_msg}")
-unset(_msg)
-
-if ( NOT hip_FOUND )
-    # the user requested ROCM, but it wasn't found
-    message(FATAL_ERROR "${ROCM_NOTFOUND_MESSAGE}")
-else()
-    message(STATUS "HIP is found!")
-endif()
-find_package(rocfft QUIET CONFIG PATHS ${ROCM_PATH} )
-find_package(hipfft QUIET CONFIG PATHS ${ROCM_PATH} )
-if (NOT rocfft_FOUND )
-   message(FATAL_ERROR "rocfft is required, but it is not found in this environment")
-else()
-   message(STATUS "rocfft is found!")
-endif()
-if (NOT hipfft_FOUND )
-   message(FATAL_ERROR "hipfft is required, but it is not found in this environment")
-else()
-   message(STATUS "hipfft is found!")
-endif()
+    if(NOT DEFINED HIP_CLANG_PATH)
+        if(NOT DEFINED ENV{HIP_CLANG_PATH})
+            set(HIP_CLANG_PATH "${ROCM_PATH}/llvm/bin" CACHE PATH "Path to which HIP clang has been installed")
+        else()
+            set(HIP_CLANG_PATH $ENV{HIP_CLANG_PATH} CACHE PATH "Path to which HIP clang has been installed")
+        endif()
+    endif()
+endmacro()
 
 macro(get_hip_compiler_info COMPILER_INFO DEVICE_COMPILER_FLAGS HOST_COMPILER_FLAGS)
     find_program(HIP_CONFIG hipconfig
          PATH_SUFFIXES bin
-	 PATHS ${ROCM_PATH}/hip
+         PATHS ${ROCM_PATH}/hip
     )
-    if(HIP_CONFIG) #cm todo
+    if(HIP_CONFIG)
         execute_process(COMMAND ${HIP_CONFIG} --version
                 RESULT_VARIABLE _hipcc_version_res
                 OUTPUT_VARIABLE _hipcc_version_out
                 ERROR_VARIABLE  _hipcc_version_err
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if (${_hipcc_version_res} EQUAL 0)
-            find_program(HIP_CC_COMPILER hipcc
+        if(${_hipcc_version_res} EQUAL 0)
+            find_program(HIPCC_COMPILER hipcc
                  PATH_SUFFIXES bin
-		 PATHS ${ROCM_PATH}/hip
+                 PATHS ${ROCM_PATH}/hip
             )
-            if (HIP_CC_COMPILER)
-                SET(${COMPILER_INFO} "${HIP_CC_COMPILER} ${_hipcc_version_out}")
-                SET(${DEVICE_COMPILER_FLAGS} "")
+            if(HIPCC_COMPILER)
+                set(${COMPILER_INFO} "${HIPCC_COMPILER} ${_hipcc_version_out}")
+                set(${DEVICE_COMPILER_FLAGS} "-std=c++17 -mavx2 -mfma -fopenmp")
             else()
-                SET(${COMPILER_INFO} "N/A")
-                SET(${DEVICE_COMPILER_FLAGS} "N/A")
+                set(${COMPILER_INFO} "N/A")
+                set(${DEVICE_COMPILER_FLAGS} "N/A")
             endif()
         else()
-            SET(${COMPILER_INFO} "N/A")
-            SET(${DEVICE_COMPILER_FLAGS} "N/A")
+            set(${COMPILER_INFO} "N/A")
+            set(${DEVICE_COMPILER_FLAGS} "N/A")
         endif()
-        SET(${HOST_COMPILER_FLAGS} "")
+        set(${HOST_COMPILER_FLAGS} "")
     endif()
-endmacro ()
+endmacro()
 
 macro(enable_multiple_rocm_compilation_units)
     message(STATUS "Enabling multiple compilation units for the ROCM non-bonded module.")
     set_property(CACHE GMX_ROCM_NB_SINGLE_COMPILATION_UNIT PROPERTY VALUE OFF)
 endmacro()
 
+set(GMX_GPU_HIP ON)
+
+if(GMX_DOUBLE)
+    message(FATAL_ERROR "HIP acceleration is not available in double precision")
+endif()
+
+# Try to execute ${HIP_HIPCC_EXECUTABLE} --version and set the output
+# (or an error string) in the argument variable.
+# Note that semicolon is used as separator for nvcc.
+#
+# Parameters:
+#   COMPILER_INFO         - [output variable] string with compiler path, ID and
+#                           some compiler-provided information
+#   DEVICE_COMPILER_FLAGS - [output variable] device flags for the compiler
+#   HOST_COMPILER_FLAGS   - [output variable] host flags for the compiler, if propagated
+#
+
+set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+
+check_hip_path()
+
+# We need to call find_package even when we've already done the detection/setup
+find_package(hip CONFIG PATHS ${ROCM_PATH})
+set(ROCM_NOTFOUND_MESSAGE "mdrun supports native GPU acceleration on ROCM hardward. This requires the ROCM HIP API, which was not found. The typical location would be /opt/rocm. Note that CPU or GPU acceleration can be selected at runtime. ${_msg}")
+unset(_msg)
+if(NOT hip_FOUND)
+    # the user requested ROCM, but it wasn't found
+    message(FATAL_ERROR "${ROCM_NOTFOUND_MESSAGE}")
+else()
+    message(STATUS "HIP is found!")
+endif()
+
+find_package(rocprim CONFIG PATHS ${ROCM_PATH})
+if(NOT rocprim_FOUND)
+   message(FATAL_ERROR "rocprim is required, but it is not found in this environment")
+else()
+   message(STATUS "rocprim is found!")
+endif()
+
+find_package(rocfft CONFIG PATHS ${ROCM_PATH})
+if(NOT rocfft_FOUND)
+   message(FATAL_ERROR "rocfft is required, but it is not found in this environment")
+else()
+   message(STATUS "rocfft is found!")
+endif()
+
+find_package(hipfft CONFIG PATHS ${ROCM_PATH})
+if(NOT hipfft_FOUND)
+   message(FATAL_ERROR "hipfft is required, but it is not found in this environment")
+else()
+   message(STATUS "hipfft is found!")
+endif()
+
 option(GMX_HIP_NB_SINGLE_COMPILATION_UNIT "Whether to compile the HIP non-bonded module using a single compilation unit." OFF)
 mark_as_advanced(GMX_HIP_NB_SINGLE_COMPILATION_UNIT)
+
+option(GMX_NAVI_BUILD "Navi build with Warp Size 32 and Pairsplit 2" OFF)

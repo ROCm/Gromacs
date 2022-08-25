@@ -95,7 +95,7 @@ namespace gmx
 {
 
 //! Number of CUDA threads in a block
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 64;
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
 
@@ -126,7 +126,7 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  * \param[in]     invdt         Inverse timestep (needed to update velocities).
  */
 template<bool updateVelocities, bool computeVirial>
-__launch_bounds__(c_maxThreadsPerBlock) __global__
+__launch_bounds__(c_threadsPerBlock) __global__
         void lincs_kernel(LincsGpuKernelParameters kernelParams,
                           const float3* __restrict__ gm_x,
                           float3*     gm_xp,
@@ -146,7 +146,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     const float* __restrict__ gm_inverseMasses         = kernelParams.d_inverseMasses;
     float* __restrict__ gm_virialScaled                = kernelParams.d_virialScaled;
 
-    int threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
 
     // numConstraintsThreads should be a integer multiple of blockSize (numConstraintsThreads = numBlocks*blockSize).
     // This is to ensure proper synchronizations and reduction. All array are padded to the required size.
@@ -193,7 +193,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         targetLength    = gm_constraintsTargetLengths[threadIndex];
         inverseMassi    = gm_inverseMasses[i];
         inverseMassj    = gm_inverseMasses[j];
-        sqrtReducedMass = rsqrt(inverseMassi + inverseMassj);
+        sqrtReducedMass = __frsqrt_rn(inverseMassi + inverseMassj);
 
         xi = gm_x[i];
         xj = gm_x[j];
@@ -220,7 +220,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         int index = n * numConstraintsThreads + threadIndex;
         int c1    = gm_coupledConstraintsIdxes[index];
 
-        float3 rc1        = sm_r[c1 - blockIdx.x * blockDim.x];
+        float3 rc1        = sm_r[c1 - blockIdx.x * c_threadsPerBlock];
         gm_matrixA[index] = gm_massFactors[index] * (rc.x * rc1.x + rc.y * rc1.y + rc.z * rc1.z);
     }
 
@@ -256,11 +256,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             int c1    = gm_coupledConstraintsIdxes[index];
             // Convolute current right-hand-side with A
             // Different, non overlapping parts of sm_rhs[..] are read during odd and even iterations
-            mvb = mvb + gm_matrixA[index] * sm_rhs[c1 - blockIdx.x * blockDim.x + blockDim.x * (rec % 2)];
+            mvb = mvb + gm_matrixA[index] * sm_rhs[c1 - blockIdx.x * c_threadsPerBlock + c_threadsPerBlock * (rec % 2)];
         }
         // 'Switch' rhs vectors, save current result
         // These values will be accessed in the loop above during the next iteration.
-        sm_rhs[threadIdx.x + blockDim.x * ((rec + 1) % 2)] = mvb;
+        sm_rhs[threadIdx.x + c_threadsPerBlock * ((rec + 1) % 2)] = mvb;
         sol                                                = sol + mvb;
     }
 
@@ -303,11 +303,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         float dlen2 = 2.0f * len2 - norm2(dx);
 
         // TODO A little bit more effective but slightly less readable version of the below would be:
-        //      float proj = sqrtReducedMass*(targetLength - (dlen2 > 0.0f ? 1.0f : 0.0f)*dlen2*rsqrt(dlen2));
+        //      float proj = sqrtReducedMass*(targetLength - (dlen2 > 0.0f ? 1.0f : 0.0f)*dlen2*__frsqrt_rn(dlen2));
         float proj;
         if (dlen2 > 0.0f)
         {
-            proj = sqrtReducedMass * (targetLength - dlen2 * rsqrt(dlen2));
+            proj = sqrtReducedMass * (targetLength - dlen2 * __frsqrt_rn(dlen2));
         }
         else
         {
@@ -331,9 +331,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
                 int index = n * numConstraintsThreads + threadIndex;
                 int c1    = gm_coupledConstraintsIdxes[index];
 
-                mvb = mvb + gm_matrixA[index] * sm_rhs[c1 - blockIdx.x * blockDim.x + blockDim.x * (rec % 2)];
+                mvb = mvb + gm_matrixA[index] * sm_rhs[c1 - blockIdx.x * c_threadsPerBlock + c_threadsPerBlock * (rec % 2)];
             }
-            sm_rhs[threadIdx.x + blockDim.x * ((rec + 1) % 2)] = mvb;
+            sm_rhs[threadIdx.x + c_threadsPerBlock * ((rec + 1) % 2)] = mvb;
             sol                                                = sol + mvb;
         }
 
@@ -390,12 +390,12 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // two are no longer in use.
         HIP_DYNAMIC_SHARED( float, sm_threadVirial)
         float                   mult                  = targetLength * lagrangeScaled;
-        sm_threadVirial[0 * blockDim.x + threadIdx.x] = mult * rc.x * rc.x;
-        sm_threadVirial[1 * blockDim.x + threadIdx.x] = mult * rc.x * rc.y;
-        sm_threadVirial[2 * blockDim.x + threadIdx.x] = mult * rc.x * rc.z;
-        sm_threadVirial[3 * blockDim.x + threadIdx.x] = mult * rc.y * rc.y;
-        sm_threadVirial[4 * blockDim.x + threadIdx.x] = mult * rc.y * rc.z;
-        sm_threadVirial[5 * blockDim.x + threadIdx.x] = mult * rc.z * rc.z;
+        sm_threadVirial[0 * c_threadsPerBlock + threadIdx.x] = mult * rc.x * rc.x;
+        sm_threadVirial[1 * c_threadsPerBlock + threadIdx.x] = mult * rc.x * rc.y;
+        sm_threadVirial[2 * c_threadsPerBlock + threadIdx.x] = mult * rc.x * rc.z;
+        sm_threadVirial[3 * c_threadsPerBlock + threadIdx.x] = mult * rc.y * rc.y;
+        sm_threadVirial[4 * c_threadsPerBlock + threadIdx.x] = mult * rc.y * rc.z;
+        sm_threadVirial[5 * c_threadsPerBlock + threadIdx.x] = mult * rc.z * rc.z;
 
         __syncthreads();
 
@@ -404,15 +404,15 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         // half of it sums two values. This procedure is repeated until only one thread is left.
         // Only works if the threads per blocks is a power of two (hence static_assert
         // in the beginning of the kernel).
-        for (int divideBy = 2; divideBy <= static_cast<int>(blockDim.x); divideBy *= 2)
+        for (int divideBy = 2; divideBy <= static_cast<int>(c_threadsPerBlock); divideBy *= 2)
         {
-            int dividedAt = blockDim.x / divideBy;
+            int dividedAt = c_threadsPerBlock / divideBy;
             if (static_cast<int>(threadIdx.x) < dividedAt)
             {
                 for (int d = 0; d < 6; d++)
                 {
-                    sm_threadVirial[d * blockDim.x + threadIdx.x] +=
-                            sm_threadVirial[d * blockDim.x + (threadIdx.x + dividedAt)];
+                    sm_threadVirial[d * c_threadsPerBlock + threadIdx.x] +=
+                            sm_threadVirial[d * c_threadsPerBlock + (threadIdx.x + dividedAt)];
                 }
             }
             // Syncronize if not within one warp
@@ -425,9 +425,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (threadIdx.x < 6)
         {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-            atomicAddNoRet(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
+            atomicAddNoRet(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * c_threadsPerBlock]);
 #else
-            atomicAddOverWriteForFloat(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * blockDim.x]);
+            atomicAddOverWriteForFloat(&(gm_virialScaled[threadIdx.x]), sm_threadVirial[threadIdx.x * c_threadsPerBlock]);
 #endif
         }
     }

@@ -206,6 +206,146 @@ void copyFromDeviceBuffer(ValueType*               hostBuffer,
 }
 
 /*! \brief
+ * Performs the device-to-device data copy, synchronous or asynchronously on request.
+ *
+ * \tparam        ValueType                Raw value type of the \p buffer.
+ * \param[in,out] destinationDeviceBuffer  Device-side buffer to copy to
+ * \param[in]     sourceDeviceBuffer       Device-side buffer to copy from
+ * \param[in]     numValues                Number of values to copy.
+ * \param[in]     deviceStream             GPU stream to perform asynchronous copy in.
+ * \param[in]     transferKind             Copy type: synchronous or asynchronous.
+ * \param[out]    timingEvent              A dummy pointer to the D2D copy timing event to be filled
+ * in. Not used in HIP implementation.
+ */
+template<typename ValueType>
+void copyBetweenDeviceBuffers(DeviceBuffer<ValueType>* destinationDeviceBuffer,
+                              DeviceBuffer<ValueType>* sourceDeviceBuffer,
+                              size_t                   numValues,
+                              const DeviceStream&      deviceStream,
+                              GpuApiCallBehavior       transferKind,
+                              CommandEvent* /*timingEvent*/)
+{
+    if (numValues == 0)
+    {
+        return;
+    }
+    GMX_ASSERT(destinationDeviceBuffer, "needs a destination buffer pointer");
+    GMX_ASSERT(sourceDeviceBuffer, "needs a source buffer pointer");
+
+    hipError_t  stat;
+    const size_t bytes = numValues * sizeof(ValueType);
+    switch (transferKind)
+    {
+        case GpuApiCallBehavior::Async:
+            stat = hipMemcpyAsync(*destinationDeviceBuffer,
+                                   *sourceDeviceBuffer,
+                                   bytes,
+                                   hipMemcpyDeviceToDevice,
+                                   deviceStream.stream());
+            GMX_RELEASE_ASSERT(
+                    stat == hipSuccess,
+                    ("Asynchronous D2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+            break;
+
+        case GpuApiCallBehavior::Sync:
+            stat = hipMemcpy(*destinationDeviceBuffer, *sourceDeviceBuffer, bytes, hipMemcpyDeviceToDevice);
+            GMX_RELEASE_ASSERT(
+                    stat == hipSuccess,
+                    ("Synchronous D2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+            break;
+
+        default: throw;
+    }
+}
+
+template<
+    unsigned int BlockSize,
+    unsigned int ItemsPerThread,
+    class T
+>
+__device__ inline
+void block_store_direct_striped(unsigned int flat_id,
+                                T* block_output,
+                                T (&items)[ItemsPerThread],
+                                unsigned int valid)
+{
+    T* thread_iter = block_output + flat_id;
+    #pragma unroll
+    for (unsigned int item = 0; item < ItemsPerThread; item++)
+    {
+        unsigned int offset = item * BlockSize;
+        if (flat_id + offset < valid)
+        {
+             thread_iter[offset] = items[item];
+        }
+    }
+}
+
+template<
+    unsigned int BlockSize,
+    unsigned int ItemsPerThread,
+    class T
+>
+__device__ inline
+void block_store_direct_striped(unsigned int flat_id,
+                                T* block_output,
+                                T (&items)[ItemsPerThread])
+{
+    T* thread_iter = block_output + flat_id;
+    #pragma unroll
+    for (unsigned int item = 0; item < ItemsPerThread; item++)
+    {
+         thread_iter[item * BlockSize] = items[item];
+    }
+}
+
+template<
+    unsigned int BlockSize,
+    unsigned int ItemsPerThread,
+    class T
+>
+__launch_bounds__(BlockSize)
+__global__ void kernel_fill(
+    T* dst_ptr,
+    T value,
+    size_t size)
+{
+    constexpr unsigned int items_per_block = BlockSize * ItemsPerThread;
+
+    const unsigned int flat_id = threadIdx.x;
+    const unsigned int flat_block_id = blockIdx.x;
+    const unsigned int block_offset = flat_block_id * items_per_block;
+    const unsigned int number_of_blocks = (size + items_per_block - 1)/items_per_block;
+    const auto valid_in_last_block = size - items_per_block * (number_of_blocks - 1);
+
+    T values[ItemsPerThread];
+
+    #pragma unroll
+    for(unsigned int index = 0; index < ItemsPerThread; index++ )
+    {
+        values[index] = value;
+    }
+
+    if(flat_block_id == (number_of_blocks - 1)) // last block
+    {
+        block_store_direct_striped<BlockSize, ItemsPerThread>(
+            flat_id,
+            dst_ptr + block_offset,
+            values,
+            valid_in_last_block
+        );
+    }
+    else
+    {
+        block_store_direct_striped<BlockSize, ItemsPerThread>(
+            flat_id,
+            dst_ptr + block_offset,
+            values
+        );
+    }
+}
+
+/*! \brief
  * Clears the device buffer asynchronously.
  *
  * \tparam        ValueType       Raw value type of the \p buffer.

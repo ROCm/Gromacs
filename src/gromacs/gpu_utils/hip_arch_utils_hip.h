@@ -48,8 +48,16 @@
    have a warp size of 32, but this could change later. If it does, the
    following constants should depend on the value of GMX_PTX_ARCH.
  */
-static const int warp_size      = 64;
-static const int warp_size_log2 = 6;
+
+ //#define GMX_NAVI_BUILD
+ #ifdef GMX_NAVI_BUILD
+ static const int warp_size      = 32;
+ static const int warp_size_log2 = 5;
+ #else
+ static const int warp_size      = 64;
+ static const int warp_size_log2 = 6;
+ #endif
+
 /*! \brief Bitmask corresponding to all threads active in a warp.
  *  NOTE that here too we assume 32-wide warps.
  */

@@ -72,18 +72,19 @@
 namespace gmx
 {
 
-//! Number of CUDA threads in a block
+//! Number of HIP threads in a block
 // TODO Optimize this through experimentation
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 64;
 
 template<bool usePBC>
+__launch_bounds__(c_threadsPerBlock)
 __global__ void packSendBufKernel(float3* __restrict__ dataPacked,
                                   const float3* __restrict__ data,
                                   const int* __restrict__ map,
                                   const int    mapSize,
                                   const float3 coordinateShift)
 {
-    int           threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int           threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
     float3*       gm_dataDest = &dataPacked[threadIndex];
     const float3* gm_dataSrc  = &data[map[threadIndex]];
 
@@ -98,8 +99,6 @@ __global__ void packSendBufKernel(float3* __restrict__ dataPacked,
             *gm_dataDest = *gm_dataSrc;
         }
     }
-
-    return;
 }
 
 /*! \brief unpack non-local force data buffer on the GPU using pre-populated "map" containing index
@@ -108,13 +107,14 @@ __global__ void packSendBufKernel(float3* __restrict__ dataPacked,
  * from full to packed array \param[in]  mapSize     number of elements in map array
  */
 template<bool accumulate>
+__launch_bounds__(c_threadsPerBlock)
 __global__ void unpackRecvBufKernel(float3* __restrict__ data,
                                     const float3* __restrict__ dataPacked,
                                     const int* __restrict__ map,
                                     const int mapSize)
 {
 
-    int           threadIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int           threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
     const float3* gm_dataSrc  = &dataPacked[threadIndex];
     float3*       gm_dataDest = &data[map[threadIndex]];
 
@@ -129,8 +129,6 @@ __global__ void unpackRecvBufKernel(float3* __restrict__ data,
             *gm_dataDest = *gm_dataSrc;
         }
     }
-
-    return;
 }
 
 void GpuHaloExchange::Impl::reinitHalo(float3* d_coordinatesBuffer, float3* d_forcesBuffer)

@@ -92,7 +92,7 @@ __device__ __forceinline__ void spread_charges(const PmeGpuHipKernelParams kerne
 
     // Number of atoms processed by a single warp in spread and gather
     const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
-    const int atomsPerWarp        = warp_size / threadsPerAtomValue;
+    const int atomsPerWarp        = warpSize / threadsPerAtomValue;
 
     const int nx  = kernelParams.grid.realGridSize[XX];
     const int ny  = kernelParams.grid.realGridSize[YY];
@@ -188,7 +188,7 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
     const int threadsPerAtomValue = (threadsPerAtom == ThreadsPerAtom::Order) ? order : order * order;
     const int atomsPerBlock       = c_spreadMaxThreadsPerBlock / threadsPerAtomValue;
     // Number of atoms processed by a single warp in spread and gather
-    const int atomsPerWarp = warp_size / threadsPerAtomValue;
+    const int atomsPerWarp = warpSize / threadsPerAtomValue;
     // Gridline indices, ivec
     __shared__ int sm_gridlineIndices[atomsPerBlock * DIM];
     // Charges
@@ -207,7 +207,7 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
     const int threadLocalId =
             (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
     /* Warp index w.r.t. block - could probably be obtained easier? */
-    const int warpIndex = threadLocalId / warp_size;
+    const int warpIndex = threadLocalId / warpSize;
 
     /* Atom index w.r.t. warp */
     const int atomWarpIndex = threadIdx.z % atomsPerWarp;
@@ -256,7 +256,8 @@ __launch_bounds__(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBU
         calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, ThreadsPerAtom::Order>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
         //__syncwarp();
-	__all(1);
+	//__all(1);
+	__builtin_amdgcn_wave_barrier();
     }
     else
     {

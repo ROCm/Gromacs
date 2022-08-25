@@ -231,7 +231,7 @@ __forceinline__ __device__ float cos_angle(const float3 a, const float3 b)
     float ipab = ipa * ipb;
     if (ipab > 0.0f)
     {
-        cosval = ip * rsqrt(ipab);
+        cosval = ip * __frsqrt_rn(ipab);
     }
     else
     {

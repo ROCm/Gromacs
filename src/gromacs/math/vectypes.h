@@ -100,8 +100,14 @@ public:
                   "BasicVector value type must not be a pointer.");
 
     //! Constructs default (uninitialized) vector.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector() {}
     //! Constructs a vector from given values.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector(ValueType x, ValueType y, ValueType z) : x_{ x, y, z } {}
     /*! \brief
      * Constructs a vector from given values.
@@ -114,15 +120,34 @@ public:
     //! Default copy constructor.
     BasicVector(const BasicVector& src) = default;
     //! Default copy assignment operator.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector& operator=(const BasicVector& v) = default;
     //! Default move constructor.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector(BasicVector&& src) noexcept = default;
     //! Default move assignment operator.
+#ifdef __HIPCC__
+    __host__ __device__
+#endif
     BasicVector& operator=(BasicVector&& v) noexcept = default;
     //! Indexing operator to make the class work as the raw array.
     ValueType& operator[](int i) { return x_[i]; }
     //! Indexing operator to make the class work as the raw array.
     ValueType operator[](int i) const { return x_[i]; }
+    //! Return whether all elements compare equal
+    bool operator==(const BasicVector<ValueType>& right)
+    {
+        return x_[0] == right[0] && x_[1] == right[1] && x_[2] == right[2];
+    }
+    //! Return whether any elements compare unequal
+    bool operator!=(const BasicVector<ValueType>& right)
+    {
+        return x_[0] != right[0] || x_[1] != right[1] || x_[2] != right[2];
+    }
     //! Allow inplace addition for BasicVector
     BasicVector<ValueType>& operator+=(const BasicVector<ValueType>& right)
     {

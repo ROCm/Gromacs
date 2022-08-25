@@ -117,17 +117,17 @@ __device__ __forceinline__ float hipHeadSegmentedSum(float &input, const bool &f
     uint32_t lane_id = __lane_id();
 
     warp_flags &= uint64_t(-1) ^ ((uint64_t(1) << lane_id) - 1U);
-    warp_flags >>= (lane_id / warp_size) * warp_size;
-    warp_flags |= uint64_t(1) << (warp_size - 1U);
+    warp_flags >>= (lane_id / warpSize) * warpSize;
+    warp_flags |= uint64_t(1) << (warpSize - 1U);
     uint32_t valid_items = __lastbit_u32_u64(warp_flags) + 1U;
 
     float output = input;
     float value = 0.0f;
     #pragma unroll
-    for(unsigned int offset = 1; offset < warp_size; offset *= 2)
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
     {
-        value = __shfl_down(output, offset, warp_size);
-        lane_id = __lane_id() & (warp_size - 1);
+        value = __shfl_down(output, offset, warpSize);
+        lane_id = __lane_id() & (warpSize - 1);
         if (lane_id + offset < valid_items)
         {
             output += value;
@@ -536,10 +536,10 @@ __device__ static void do_dih_fup_gpu(const int      i,
         const int prev_lane_j = __shfl_up(j, 1);
         const int prev_lane_k = __shfl_up(k, 1);
         const int prev_lane_l = __shfl_up(l, 1);
-        const bool headi = threadIdx.x % warp_size == 0 || i != prev_lane_i;
-        const bool headj = threadIdx.x % warp_size == 0 || j != prev_lane_j;
-        const bool headk = threadIdx.x % warp_size == 0 || k != prev_lane_k;
-        const bool headl = threadIdx.x % warp_size == 0 || l != prev_lane_l;
+        const bool headi = threadIdx.x % warpSize == 0 || i != prev_lane_i;
+        const bool headj = threadIdx.x % warpSize == 0 || j != prev_lane_j;
+        const bool headk = threadIdx.x % warpSize == 0 || k != prev_lane_k;
+        const bool headl = threadIdx.x % warpSize == 0 || l != prev_lane_l;
 
 	if (b_ == ~(unsigned long long int)0)
         {
@@ -1020,11 +1020,11 @@ __global__ void exec_kernel_gpu(
             {
                 float vtot_shuffle = j == fType_shared_index ? vtot_loc : 0.0f;
                 #pragma unroll
-                for (unsigned int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+                for (unsigned int offset = (warpSize >> 1); offset > 0; offset >>= 1)
                 {
                     vtot_shuffle += __shfl_down(vtot_shuffle, offset);
                 }
-                if(threadIdx.x % warp_size == 0)
+                if(threadIdx.x % warpSize == 0)
                 {
                     fType = fTypesOnGpu[j];
                     hipGlobalAtomicAdd((d_vTot + fType), vtot_shuffle);
@@ -1035,12 +1035,12 @@ __global__ void exec_kernel_gpu(
         float vtotVdw_shuffle = vtotVdw_loc;
         float vtotElec_shuffle = vtotElec_loc;
         #pragma unroll
-        for (unsigned int offset = (warp_size >> 1); offset > 0; offset >>= 1)
+        for (unsigned int offset = (warpSize >> 1); offset > 0; offset >>= 1)
         {
             vtotVdw_shuffle += __shfl_down(vtotVdw_shuffle, offset);
             vtotElec_shuffle += __shfl_down(vtotElec_shuffle, offset);
         }
-        if(threadIdx.x % warp_size == 0)
+        if(threadIdx.x % warpSize == 0)
         {
             hipGlobalAtomicAdd(d_vTot + F_LJ14, vtotVdw_shuffle);
             hipGlobalAtomicAdd(d_vTot + F_COUL14, vtotElec_shuffle);
