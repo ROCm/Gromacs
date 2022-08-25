@@ -146,7 +146,7 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*    nbl,
         shY      = shiftvec[ish3 + 1];
         shZ      = shiftvec[ish3 + 2];
         cj4_ind0 = nbln.cj4_ind_start;
-        cj4_ind1 = nbln.cj4_ind_end;
+        cj4_ind1 = nbln.cj4_ind_start + nbln.cj4_length;
         sci      = nbln.sci;
         vctot    = 0;
         Vvdwtot  = 0;

@@ -115,7 +115,7 @@ void nbnxn_kernel_prune_4xn(NbnxnPairlistCpu*       nbl,
         SimdReal iz_S2 = SimdReal(x[sciz + 2]) + shZ_S;
         SimdReal iz_S3 = SimdReal(x[sciz + 3]) + shZ_S;
 
-        for (int cjind = ciEntry->cj_ind_start; cjind < ciEntry->cj_ind_end; cjind++)
+        for (int cjind = ciEntry->cj_ind_start; cjind < ciEntry->cjIndEnd(); cjind++)
         {
             /* j-cluster index */
             int cj = cjOuter[cjind].cj;
@@ -175,7 +175,7 @@ void nbnxn_kernel_prune_4xn(NbnxnPairlistCpu*       nbl,
 
         if (ncjInner > ciInner[nciInner].cj_ind_start)
         {
-            ciInner[nciInner].cj_ind_end = ncjInner;
+	    ciInner[nciInner].cj_length = ncjInner - ciInner[nciInner].cj_ind_start;
             nciInner++;
         }
     }

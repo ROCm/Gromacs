@@ -73,7 +73,8 @@ public:
     //! Constructor
     PairlistSets(const PairlistParams& pairlistParams,
                  bool                  haveMultipleDomains,
-                 int                   minimumIlistCountForGpuBalancing);
+                 int                   minimumIlistCountForGpuBalancing,
+		 int                   maximumIlistCountForGpuBalancing);
 
     //! Construct the pairlist set for the given locality
     void construct(gmx::InteractionLocality     iLocality,
@@ -153,6 +154,8 @@ private:
     PairlistParams params_;
     //! Pair list balancing parameter for use with GPU
     int minimumIlistCountForGpuBalancing_;
+    //! Pair list balancing parameter for use with GPU
+    int maximumIlistCountForGpuBalancing_;
     //! Local pairlist set
     std::unique_ptr<PairlistSet> localSet_;
     //! Non-local pairlist set

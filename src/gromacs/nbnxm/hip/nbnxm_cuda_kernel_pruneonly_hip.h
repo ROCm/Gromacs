@@ -163,7 +163,7 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
             pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
     int sci        = nb_sci.sci;           /* super-cluster */
     int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-    int cij4_end   = nb_sci.cj4_ind_end;   /* and last index of j clusters */
+    int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
     if (tidxz == 0 && tidxj == 0)
     {
