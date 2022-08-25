@@ -101,16 +101,6 @@ static __forceinline__ __device__ void
     *c12   = *c6 * sigma6;
 }
 
-static __forceinline__ __device__ void
-                       convert_sigma_epsilon_to_c6_c12(const float2 sigma, const float2 epsilon, float2* c6, float2* c12)
-{
-    float2 sigma2, sigma6;
-
-    sigma2 = sigma * sigma;
-    sigma6 = sigma2 * sigma2 * sigma2;
-    *c6    = epsilon * sigma6;
-    *c12   = *c6 * sigma6;
-}
 
 /*! Apply force switch,  force + energy version. */
 static __forceinline__ __device__ void
@@ -132,26 +122,6 @@ static __forceinline__ __device__ void
                + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
 }
 
-// For float2 type
-static __forceinline__ __device__ void
-                       calculate_force_switch_F(const NBParamGpu nbparam, float2 c6, float2 c12, float2 inv_r, float2 r2, float2* F_invr)
-{
-    float2 r, r_switch;
-
-    /* force switch constants */
-    float2 disp_shift_V2 = {nbparam.dispersion_shift.c2, nbparam.dispersion_shift.c2};
-    float2 disp_shift_V3 = {nbparam.dispersion_shift.c3, nbparam.dispersion_shift.c3};
-    float2 repu_shift_V2 = {nbparam.repulsion_shift.c2, nbparam.repulsion_shift.c2};
-    float2 repu_shift_V3 = {nbparam.repulsion_shift.c3, nbparam.repulsion_shift.c3};
-
-    r        = r2 * inv_r;
-    r_switch = {r.x - nbparam.rvdw_switch, r.y - nbparam.rvdw_switch};
-    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
-    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
-
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
-}
 
 /*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
@@ -178,38 +148,6 @@ static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamG
     r        = r2 * inv_r;
     r_switch = r - nbparam.rvdw_switch;
     r_switch = r_switch >= 0.0f ? r_switch : 0.0f;
-
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
-    *E_lj += c6 * (disp_shift_F2 + disp_shift_F3 * r_switch) * r_switch * r_switch * r_switch
-             - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
-}
-
-static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
-                                                                  float2            c6,
-                                                                  float2            c12,
-                                                                  float2            inv_r,
-                                                                  float2            r2,
-                                                                  float2*           F_invr,
-                                                                  float2*           E_lj)
-{
-    float2 r, r_switch;
-
-    /* force switch constants */
-    float disp_shift_V2 = nbparam.dispersion_shift.c2;
-    float disp_shift_V3 = nbparam.dispersion_shift.c3;
-    float repu_shift_V2 = nbparam.repulsion_shift.c2;
-    float repu_shift_V3 = nbparam.repulsion_shift.c3;
-
-    float disp_shift_F2 = nbparam.dispersion_shift.c2 / 3;
-    float disp_shift_F3 = nbparam.dispersion_shift.c3 / 4;
-    float repu_shift_F2 = nbparam.repulsion_shift.c2 / 3;
-    float repu_shift_F3 = nbparam.repulsion_shift.c3 / 4;
-
-    r        = r2 * inv_r;
-    r_switch = r - nbparam.rvdw_switch;
-    r_switch.x = r_switch.x >= 0.0f ? r_switch.x : 0.0f;
-    r_switch.y = r_switch.y >= 0.0f ? r_switch.y : 0.0f;
 
     *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
                + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
@@ -288,12 +226,6 @@ static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamG
 #    endif /* DISABLE_CUDA_TEXTURES */
 }
 
-static __forceinline__ __device__ float2 calculate_lj_ewald_c6grid(const NBParamGpu nbparam, int typei, int2 typej)
-{
-    return {LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej.x]), LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej.y])};
-}
-
-
 /*! Calculate LJ-PME grid force contribution with
  *  geometric combination rule.
  */
@@ -320,30 +252,6 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F(const NBPa
     *F_invr += c6grid * (inv_r6_nm - expmcr2 * (inv_r6_nm * poly + lje_coeff6_6)) * inv_r2;
 }
 
-static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F(const NBParamGpu nbparam,
-                                                                      int              typei,
-                                                                      int2              typej,
-                                                                      float2            r2,
-                                                                      float2            inv_r2,
-                                                                      float            lje_coeff2,
-                                                                      float            lje_coeff6_6,
-                                                                      float2*           F_invr)
-{
-    float2 c6grid, inv_r6_nm, cr2, expmcr2, poly;
-
-    c6grid = calculate_lj_ewald_c6grid(nbparam, typei, typej);
-
-    /* Recalculate inv_r6 without exclusion mask */
-    inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
-    cr2       = lje_coeff2 * r2;
-    expmcr2   = {__expf(-cr2.x), __expf(-cr2.y)};
-    poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
-
-    /* Subtract the grid force from the total LJ force */
-    *F_invr += c6grid * (inv_r6_nm - expmcr2 * (inv_r6_nm * poly + lje_coeff6_6)) * inv_r2;
-}
-
-
 /*! Calculate LJ-PME grid force + energy contribution with
  *  geometric combination rule.
  */
@@ -366,38 +274,6 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NB
     inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
     cr2       = lje_coeff2 * r2;
     expmcr2   = __expf(-cr2);
-    poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
-
-    /* Subtract the grid force from the total LJ force */
-    *F_invr += c6grid * (inv_r6_nm - expmcr2 * (inv_r6_nm * poly + lje_coeff6_6)) * inv_r2;
-
-    /* Shift should be applied only to real LJ pairs */
-    sh_mask = nbparam.sh_lj_ewald * int_bit;
-    *E_lj += c_oneSixth * c6grid * (inv_r6_nm * (1.0f - expmcr2 * poly) + sh_mask);
-}
-
-//calculate_lj_ewald_comb_geom_F_E(nbparam, typei, typej_int2, r2_f2, inv_r2_f2,
-//                                                                 lje_coeff2, lje_coeff6_6, int_bit_f2,
-//                                                                 &F_invr_f2, &E_lj_p_f2);
-static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NBParamGpu nbparam,
-                                                                        int              typei,
-                                                                        int2              typej,
-                                                                        float2            r2,
-                                                                        float2            inv_r2,
-                                                                        float            lje_coeff2,
-                                                                        float  lje_coeff6_6,
-                                                                        float2  int_bit,
-                                                                        float2* F_invr,
-                                                                        float2* E_lj)
-{
-    float2 c6grid, inv_r6_nm, cr2, expmcr2, poly, sh_mask;
-
-    c6grid = calculate_lj_ewald_c6grid(nbparam, typei, typej);
-
-    /* Recalculate inv_r6 without exclusion mask */
-    inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
-    cr2       = lje_coeff2 * r2;
-    expmcr2   = {__expf(-cr2.x), __expf(-cr2.y)};
     poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
 
     /* Subtract the grid force from the total LJ force */
@@ -479,55 +355,6 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_LB_F_E(const NBPa
     }
 }
 
-static __forceinline__ __device__ void calculate_lj_ewald_comb_LB_F_E(const NBParamGpu nbparam,
-                                                                      int              typei,
-                                                                      int2              typej,
-                                                                      float2            r2,
-                                                                      float2           inv_r2,
-                                                                      float            lje_coeff2,
-                                                                      float            lje_coeff6_6,
-                                                                      float2            int_bit,
-                                                                      float2*           F_invr,
-                                                                      float2*           E_lj)
-{
-    float2 c6grid, inv_r6_nm, cr2, expmcr2, poly;
-    float2 sigma, sigma2, epsilon;
-
-    /* sigma and epsilon are scaled to give 6*C6 */
-    float2 c6c12_i = fetch_nbfp_comb_c6_c12(nbparam, typei);
-    float2 c6c12_j = fetch_nbfp_comb_c6_c12(nbparam, typej.x);
-
-    sigma.x   = c6c12_i.x + c6c12_j.x;
-    epsilon.x = c6c12_i.y * c6c12_j.y;
-
-    c6c12_j = fetch_nbfp_comb_c6_c12(nbparam, typej.y);
-
-    sigma.y   = c6c12_i.x + c6c12_j.x;
-    epsilon.y = c6c12_i.y * c6c12_j.y;
-
-    sigma2 = sigma * sigma;
-    c6grid = epsilon * sigma2 * sigma2 * sigma2;
-
-    /* Recalculate inv_r6 without exclusion mask */
-    inv_r6_nm = inv_r2 * inv_r2 * inv_r2;
-    cr2       = lje_coeff2 * r2;
-    expmcr2   = {__expf(-cr2.x), __expf(-cr2.y)};
-    poly      = 1.0f + cr2 + 0.5f * cr2 * cr2;
-
-    /* Subtract the grid force from the total LJ force */
-    *F_invr += c6grid * (inv_r6_nm - expmcr2 * (inv_r6_nm * poly + lje_coeff6_6)) * inv_r2;
-
-    if (E_lj != nullptr)
-    {
-        float2 sh_mask;
-
-        /* Shift should be applied only to real LJ pairs */
-        sh_mask = nbparam.sh_lj_ewald * int_bit;
-        *E_lj += c_oneSixth * c6grid * (inv_r6_nm * (1.0f - expmcr2 * poly) + sh_mask);
-    }
-}
-
-
 /*! Fetch two consecutive values from the Ewald correction F*r table.
  *
  *  Depending on what is supported, it fetches parameters either
@@ -575,19 +402,6 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
     return lerp(d01.x, d01.y, fraction);
 }
 
-// For float2 type
-static __forceinline__ __device__ float2 interpolate_coulomb_force_r(const NBParamGpu nbparam, float2 r)
-{
-    float2 normalized = nbparam.coulomb_tab_scale * r;
-    int2   index      = {(int)normalized.x, (int)normalized.y};
-    float2 fraction   = {normalized.x - index.x, normalized.y - index.y};
-
-    float2 d01 = fetch_coulomb_force_r(nbparam, index.x);
-    float2 d02 = fetch_coulomb_force_r(nbparam, index.y);
-
-    return {lerp(d01.x, d01.y, fraction.x), lerp(d02.x, d02.y, fraction.y)};
-}
-
 /*! Fetch C6 and C12 from the parameter table.
  *
  *  Depending on what is supported, it fetches parameters either
@@ -609,31 +423,6 @@ static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, 
     c12 = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex + 1);
 #    endif // DISABLE_CUDA_TEXTURES
 }
-
-// For float2 type
-static __forceinline__ __device__ void fetch_nbfp_c6_c12(float2& c6, float2& c12, const NBParamGpu nbparam, int2 baseIndex)
-{
-#    if DISABLE_CUDA_TEXTURES
-    /* Force an 8-byte fetch to save a memory instruction. */
-    float2* nbfp = (float2*)nbparam.nbfp;
-    float2  c6c12;
-    c6c12 = LDG(&nbfp[baseIndex.x]);
-    c6.x    = c6c12.x;
-    c12.x   = c6c12.y;
-
-    c6c12 = LDG(&nbfp[baseIndex.y]);
-    c6.y    = c6c12.x;
-    c12.y   = c6c12.y;
-
-
-#    else
-    /* NOTE: as we always do 8-byte aligned loads, we could
-       fetch float2 here too just as above. */
-    c6  = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex);
-    c12 = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex + 1);
-#    endif // DISABLE_CUDA_TEXTURES
-}
-
 
 /*! Calculate analytical Ewald correction term. */
 static __forceinline__ __device__ float pmecorrF(float z2)

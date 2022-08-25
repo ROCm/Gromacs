@@ -191,33 +191,6 @@ static const nbnxn_cu_kfunc_ptr_t nb_kfunc_noener_noprune_ptr[eelTypeNR][evdwTyp
       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_cuda }
 };
 
-static const nbnxn_cu_kfunc_ptr_t nb_pack_kfunc_noener_noprune_ptr[eelTypeNR][evdwTypeNR] = {
-    { nbnxn_kernel_ElecCut_VdwLJ_F_cuda, nbnxn_kernel_ElecCut_VdwLJCombGeom_F_cuda,
-      nbnxn_kernel_ElecCut_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecCut_VdwLJFsw_F_cuda,
-      nbnxn_kernel_ElecCut_VdwLJPsw_F_cuda, nbnxn_kernel_ElecCut_VdwLJEwCombGeom_F_cuda,
-      nbnxn_kernel_ElecCut_VdwLJEwCombLB_F_cuda },
-    { nbnxn_kernel_ElecRF_VdwLJ_F_cuda, nbnxn_kernel_ElecRF_VdwLJCombGeom_F_cuda,
-      nbnxn_kernel_ElecRF_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecRF_VdwLJFsw_F_cuda,
-      nbnxn_kernel_ElecRF_VdwLJPsw_F_cuda, nbnxn_kernel_ElecRF_VdwLJEwCombGeom_F_cuda,
-      nbnxn_kernel_ElecRF_VdwLJEwCombLB_F_cuda },
-    { nbnxn_kernel_ElecEwQSTab_VdwLJ_F_cuda, nbnxn_kernel_ElecEwQSTab_VdwLJCombGeom_F_cuda,
-      nbnxn_pack_kernel_ElecEwQSTab_VdwLJCombLB_F_cuda, nbnxn_pack_kernel_ElecEwQSTab_VdwLJFsw_F_cuda,
-      nbnxn_kernel_ElecEwQSTab_VdwLJPsw_F_cuda, nbnxn_kernel_ElecEwQSTab_VdwLJEwCombGeom_F_cuda,
-      nbnxn_kernel_ElecEwQSTab_VdwLJEwCombLB_F_cuda },
-    { nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJ_F_cuda, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombGeom_F_cuda,
-      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJFsw_F_cuda,
-      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJPsw_F_cuda, nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombGeom_F_cuda,
-      nbnxn_kernel_ElecEwQSTabTwinCut_VdwLJEwCombLB_F_cuda },
-    { nbnxn_kernel_ElecEw_VdwLJ_F_cuda, nbnxn_kernel_ElecEw_VdwLJCombGeom_F_cuda,
-      nbnxn_kernel_ElecEw_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecEw_VdwLJFsw_F_cuda,
-      nbnxn_kernel_ElecEw_VdwLJPsw_F_cuda, nbnxn_kernel_ElecEw_VdwLJEwCombGeom_F_cuda,
-      nbnxn_kernel_ElecEw_VdwLJEwCombLB_F_cuda },
-    { nbnxn_kernel_ElecEwTwinCut_VdwLJ_F_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJCombGeom_F_cuda,
-      nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJFsw_F_cuda,
-      nbnxn_kernel_ElecEwTwinCut_VdwLJPsw_F_cuda, nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_cuda,
-      nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombLB_F_cuda }
-};
-
 /*! Force + energy kernel function pointers. */
 static const nbnxn_cu_kfunc_ptr_t nb_kfunc_ener_noprune_ptr[eelTypeNR][evdwTypeNR] = {
     { nbnxn_kernel_ElecCut_VdwLJ_VF_cuda, nbnxn_kernel_ElecCut_VdwLJCombGeom_VF_cuda,
@@ -313,8 +286,7 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
                                                        int                     evdwtype,
                                                        bool                    bDoEne,
                                                        bool                    bDoPrune,
-                                                       const DeviceInformation gmx_unused* deviceInfo,
-						       bool                    pack=false)
+                                                       const DeviceInformation gmx_unused* deviceInfo)
 {
     nbnxn_cu_kfunc_ptr_t res;
 
@@ -349,11 +321,7 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
         }
         else
         {
-            if (!pack) {
-                res = nb_kfunc_noener_noprune_ptr[eeltype][evdwtype];
-	    } else {
-                res = nb_pack_kfunc_noener_noprune_ptr[eeltype][evdwtype];
-	    }
+	    res = nb_kfunc_noener_noprune_ptr[eeltype][evdwtype];
         }
     }
 
@@ -592,23 +560,11 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
                 c_nbnxnGpuNumClusterPerSupercluster, plist->na_c, config.sharedMemorySize);
     }
 
-    bool usePack = false;
-
-#ifdef GMX_GPU_USE_PACK
-    //if (nbp->eeltype == 2 && nbp->vdwtype == 3 && 
-    //    	    !stepWork.computeEnergy && 
-    //    	    !(plist->haveFreshList && 
-    //                !nb->timers->interaction[iloc].didPrune)) {
-    //    usePack = true;
-    //}
-    usePack = true;
-#endif
-
     auto*      timingEvent = bDoTime ? t->interaction[iloc].nb_k.fetchNextEvent() : nullptr;
     const auto kernel =
             select_nbnxn_kernel(nbp->eeltype, nbp->vdwtype, stepWork.computeEnergy,
                                 (plist->haveFreshList && !nb->timers->interaction[iloc].didPrune),
-                                &nb->deviceContext_->deviceInfo(), usePack);
+                                &nb->deviceContext_->deviceInfo());
     /*
     const auto kernelArgs =
             prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
@@ -875,7 +831,6 @@ void cuda_set_cacheconfig()
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_prune_ptr[i][j]), hipFuncCachePreferEqual);
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
             hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_ptr[i][j]), hipFuncCachePreferEqual);
-            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_pack_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
             stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
             CU_RET_ERR(stat, "hipFuncSetCacheConfig failed");
         }
