@@ -296,12 +296,11 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
                "The VdW type requested is not implemented in the HIP kernels.");
 
     /* assert assumptions made by the kernels */
-    GMX_ASSERT(c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit
-                       == deviceInfo->prop.warpSize,
+    GMX_ASSERT((c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit) % deviceInfo->prop.warpSize == 0,
                "The HIP kernels require the "
-               "cluster_size_i*cluster_size_j/nbnxn_gpu_clusterpair_split to match the warp size "
+               "cluster_size_i*cluster_size_j/nbnxn_gpu_clusterpair_split to be dividable with the warp size "
                "of the architecture targeted.");
-
+    
     if (bDoEne)
     {
         if (bDoPrune)
@@ -342,7 +341,7 @@ static inline int calc_shmem_required_nonbonded(const int               num_thre
     /* i-atom x+q in shared memory */
     shmem = c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(float4);
     /* cj in shared memory, for each warp separately */
-    shmem += num_threads_z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(int);
+    //shmem += num_threads_z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(int);
 
     if (nbp->vdwtype == evdwTypeCUTCOMBGEOM || nbp->vdwtype == evdwTypeCUTCOMBLB)
     {
@@ -534,10 +533,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
      * - The 1D block-grid contains as many blocks as super-clusters.
      */
     int num_threads_z = 1;
-    if (nb->deviceContext_->deviceInfo().prop.gcnArch > 908)
-    {
-        num_threads_z = 4;
-    }
+    
     int nblock = calc_nb_kernel_nblock(plist->nsci, &nb->deviceContext_->deviceInfo());
 
 
@@ -571,6 +567,44 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
     */
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
+
+#if GMX_GPU_HIP
+        bool sumUpEnergy = (stepWork.computeEnergy && c_clEnergyMemoryMultiplier > 1);
+        bool sumUpShifts = (stepWork.computeVirial && c_clShiftMemoryMultiplier > 1);
+
+        if ( sumUpEnergy || sumUpShifts )
+        {
+            constexpr unsigned int block_size = 64U;
+
+            KernelLaunchConfig configSumUp;
+            configSumUp.blockSize[0] = block_size;
+            configSumUp.blockSize[1] = 1;
+            configSumUp.blockSize[2] = 1;
+            configSumUp.gridSize[0]  = sumUpShifts ? SHIFTS : 1;
+            configSumUp.sharedMemorySize = 0;
+
+            const auto kernelSumUp = nbnxn_kernel_sum_up<block_size>;
+
+            //const auto kernelSumUpArgs =
+            //        prepareGpuKernelArguments(
+            //            kernelSumUp,
+            //            configSumUp,
+            //            adat,
+            //            &gmx::c_numShiftVectors,
+            //            &sumUpEnergy,
+            //            &sumUpShifts
+            //        );
+
+            launchGpuKernel(
+                kernelSumUp,
+                configSumUp,
+                deviceStream,
+                nullptr,
+                "nbnxn_kernel_sum_up",
+		*adat, SHIFTS, sumUpEnergy, sumUpShifts
+            );
+        }
+#endif
 
     if (bDoTime)
     {

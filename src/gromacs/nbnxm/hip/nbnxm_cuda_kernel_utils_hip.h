@@ -59,6 +59,7 @@
 #ifndef NBNXM_CUDA_KERNEL_UTILS_CUH
 #    define NBNXM_CUDA_KERNEL_UTILS_CUH
 
+constexpr int c_subWarp = 64 / c_nbnxnGpuClusterpairSplit;
 /*! \brief Log of the i and j cluster size.
  *  change this together with c_clSize !*/
 static const int __device__ c_clSizeLog2 = 3;
@@ -74,6 +75,113 @@ static const unsigned __device__ superClInteractionMask =
 
 static const float __device__ c_oneSixth    = 0.16666667f;
 static const float __device__ c_oneTwelveth = 0.08333333f;
+
+template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
+__device__ inline
+T warp_move_dpp(const T& input) {
+    constexpr int words_no = (sizeof(T) + sizeof(int) - 1) / sizeof(int);
+
+    struct V { int words[words_no]; };
+    V a = __builtin_bit_cast(V, input);
+    #pragma unroll
+    for (int i = 0; i < words_no; i++) {
+        a.words[i] = __builtin_amdgcn_update_dpp(
+          0, a.words[i],
+          dpp_ctrl, row_mask, bank_mask, bound_ctrl
+        );
+    }
+
+    return __builtin_bit_cast(T, a);
+}
+
+__device__ __forceinline__ int __nb_any(int predicate,int widx)
+{
+    if (c_subWarp == warpSize)
+    {
+        return __any(predicate);
+    }
+    else
+    {
+        return (int)(__ballot(predicate) >> (widx * c_subWarp));
+    }
+}
+
+static __forceinline__ __device__
+void float3_reduce_final(float3* input_ptr, const unsigned int size)
+{
+    const unsigned int flat_id = threadIdx.x;
+
+    float3 input;
+    input.x = atomicExch(&(input_ptr[size * (flat_id + 1)].x)    , 0.0f);
+    input.y = atomicExch(&(input_ptr[size * (flat_id + 1)].x) + 1, 0.0f);
+    input.z = atomicExch(&(input_ptr[size * (flat_id + 1)].x) + 2, 0.0f);
+
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
+    {
+        input.x = input.x + __shfl_down(input.x, offset);
+        input.y = input.y + __shfl_down(input.y, offset);
+        input.z = input.z + __shfl_down(input.z, offset);
+    }
+
+    if( flat_id == 0 || flat_id == warpSize )
+    {
+        atomicAdd(&(input_ptr[0].x)    , input.x);
+        atomicAdd(&(input_ptr[0].x) + 1, input.y);
+        atomicAdd(&(input_ptr[0].x) + 2, input.z);
+    }
+}
+
+static __forceinline__ __device__
+void energy_reduce_final(float* e_lj_ptr, float* e_el_ptr)
+{
+    const unsigned int flat_id = threadIdx.x;
+
+    float E_lj = atomicExch(e_lj_ptr + (flat_id + 1), 0.0f);
+    float E_el = atomicExch(e_el_ptr + (flat_id + 1), 0.0f);
+
+    #pragma unroll
+    for(unsigned int offset = 1; offset < warpSize; offset *= 2)
+    {
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
+    }
+
+    if( flat_id == 0 || flat_id == warpSize )
+    {
+        atomicAdd(e_lj_ptr, E_lj);
+        atomicAdd(e_el_ptr, E_el);
+    }
+}
+
+template<
+    unsigned int BlockSize
+>
+__launch_bounds__(BlockSize) __global__
+void nbnxn_kernel_sum_up(
+    cu_atomdata_t atdat,
+    int size,
+    bool computeEnergy,
+    bool computeVirial)
+{
+    unsigned int bidx = blockIdx.x;
+
+    // Sum up fshifts
+    if(computeVirial)
+    {
+        float3* values_ptr = reinterpret_cast<float3*>(atdat.fshift) + bidx;
+        float3_reduce_final(values_ptr, size);
+    }
+
+    // Sum up energies
+    if(computeEnergy && bidx == 0)
+    {
+        float* e_lj_ptr = atdat.e_lj;
+        float* e_el_ptr = atdat.e_el;
+
+        energy_reduce_final(e_lj_ptr, e_el_ptr);
+    }
+}
 
 static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
   const int* address_as_ull = (int*)address;
@@ -389,6 +497,11 @@ __forceinline__ __host__ __device__ T lerp(T d0, T d1, T t)
     return fma(t, d1, fma(-t, d0, d0));
 }
 
+__forceinline__ __device__ float flerp(float d0, float d1, float t)
+{
+    return __fmaf_rn(t, d1, __fmaf_rn(-t, d0, d0));
+}
+
 /*! Interpolate Ewald coulomb force correction using the F*r table.
  */
 static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBParamGpu nbparam, float r)
@@ -399,7 +512,7 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
-    return lerp(d01.x, d01.y, fraction);
+    return flerp(d01.x, d01.y, fraction);
 }
 
 /*! Fetch C6 and C12 from the parameter table.
@@ -491,31 +604,36 @@ static __forceinline__ __device__ void
 static __forceinline__ __device__ void
                        reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx, const unsigned long activemask)
 {
-    f.x += __shfl_down(f.x, 1);
-    f.y += __shfl_up(f.y, 1);
-    f.z += __shfl_down(f.z, 1);
-
-    if (tidxi & 1)
+    /*for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
     {
-        f.x = f.y;
-    }
+        f.x += __shfl_down(f.x, offset);
+        f.y += __shfl_down(f.y, offset);
+        f.z += __shfl_down(f.z, offset);
+    }*/
 
-    f.x += __shfl_down(f.x, 2);
-    f.z += __shfl_up(f.z, 2);
+    f.x += warp_move_dpp<float, 0xb1>(f.x);
+    f.y += warp_move_dpp<float, 0xb1>(f.y);
+    f.z += warp_move_dpp<float, 0xb1>(f.z);
 
-    if (tidxi & 2)
-    {
-        f.x = f.z;
-    }
+    f.x += warp_move_dpp<float, 0x4e>(f.x);
+    f.y += warp_move_dpp<float, 0x4e>(f.y);
+    f.z += warp_move_dpp<float, 0x4e>(f.z);
 
-    f.x += __shfl_down(f.x, 4);
+    f.x += warp_move_dpp<float, 0x114>(f.x);
+    f.y += warp_move_dpp<float, 0x114>(f.y);
+    f.z += warp_move_dpp<float, 0x114>(f.z);
 
-    if (tidxi < 3)
+    //if (tidxi == 0)
+    if (tidxi == c_clSize - 1)
     {
 #if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet((&fout[aidx].x) + tidxi, f.x);
+        atomicAdd((&fout[aidx].x), f.x);
+        atomicAdd((&fout[aidx].y), f.y);
+        atomicAdd((&fout[aidx].z), f.z);
 #else
-        atomicAddOverWriteForFloat((&fout[aidx].x) + tidxi, f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].x), f.x);
+        atomicAddOverWriteForFloat((&fout[aidx].y), f.y);
+        atomicAddOverWriteForFloat((&fout[aidx].z), f.z);
 #endif
     }
 }
@@ -670,6 +788,37 @@ static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3          
     }
 }
 
+static __forceinline__ __device__ void reduce_force_i_warp_shfl(float3             fin,
+                                                                float3*            fout,
+                                                                float3&            fshift_buf,
+                                                                bool               bCalcFshift,
+                                                                int                tidxj,
+                                                                int                aidx,
+                                                                const unsigned long activemask)
+{
+    #pragma unroll
+    for (int offset = warpSize >> 1; offset >= c_clSize; offset >>= 1)
+    {
+        fin.x += __shfl_down(fin.x, offset);
+        fin.y += __shfl_down(fin.y, offset);
+        fin.z += __shfl_down(fin.z, offset);
+    }
+
+    if (tidxj % (warpSize / c_clSize) == 0)
+    {
+        atomicAdd((&fout[aidx].x), fin.x);
+        atomicAdd((&fout[aidx].y), fin.y);
+        atomicAdd((&fout[aidx].z), fin.z);
+
+        if (bCalcFshift)
+        {
+            fshift_buf.x += fin.x;
+            fshift_buf.y += fin.y;
+            fshift_buf.z += fin.z;
+        }
+    }
+}
+
 /*! Energy reduction; this implementation works only with power of two
  *  array sizes.
  */
@@ -716,28 +865,80 @@ static __forceinline__ __device__ void
 static __forceinline__ __device__ void
                        reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int tidx, const unsigned long activemask)
 {
-    int i, sh;
-
-    sh = 1;
-#    pragma unroll warp_size_log2
-    for (i = 0; i < warp_size_log2; i++)
+/*for (int offset = c_subWarp >> 1; offset > 0; offset >>= 1)
     {
-        E_lj += __shfl_down(E_lj, sh);
-        E_el += __shfl_down(E_el, sh);
-        sh += sh;
+        E_lj += __shfl_down(E_lj, offset);
+        E_el += __shfl_down(E_el, offset);
+    }*/
+
+    if(c_subWarp > 1)
+    {
+        E_lj += warp_move_dpp<float, 0xb1>(E_lj);
+        E_el += warp_move_dpp<float, 0xb1>(E_el);
     }
 
-    /* The first thread in the warp writes the reduced energies */
-    if (tidx == 0)
+    if(c_subWarp > 2)
     {
-#if ((HIP_VERSION_MAJOR >= 3) && (HIP_VERSION_MINOR > 3)) || (HIP_VERSION_MAJOR >= 4)
-        atomicAddNoRet(e_lj, E_lj);
-        atomicAddNoRet(e_el, E_el);
+        E_lj += warp_move_dpp<float, 0x4e>(E_lj);
+        E_el += warp_move_dpp<float, 0x4e>(E_el);
+    }
+
+    if(c_subWarp > 4)
+    {
+        E_lj += warp_move_dpp<float, 0x114>(E_lj);
+        E_el += warp_move_dpp<float, 0x114>(E_el);
+    }
+
+    if(c_subWarp > 8)
+    {
+        E_lj += warp_move_dpp<float, 0x118>(E_lj);
+        E_el += warp_move_dpp<float, 0x118>(E_el);
+    }
+
+    if(c_subWarp > 16)
+    {
+#ifndef __gfx1030__
+        E_lj += warp_move_dpp<float, 0x142>(E_lj);
+        E_el += warp_move_dpp<float, 0x142>(E_el);
 #else
-        atomicAddOverWriteForFloat(e_lj, E_lj);
-        atomicAddOverWriteForFloat(e_el, E_el);
+        E_lj += __shfl(E_lj, 15, warpSize);
+        E_el += __shfl(E_el, 15, warpSize);
 #endif
     }
+
+#ifndef __gfx1030__
+    if(c_subWarp > 32)
+    {
+
+        E_lj += warp_move_dpp<float, 0x143>(E_lj);
+        E_el += warp_move_dpp<float, 0x143>(E_el);
+    }
+
+    /* The last thread in the subWarp writes the reduced energies */
+    if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
+    {
+        atomicAdd(e_lj, E_lj);
+        atomicAdd(e_el, E_el);
+    }
+#else
+    if(c_subWarp > 32)
+    {
+        if ((tidx & (c_subWarp - 1)) == (c_subWarp - 1))
+        {
+            atomicAdd(e_lj, E_lj);
+            atomicAdd(e_el, E_el);
+        }
+    }
+    else
+    {
+        if ((tidx & (warpSize - 1)) == (warpSize - 1))
+        {
+            atomicAdd(e_lj, E_lj);
+            atomicAdd(e_el, E_el);
+        }
+    }
+    return;
+#endif
 }
 
 #endif /* NBNXN_CUDA_KERNEL_UTILS_CUH */
