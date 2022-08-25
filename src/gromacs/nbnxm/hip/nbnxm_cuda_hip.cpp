@@ -626,7 +626,7 @@ static inline int calc_shmem_required_prune(const int num_threads_z)
     /* i-atom x in shared memory */
     shmem = c_nbnxnGpuNumClusterPerSupercluster * c_clSize * sizeof(float4);
     /* cj in shared memory, for each warp separately */
-    shmem += num_threads_z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(int);
+    //shmem += num_threads_z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(int);
 
     return shmem;
 }
