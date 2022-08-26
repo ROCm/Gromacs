@@ -386,18 +386,19 @@ static __forceinline__ __device__ void
  *  Depending on what is supported, it fetches parameters either
  *  using direct load, texture objects, or texrefs.
  */
-static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, unsigned int typei, unsigned int typej)
+static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, int typei, int typej)
 {
-    
-#if DISABLE_CUDA_TEXTURES
+#    if DISABLE_CUDA_TEXTURES
+    //return LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej]);
     float2* nbfp_comb = (float2*)nbparam.nbfp_comb;
     float c6_i = fast_load(nbfp_comb, typei).x;
     float c6_j = fast_load(nbfp_comb, typej).x;
+
     return c6_i * c6_j;
-#else
+#    else
     return tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typei)
            * tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typej);
-#endif
+#    endif /* DISABLE_CUDA_TEXTURES */
 }
 
 /*! Calculate LJ-PME grid force contribution with
@@ -469,6 +470,7 @@ static __forceinline__ __device__ float2 fetch_nbfp_comb_c6_c12(const NBParamGpu
 #    if DISABLE_CUDA_TEXTURES
     /* Force an 8-byte fetch to save a memory instruction. */
     float2* nbfp_comb = (float2*)nbparam.nbfp_comb;
+    //c6c12             = LDG(&nbfp_comb[type]);
     c6c12 = fast_load(nbfp_comb, type);
 #    else
     /* NOTE: as we always do 8-byte aligned loads, we could
@@ -540,6 +542,8 @@ static __forceinline__ __device__ float2 fetch_coulomb_force_r(const NBParamGpu 
 
 #    if DISABLE_CUDA_TEXTURES
     /* Can't do 8-byte fetch because some of the addresses will be misaligned. */
+    //d.x = LDG(&nbparam.coulomb_tab[index]);
+    //d.y = LDG(&nbparam.coulomb_tab[index + 1]);
     d.x = fast_load(nbparam.coulomb_tab, index);
     d.y = fast_load(nbparam.coulomb_tab, index, 1);
 #    else
@@ -572,9 +576,9 @@ __forceinline__ __device__ float flerp(float d0, float d1, float t)
  */
 static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBParamGpu nbparam, float r)
 {
-    float normalized   = nbparam.coulomb_tab_scale * r;
-    unsigned int index = static_cast<unsigned int>(normalized);
-    float fraction     = normalized - index;
+    float normalized = nbparam.coulomb_tab_scale * r;
+    int   index      = (int)normalized;
+    float fraction   = normalized - index;
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
@@ -589,17 +593,19 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
 static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, const NBParamGpu nbparam, int baseIndex)
 {
 #    if DISABLE_CUDA_TEXTURES
-    float2 c6c12;
+    /* Force an 8-byte fetch to save a memory instruction. */
     float2* nbfp = (float2*)nbparam.nbfp;
+    float2  c6c12;
+    //c6c12 = LDG(&nbfp[baseIndex]);
     c6c12 = fast_load(nbfp, baseIndex);
-    c6  = c6c12.x;
-    c12 = c6c12.y;
+    c6    = c6c12.x;
+    c12   = c6c12.y;
 #    else
+    /* NOTE: as we always do 8-byte aligned loads, we could
+       fetch float2 here too just as above. */
     c6  = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex);
     c12 = tex1Dfetch<float>(nbparam.nbfp_texobj, 2 * baseIndex + 1);
 #    endif // DISABLE_CUDA_TEXTURES
-    
-
 }
 
 /*! Calculate analytical Ewald correction term. */
@@ -641,9 +647,6 @@ static __forceinline__ __device__ float pmecorrF(float z2)
     return polyFN0 * polyFD0;
 }
 
-/*! Final j-force reduction; this implementation only with power of two
- *  array sizes.
- */
 static __forceinline__ __device__ float
 reduce_force_j_warp_shfl(float3 f, unsigned int tidxi)
 {
@@ -741,6 +744,5 @@ reduce_energy_warp_shfl(float E_lj, float E_el, float* e_lj, float* e_el, int ti
         atomicAdd(e_el, E_el);
     }
 }
-
 
 #endif /* NBNXN_CUDA_KERNEL_UTILS_CUH */

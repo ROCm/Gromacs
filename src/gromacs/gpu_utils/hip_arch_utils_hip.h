@@ -73,7 +73,7 @@ static const unsigned long c_fullWarpMask = 0xffffffffffffffff;
  *  to have fallback for texture-less reads (direct/LDG loads), all new code needs
  *  to provide fallback code.
  */
-#    define DISABLE_CUDA_TEXTURES 0
+#    define DISABLE_CUDA_TEXTURES 1
 
 /*! \brief True if the use of texture fetch in the CUDA kernels is disabled. */
 static const bool c_disableCudaTextures = DISABLE_CUDA_TEXTURES;

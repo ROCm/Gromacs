@@ -665,6 +665,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         fci[i] = reduce_force_i_warp_shfl(fci_buf[i], tidxi, tidxj);
         fshift_buf += fci[i];
     }
+
+
     if (tidxi < 3)
     {
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)

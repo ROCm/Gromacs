@@ -166,15 +166,15 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     const
 #    endif
             nbnxn_cj4_t* pl_cj4      = plist.cj4;
-    const nbnxn_excl_t*  excl        = plist.excl;
+    FastBuffer<nbnxn_excl_t> excl    = FastBuffer<nbnxn_excl_t>(plist.excl);
 #    ifndef LJ_COMB
-    const int*           atom_types  = atdat.atom_types;
+    FastBuffer<int>      atom_types  = FastBuffer<int>(atdat.atom_types);
     int                  ntypes      = atdat.ntypes;
 #    else
-    const float2* lj_comb = atdat.lj_comb;
+    FastBuffer<float2> lj_comb       = FastBuffer<float2>(atdat.lj_comb);
     float2        ljcp_i, ljcp_j;
 #    endif
-    const float4*        xq          = atdat.xq;
+    FastBuffer<float4>   xq          = FastBuffer<float4>(atdat.xq);
     float3*              f           = atdat.f;
     const float3*        shift_vec   = atdat.shift_vec;
     float                rcoulomb_sq = nbparam.rcoulomb_sq;
@@ -642,7 +642,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifdef PRUNE_NBL
             /* Update the imask with the new one which does not contain the
                out of range clusters anymore. */
-            pl_cj4[j4].imei[0].imask = imask;
+            pl_cj4[j4].imei[widx].imask = imask;
 #    endif
     }
 
@@ -652,48 +652,40 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         bCalcFshift = false;
     }
 
-    float3 fshift_buf = make_float3(0.0f);
+    float fshift_buf = 0.0F;
+    float fci[c_nbnxnGpuNumClusterPerSupercluster];
 
     /* reduce i forces */
     for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
     {
-        ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxi;
-        reduce_force_i_warp_shfl(fci_buf[i], f, fshift_buf, bCalcFshift, tidxj, ai);
+        fci[i] = reduce_force_i_warp_shfl(fci_buf[i], tidxi, tidxj);
+        fshift_buf += fci[i];
     }
 
-    /* add up local shift forces into global mem, tidxj indexes x,y,z */
-    if ( bCalcFshift)
+
+    if (tidxi < 3)
     {
-	fshift_buf.x += warp_move_dpp<float, 0xb1>(fshift_buf.x);
-        fshift_buf.y += warp_move_dpp<float, 0xb1>(fshift_buf.y);
-        fshift_buf.z += warp_move_dpp<float, 0xb1>(fshift_buf.z);
-
-        fshift_buf.x += warp_move_dpp<float, 0x4e>(fshift_buf.x);
-        fshift_buf.y += warp_move_dpp<float, 0x4e>(fshift_buf.y);
-        fshift_buf.z += warp_move_dpp<float, 0x4e>(fshift_buf.z);
-
-        fshift_buf.x += warp_move_dpp<float, 0x114>(fshift_buf.x);
-        fshift_buf.y += warp_move_dpp<float, 0x114>(fshift_buf.y);
-        fshift_buf.z += warp_move_dpp<float, 0x114>(fshift_buf.z);
-
-#ifndef __gfx1030__
-        if (tidx == (c_clSize - 1))
-#else
-        if ( tidx == (c_clSize - 1) || tidx == (c_subWarp + c_clSize - 1) )
-#endif	
+        for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
         {
-#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
-            const unsigned int shift_index_base = SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
-#else
-            const unsigned int shift_index_base = 0;
-#endif
-            float3* fShift = reinterpret_cast<float3*>(atdat.fshift);
-            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].x), fshift_buf.x);
-            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].y), fshift_buf.y);
-            atomicAdd(&(fShift[nb_sci.shift + shift_index_base].z), fshift_buf.z);
+            ai = (sci * c_nbnxnGpuNumClusterPerSupercluster + i) * c_clSize + tidxj;
+            atomic_add_force(f, ai, tidxi, fci[i]);
         }
-        
     }
+
+    /* add up local shift forces into global mem, tidxi indexes x,y,z */
+    if (bCalcFshift)
+    {
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+        const unsigned int shift_index_base = SHIFTS * (1 + (bidx & (c_clShiftMemoryMultiplier - 1)));
+#else
+        const unsigned int shift_index_base = 0;
+#endif
+        if (tidxi < 3)
+        {
+            float3* fShift = reinterpret_cast<float3*>(atdat.fshift);
+            atomic_add_force(fShift, nb_sci.shift + shift_index_base, tidxi, fshift_buf);
+        }
+    } 
 
 #    ifdef CALC_ENERGIES
     /* reduce the energies over warps and store into global memory */
