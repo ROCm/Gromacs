@@ -83,7 +83,7 @@ static constexpr int c_gpuNumClusterPerCell =
  * of 8*8=64 atoms, so it's convenient to store data for cluster pair halves.
  */
 
-static constexpr int c_nbnxnGpuClusterpairSplit = 2;//1;
+static constexpr int c_nbnxnGpuClusterpairSplit = 1;
 
 //! The fixed size of the exclusion mask array for a half GPU cluster pair
 static constexpr int c_nbnxnGpuExclSize =

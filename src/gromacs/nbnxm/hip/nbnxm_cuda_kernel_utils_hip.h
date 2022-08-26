@@ -59,6 +59,85 @@
 #ifndef NBNXM_CUDA_KERNEL_UTILS_CUH
 #    define NBNXM_CUDA_KERNEL_UTILS_CUH
 
+// Special implementation of float3 for faster computations using packed math on gfx90a.
+// HIP's float3 is defined as a struct of 3 fields, the compiler is not aware of its vector nature
+// hence it is not able to generate packed math instructions (v_pk_...) without SLP vectorization
+// (-fno-slp-vectorize). This new type is defined as struct of float2 (x, y) and float (z)
+// so packed math can be used for x and y.
+
+struct fast_float3
+{
+    typedef float __attribute__((ext_vector_type(2))) Native_float2_;
+
+    union
+    {
+        struct __attribute__((packed)) { Native_float2_ dxy; float dz; };
+        struct { float x, y, z; };
+    };
+
+    __host__ __device__
+    fast_float3() = default;
+
+    __host__ __device__
+    fast_float3(float x_, float y_, float z_) : dxy{ x_, y_ }, dz{ z_ } {}
+
+    __host__ __device__
+    fast_float3(Native_float2_ xy_, float z_) : dxy{ xy_ }, dz{ z_ } {}
+
+    __host__ __device__
+    operator float3() const
+    {
+        return float3{ x, y, z };
+    }
+};
+static_assert(sizeof(fast_float3) == 12);
+
+__forceinline__ __host__ __device__
+fast_float3 operator*(fast_float3 x, fast_float3 y)
+{
+    return fast_float3{ x.dxy * y.dxy, x.dz * y.dz };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator*(fast_float3 x, float y)
+{
+    return fast_float3{ x.dxy * y, x.dz * y };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator*(float x, fast_float3 y)
+{
+    return fast_float3{ x * y.dxy, x * y.dz };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator+(fast_float3 x, fast_float3 y)
+{
+    return fast_float3{ x.dxy + y.dxy, x.dz + y.dz };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator-(fast_float3 x, fast_float3 y)
+{
+    return fast_float3{ x.dxy - y.dxy, x.dz - y.dz };
+}
+
+static __forceinline__ __host__ __device__ fast_float3 make_fast_float3(float x)
+{
+    return fast_float3{ x, x, x };
+}
+
+static __forceinline__ __host__ __device__ fast_float3 make_fast_float3(float4 x)
+{
+    return fast_float3{ x.x, x.y, x.z };
+}
+
+static __forceinline__ __host__ __device__ float norm2(fast_float3 a)
+{
+    fast_float3 b = a * a;
+    return (b.x + b.y + b.z);
+}
+
 template<typename T>
 static __forceinline__ __device__ const T& fast_load(const T* buffer, unsigned int idx, unsigned int offset = 0)
 {
@@ -260,21 +339,22 @@ void nbnxn_kernel_bucket_sci_sort(
 }
 
 /*! Convert LJ sigma,epsilon parameters to C6,C12. */
-static __forceinline__ __device__ void
-                       convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon, float* c6, float* c12)
+static __forceinline__ __device__ float2
+                       convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon)
 {
     float sigma2, sigma6;
+    float2 c6c12;
 
-    sigma2 = sigma * sigma;
-    sigma6 = sigma2 * sigma2 * sigma2;
-    *c6    = epsilon * sigma6;
-    *c12   = *c6 * sigma6;
+    sigma2  = sigma * sigma;
+    sigma6  = sigma2 * sigma2 * sigma2;
+    c6c12.x = epsilon * sigma6;
+    c6c12.y = c6c12.x * sigma6;
+    return c6c12;
 }
 
-
-/*! Apply force switch,  force + energy version. */
+/*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void
-                       calculate_force_switch_F(const NBParamGpu nbparam, float c6, float c12, float inv_r, float r2, float* F_invr)
+                       calculate_force_switch_F(const NBParamGpu nbparam, float2 c6c12, float inv_r, float r2, float* F_invr)
 {
     float r, r_switch;
 
@@ -288,15 +368,13 @@ static __forceinline__ __device__ void
     r_switch = r - nbparam.rvdw_switch;
     r_switch = r_switch >= 0.0f ? r_switch : 0.0f;
 
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
+    float2 f = c6c12 * (float2(disp_shift_V2, repu_shift_V2) + float2(disp_shift_V3, repu_shift_V3) * r_switch);
+    *F_invr += (-f.x + f.y) * r_switch * r_switch * inv_r;
 }
 
-
-/*! Apply force switch, force-only version. */
+/*! Apply force switch, force + energy version. */
 static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamGpu nbparam,
-                                                                  float            c6,
-                                                                  float            c12,
+                                                                  float2           c6c12,
                                                                   float            inv_r,
                                                                   float            r2,
                                                                   float*           F_invr,
@@ -319,10 +397,10 @@ static __forceinline__ __device__ void calculate_force_switch_F_E(const NBParamG
     r_switch = r - nbparam.rvdw_switch;
     r_switch = r_switch >= 0.0f ? r_switch : 0.0f;
 
-    *F_invr += -c6 * (disp_shift_V2 + disp_shift_V3 * r_switch) * r_switch * r_switch * inv_r
-               + c12 * (repu_shift_V2 + repu_shift_V3 * r_switch) * r_switch * r_switch * inv_r;
-    *E_lj += c6 * (disp_shift_F2 + disp_shift_F3 * r_switch) * r_switch * r_switch * r_switch
-             - c12 * (repu_shift_F2 + repu_shift_F3 * r_switch) * r_switch * r_switch * r_switch;
+    float2 f = c6c12 * (float2(disp_shift_V2, repu_shift_V2) + float2(disp_shift_V3, repu_shift_V3) * r_switch);
+    *F_invr += (-f.x + f.y) * r_switch * r_switch * inv_r;
+    float2 e = c6c12 * (float2(disp_shift_F2, repu_shift_F2) + float2(disp_shift_F3, repu_shift_F3) * r_switch);
+    *E_lj += (e.x - e.y) * r_switch * r_switch * r_switch;
 }
 
 /*! Apply potential switch, force-only version. */
@@ -570,7 +648,7 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
 {
     float normalized = nbparam.coulomb_tab_scale * r;
     int   index      = (int)normalized;
-    float fraction   = normalized - index;
+    float fraction     = __builtin_amdgcn_fractf(normalized);
 
     float2 d01 = fetch_coulomb_force_r(nbparam, index);
 
@@ -582,15 +660,12 @@ static __forceinline__ __device__ float interpolate_coulomb_force_r(const NBPara
  *  Depending on what is supported, it fetches parameters either
  *  using direct load, texture objects, or texrefs.
  */
-static __forceinline__ __device__ void fetch_nbfp_c6_c12(float& c6, float& c12, const NBParamGpu nbparam, int baseIndex)
+static __forceinline__ __device__ float2 fetch_nbfp_c6_c12(const NBParamGpu nbparam, int baseIndex)
 {
 #    if DISABLE_CUDA_TEXTURES
     /* Force an 8-byte fetch to save a memory instruction. */
     float2* nbfp = (float2*)nbparam.nbfp;
-    float2  c6c12;
-    c6c12 = LDG(&nbfp[baseIndex]);
-    c6    = c6c12.x;
-    c12   = c6c12.y;
+    return fast_load(nbfp, baseIndex);
 #    else
     /* NOTE: as we always do 8-byte aligned loads, we could
        fetch float2 here too just as above. */

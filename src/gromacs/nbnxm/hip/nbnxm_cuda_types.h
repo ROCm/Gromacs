@@ -74,7 +74,7 @@ static constexpr unsigned int c_clShiftMemorySize = c_clShiftMemoryMultiplier ==
  *  The GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY macro allows compile-time override.
  */
 #ifndef GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
-#    define GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY 4
+#    define GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY 8
 #endif
 /*! \brief Default for the prune kernel's j4 processing concurrency.
  *

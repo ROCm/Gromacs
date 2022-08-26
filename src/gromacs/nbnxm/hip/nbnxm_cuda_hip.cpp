@@ -691,7 +691,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
      *   and j-cluster concurrency, in x, y, and z, respectively.
      * - The 1D block-grid contains as many blocks as super-clusters.
      */
-    int num_threads_z = c_cudaPruneKernelJ4Concurrency;
+    int num_threads_z = plist->haveFreshList ? c_cudaPruneKernelJ4Concurrency / 2 : c_cudaPruneKernelJ4Concurrency;
     int nblock        = calc_nb_kernel_nblock(numSciInPart, &nb->deviceContext_->deviceInfo());
     KernelLaunchConfig config;
     config.blockSize[0]     = c_clSize;
@@ -719,7 +719,8 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     auto*          timingEvent  = bDoTime ? timer->fetchNextEvent() : nullptr;
     constexpr char kernelName[] = "k_pruneonly";
     const auto     kernel =
-            plist->haveFreshList ? nbnxn_kernel_prune_cuda<true> : nbnxn_kernel_prune_cuda<false>;
+	    plist->haveFreshList ? nbnxn_kernel_prune_cuda<true, c_cudaPruneKernelJ4Concurrency / 2> :
+                                   nbnxn_kernel_prune_cuda<false, c_cudaPruneKernelJ4Concurrency>;
     /*
     const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, kernelArgs);

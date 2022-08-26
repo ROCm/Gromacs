@@ -40,7 +40,7 @@
 #ifndef FUNCTION_DECLARATION_ONLY
 /* Instantiate external template functions */
 template __global__ void
-nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
+nbnxn_kernel_prune_cuda<false, c_cudaPruneKernelJ4Concurrency>(const cu_atomdata_t, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 template __global__ void
-nbnxn_kernel_prune_cuda<true>(const cu_atomdata_t, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
+nbnxn_kernel_prune_cuda<true, c_cudaPruneKernelJ4Concurrency / 2>(const cu_atomdata_t, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 #endif

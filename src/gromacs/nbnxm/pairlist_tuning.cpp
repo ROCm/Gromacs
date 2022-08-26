@@ -375,14 +375,22 @@ void increaseNstlist(FILE*               fp,
  * to be 2, which is indirectly asserted when the GPU pruning is dispatched
  * during the force evaluation.
  */
+#if GMX_GPU_HIP
+static const int c_nbnxnGpuRollingListPruningInterval = 1;
+#else
 static const int c_nbnxnGpuRollingListPruningInterval = 2;
+#endif
 
 /*! \brief The minimum nstlist for dynamic pair list pruning.
  *
  * In most cases going lower than 4 will lead to a too high pruning cost.
  * This value should be a multiple of \p c_nbnxnGpuRollingListPruningInterval
  */
+#if GMX_GPU_HIP
+static const int c_nbnxnDynamicListPruningMinLifetime = 2;
+#else
 static const int c_nbnxnDynamicListPruningMinLifetime = 4;
+#endif
 
 /*! \brief Set the dynamic pairlist pruning parameters in \p ic
  *
