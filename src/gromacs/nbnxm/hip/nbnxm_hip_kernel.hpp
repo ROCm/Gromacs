@@ -182,7 +182,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     FastBuffer<float4>   xq          = FastBuffer<float4>(atdat.xq);
     float3*              f           = asFloat3(atdat.f);
     const float3*        shift_vec   = asFloat3(atdat.shiftVec);
-    float                rcoulomb_sq = nbparam.rcoulomb_sq;
+    float                rcoulomb_sq = 9999.99f; //nbparam.rcoulomb_sq;
 #    ifdef VDW_CUTOFF_CHECK
     float                rvdw_sq     = nbparam.rvdw_sq;
     float                vdw_in_range;
@@ -438,7 +438,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                 // In order to do this operation, we want to fix the order 
                 // all lanes read a position from xqib
 
-#if !defined(PRUNE_NBL) && !defined(CALC_ENERGIES)
+#ifndef PRUNE_NBL 
+#ifndef CALC_ENERGIES
                 xqbuf = xqib[i * c_clSize + tidxi];
                 xi    = make_fast_float3(xqbuf);
                 
@@ -453,6 +454,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                 float4 d = {0}; // zero out 4 vanilla VGPRs
                 d = __builtin_amdgcn_mfma_f32_4x4x1f32(xi.x, xj.x, d, 0, 0, 0);
                 r2 = d[0];
+#endif
 #endif 
 
                 if (imask & mask_ji)
