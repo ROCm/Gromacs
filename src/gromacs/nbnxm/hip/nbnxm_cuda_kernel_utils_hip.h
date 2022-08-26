@@ -183,6 +183,54 @@ void nbnxn_kernel_sum_up(
     }
 }
 
+template<
+    unsigned int BlockSize,
+    unsigned int ItemsPerThread
+>
+__launch_bounds__(BlockSize) __global__
+void nbnxn_kernel_bucket_sci_sort(
+    Nbnxm::gpu_plist plist)
+{
+    int size = plist.nsci;
+
+    const unsigned int flat_id      = threadIdx.x;
+    const unsigned int block_id     = blockIdx.x;
+    const unsigned int block_offset = blockIdx.x * BlockSize * ItemsPerThread;
+
+    const nbnxn_sci_t* pl_sci = plist.sci;
+    nbnxn_sci_t* pl_sci_sort  = plist.sci_sorted;
+    const int* pl_sci_count   = plist.sci_count;
+    int* pl_sci_offset        = plist.sci_offset;
+
+    int sci_count[ItemsPerThread];
+    int sci_offset[ItemsPerThread];
+    nbnxn_sci_t sci[ItemsPerThread];
+
+    #pragma unroll
+    for(unsigned int i = 0; i < ItemsPerThread; i++)
+    {
+        if( size > (block_offset + ItemsPerThread * flat_id + i) )
+        {
+            sci[i]        = pl_sci[block_offset + ItemsPerThread * flat_id + i];
+            sci_count[i]  = pl_sci_count[block_offset + ItemsPerThread * flat_id + i];
+        }
+    }
+
+    #pragma unroll
+    for(unsigned int i = 0; i < ItemsPerThread; i++)
+    {
+        if( size > (block_offset + ItemsPerThread * flat_id + i) )
+            sci_offset[i] = atomicAdd(&pl_sci_offset[c_sciHistogramSize - sci_count[i] - 1], 1);
+    }
+
+    #pragma unroll
+    for(unsigned int i = 0; i < ItemsPerThread; i++)
+    {
+        if( size > (block_offset + ItemsPerThread * flat_id + i) )
+            pl_sci_sort[sci_offset[i]] = sci[i];
+    }
+}
+
 static __forceinline__ __device__ void atomicAddOverWriteForFloat(const float* __restrict__ address,const float val) {
   const int* address_as_ull = (int*)address;
   int old = *address_as_ull;

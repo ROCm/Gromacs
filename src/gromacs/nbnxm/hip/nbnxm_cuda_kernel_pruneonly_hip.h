@@ -121,7 +121,7 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
 {
 
     /* convenience variables */
-    const nbnxn_sci_t* pl_sci    = plist.sci;
+    const nbnxn_sci_t* pl_sci    = haveFreshList ? plist.sci : plist.sci_sorted;
     nbnxn_cj4_t*       pl_cj4    = plist.cj4;
     const float4*      xq        = atdat.xq;
     const float3*      shift_vec = atdat.shift_vec;
@@ -186,6 +186,7 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
      * The loop stride NTHREAD_Z ensures that consecutive sub-group are assigned
      * consecutive j4's entries.
      */
+    int count = 0;
     for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
         unsigned int imaskFull, imaskCheck, imaskNew;
@@ -262,12 +263,46 @@ nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnx
             {
                 /* copy the list pruned to rlistOuter to a separate buffer */
                 plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
+
+		#ifndef __gfx1030__
+                    count += __popc(imaskNew | warp_move_dpp<int, 0x143>(imaskNew));
+                #else
+                    count += __popc(imaskNew) + __popc(__shfl_up(count, 31, warpSize));
+                #endif
             }
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4[j4].imei[widx].imask = imaskNew;
         }
         // avoid shared memory WAR hazards between loop iterations
 	__builtin_amdgcn_wave_barrier();
+    }
+    if (haveFreshList && (tidx == 63))
+    {
+        #if NTHREAD_Z > 1
+        __syncthreads();
+
+        char* sm_reuse = sm_dynamicShmem;
+        int* count_sm =reinterpret_cast<int*>(sm_reuse);
+
+        count_sm[tidxz] = count;
+
+        __syncthreads();
+
+        for( unsigned int index_z = 1; index_z < NTHREAD_Z; index_z++ )
+            count += count_sm[index_z];
+
+        __syncthreads();
+#endif
+
+        if(tidxz == 0)
+        {
+            int* pl_sci_histogram = plist.sci_histogram;
+            int index = max(c_sciHistogramSize - (int)count - 1, 0);
+            atomicAdd(pl_sci_histogram + index, 1);
+
+            int* pl_sci_count  = plist.sci_count;
+            pl_sci_count[bidx * numParts + part] = count;
+        } 
     }
 }
 #endif /* FUNCTION_DECLARATION_ONLY */

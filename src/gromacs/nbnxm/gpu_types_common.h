@@ -61,6 +61,8 @@
 #    include "gromacs/gpu_utils/gpuregiontimer_hip.h"
 #endif
 
+static constexpr int c_sciHistogramSize = 8192;
+
 /** \internal
  * \brief Parameters required for the GPU nonbonded calculations.
  */
@@ -194,6 +196,43 @@ struct gpu_plist
     int sci_nalloc;
     //! list of i-cluster ("super-clusters")
     DeviceBuffer<nbnxn_sci_t> sci;
+
+    int nscan_temporary;
+
+    int scan_temporary_nalloc;
+
+    //! Temporary data of scan algorithm
+    DeviceBuffer<char> scan_temporary;
+
+    int nsci_histogram;
+
+    int sci_histogram_nalloc;
+
+    //! Histogram of sci nsp
+    DeviceBuffer<int> sci_histogram;
+
+    int nsci_offset;
+
+    int sci_offset_nalloc;
+
+    //! Sci offset
+    DeviceBuffer<int> sci_offset;
+
+    //! size of sci, # of i clusters in the list
+    int nsci_counted;
+    //! allocation size of sci
+    int sci_counted_nalloc;
+
+    //! list of imask counts of sorted i-cluster ("super-clusters")
+    DeviceBuffer<int> sci_count;
+
+    //! size of sci, # of i clusters in the list
+    int nsci_sorted;
+    //! allocation size of sci
+    int sci_sorted_nalloc;
+
+    //! list of sorted i-cluster ("super-clusters")
+    DeviceBuffer<nbnxn_sci_t> sci_sorted;
 
     //! total # of 4*j clusters
     int ncj4;

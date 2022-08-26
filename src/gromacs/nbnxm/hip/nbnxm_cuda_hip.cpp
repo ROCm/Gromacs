@@ -74,6 +74,8 @@
 #include "nbnxm_buffer_ops_kernels_hip.h"
 #include "nbnxm_cuda_types.h"
 
+#include <rocprim/rocprim.hpp>
+
 /***** The kernel declarations/definitions come here *****/
 
 /* Top-level kernel declaration generation: will generate through multiple
@@ -296,7 +298,7 @@ static inline nbnxn_cu_kfunc_ptr_t select_nbnxn_kernel(int                     e
                "The VdW type requested is not implemented in the HIP kernels.");
 
     /* assert assumptions made by the kernels */
-    GMX_ASSERT((c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit) % deviceInfo->prop.warpSize == 0,
+    GMX_ASSERT(deviceInfo->prop.warpSize % (c_nbnxnGpuClusterSize * c_nbnxnGpuClusterSize / c_nbnxnGpuClusterpairSplit)  == 0,
                "The HIP kernels require the "
                "cluster_size_i*cluster_size_j/nbnxn_gpu_clusterpair_split to be dividable with the warp size "
                "of the architecture targeted.");
@@ -709,6 +711,11 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
                 c_nbnxnGpuNumClusterPerSupercluster, plist->na_c, config.sharedMemorySize);
     }
 
+    if (plist->haveFreshList)
+    {
+        clearDeviceBufferAsync(&plist->sci_histogram, 0, c_sciHistogramSize, deviceStream);
+    }
+
     auto*          timingEvent  = bDoTime ? timer->fetchNextEvent() : nullptr;
     constexpr char kernelName[] = "k_pruneonly";
     const auto     kernel =
@@ -724,6 +731,44 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     if (plist->haveFreshList)
     {
         plist->haveFreshList = false;
+
+	size_t scan_temporary_size = (size_t)plist->nscan_temporary;
+        rocprim::exclusive_scan(
+            *reinterpret_cast<void**>(&plist->scan_temporary),
+            scan_temporary_size,
+            *reinterpret_cast<int**>(&plist->sci_histogram),
+            *reinterpret_cast<int**>(&plist->sci_offset),
+            0,
+            c_sciHistogramSize,
+            ::rocprim::plus<int>(),
+            deviceStream.stream()
+        );
+
+	KernelLaunchConfig configSortSci;
+        const unsigned int items_per_block = 256 * 16;
+        configSortSci.blockSize[0] = 256;
+        configSortSci.blockSize[1] = 1;
+        configSortSci.blockSize[2] = 1;
+        configSortSci.gridSize[0]  = (plist->nsci + items_per_block - 1) / items_per_block;
+        configSortSci.sharedMemorySize = 0;
+
+        const auto kernelSciSort = nbnxn_kernel_bucket_sci_sort<256, 16>;
+
+        const auto kernelSciSortArgs =
+                prepareGpuKernelArguments(
+                    kernelSciSort,
+                    configSortSci,
+                    plist
+                );
+
+        launchGpuKernel(
+            kernelSciSort,
+            configSortSci,
+            deviceStream,
+            nullptr,
+            "nbnxn_kernel_sci_sort",
+            *plist
+        );
         /* Mark that pruning has been done */
         nb->timers->interaction[iloc].didPrune = true;
     }
