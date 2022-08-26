@@ -435,17 +435,38 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #           pragma unroll c_nbnxnGpuNumClusterPerSupercluster
             for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
             {
+                // In order to do this operation, we want to fix the order 
+                // all lanes read a position from xqib
+
+#if !defined(PRUNE_NBL) && !defined(CALC_ENERGIES)
+                xqbuf = xqib[i * c_clSize + tidxi];
+                xi    = make_fast_float3(xqbuf);
+                
+                // we do xi * xj for x, y and z
+                // now we do an MFMA to "simulate" the amount of work that would be done by a DPX instruction
+                // if all lanes passed here, we would have to calculate 8x8x3 distances here, which amounts to
+                // 192 distance calculations
+                // each distance is 3 MUL instructions (i.x - j.x) + 3 FMAs (r.x * r.x)
+                // 192 * 6 = that more or less 11
+                // Let's call a single mfma 4x4x1 as that does 512 overall flops -> 1024 flops overall 
+                using float4 = __attribute__((__vector_size__(4 * sizeof(float)))) float;
+                float4 d = {0}; // zero out 4 vanilla VGPRs
+                d = __builtin_amdgcn_mfma_f32_4x4x1f32(xi.x, xj.x, d, 0, 0, 0);
+                r2 = d[0];
+#endif 
+
                 if (imask & mask_ji)
                 {
                     ci = sci * c_nbnxnGpuNumClusterPerSupercluster + i; /* i cluster index */
 
                     /* all threads load an atom from i cluster ci into shmem! */
-                    xqbuf = xqib[i * c_clSize + tidxi];
-                    xi    = make_fast_float3(xqbuf);
+
 
                     /* distance between i and j atoms */
+#if defined(PRUNE_NBL) || defined(CALC_ENERGIES)
                     rv = xi + xj;
                     r2 = norm2(rv);
+#endif
 
 #    ifdef PRUNE_NBL
                     /* If _none_ of the atoms pairs are in cutoff range,
