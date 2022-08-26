@@ -197,6 +197,13 @@ struct gpu_plist
     //! list of i-cluster ("super-clusters")
     DeviceBuffer<nbnxn_sci_t> sci;
 
+    int nhistogram_temporary;
+
+    int histogram_temporary_nalloc;
+
+    //! Temporary data of scan algorithm
+    DeviceBuffer<char> histogram_temporary;
+
     int nscan_temporary;
 
     int scan_temporary_nalloc;
@@ -225,6 +232,14 @@ struct gpu_plist
 
     //! list of imask counts of sorted i-cluster ("super-clusters")
     DeviceBuffer<int> sci_count;
+
+    //! size of sci, # of i clusters in the list
+    int nsci_count_sorted;
+    //! allocation size of sci
+    int sci_count_sorted_nalloc;
+
+    //! list of imask counts of sorted i-cluster ("super-clusters")
+    DeviceBuffer<int> sci_count_sorted;
 
     //! size of sci, # of i clusters in the list
     int nsci_sorted;

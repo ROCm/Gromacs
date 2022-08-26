@@ -730,7 +730,28 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
        (combined or separate 1st pass prune, rolling prune). */
     if (plist->haveFreshList)
     {
-        plist->haveFreshList = false;
+        //plist->haveFreshList = false;
+	if (!plist->haveFreshList)
+        {
+            copyBetweenDeviceBuffers(
+                &plist->sci, &plist->sci_sorted, plist->nsci, deviceStream, GpuApiCallBehavior::Async, timingEvent);
+            copyBetweenDeviceBuffers(
+                &plist->sci_count, &plist->sci_count_sorted, plist->nsci, deviceStream, GpuApiCallBehavior::Async, timingEvent);
+
+            clearDeviceBufferAsync(&plist->sci_histogram, 0, c_sciHistogramSize, deviceStream);
+
+            size_t histogram_temporary_size = (size_t)plist->nhistogram_temporary;
+
+            rocprim::histogram_even(
+                *reinterpret_cast<void**>(&plist->histogram_temporary),
+                histogram_temporary_size,
+                *reinterpret_cast<int**>(&plist->sci_count_sorted),
+                static_cast<unsigned int>(plist->nsci),
+                *reinterpret_cast<int**>(&plist->sci_histogram),
+                c_sciHistogramSize + 1, 0, c_sciHistogramSize,
+                deviceStream.stream()
+            );
+        }
 
 	size_t scan_temporary_size = (size_t)plist->nscan_temporary;
         rocprim::exclusive_scan(
@@ -752,7 +773,8 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
         configSortSci.gridSize[0]  = (plist->nsci + items_per_block - 1) / items_per_block;
         configSortSci.sharedMemorySize = 0;
 
-        const auto kernelSciSort = nbnxn_kernel_bucket_sci_sort<256, 16>;
+	const auto kernelSciSort = plist->haveFreshList ?
+            nbnxn_kernel_bucket_sci_sort<256, 16, true> : nbnxn_kernel_bucket_sci_sort<256, 16, false>;
 
         const auto kernelSciSortArgs =
                 prepareGpuKernelArguments(
@@ -769,6 +791,10 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             "nbnxn_kernel_sci_sort",
             *plist
         );
+    }
+    if (plist->haveFreshList)
+    {
+        plist->haveFreshList = false;
         /* Mark that pruning has been done */
         nb->timers->interaction[iloc].didPrune = true;
     }

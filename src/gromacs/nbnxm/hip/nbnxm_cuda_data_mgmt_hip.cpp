@@ -507,6 +507,13 @@ void gpu_free(NbnxmGpu* nb)
     /* Free plist */
     auto* plist = nb->plist[InteractionLocality::Local];
     freeDeviceBuffer(&plist->sci);
+    freeDeviceBuffer(&plist->histogram_temporary);
+    freeDeviceBuffer(&plist->scan_temporary);
+    freeDeviceBuffer(&plist->sci_histogram);
+    freeDeviceBuffer(&plist->sci_offset);
+    freeDeviceBuffer(&plist->sci_count);
+    freeDeviceBuffer(&plist->sci_count_sorted);
+    freeDeviceBuffer(&plist->sci_sorted);
     freeDeviceBuffer(&plist->cj4);
     freeDeviceBuffer(&plist->imask);
     freeDeviceBuffer(&plist->excl);
@@ -515,6 +522,13 @@ void gpu_free(NbnxmGpu* nb)
     {
         auto* plist_nl = nb->plist[InteractionLocality::NonLocal];
         freeDeviceBuffer(&plist_nl->sci);
+	freeDeviceBuffer(&plist_nl->histogram_temporary);
+        freeDeviceBuffer(&plist_nl->scan_temporary);
+        freeDeviceBuffer(&plist_nl->sci_histogram);
+        freeDeviceBuffer(&plist_nl->sci_offset);
+        freeDeviceBuffer(&plist_nl->sci_count);
+        freeDeviceBuffer(&plist_nl->sci_count_sorted);
+        freeDeviceBuffer(&plist_nl->sci_sorted);
         freeDeviceBuffer(&plist_nl->cj4);
         freeDeviceBuffer(&plist_nl->imask);
         freeDeviceBuffer(&plist_nl->excl);
