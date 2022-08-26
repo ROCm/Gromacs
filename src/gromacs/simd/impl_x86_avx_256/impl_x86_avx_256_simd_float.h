@@ -197,22 +197,26 @@ static inline SimdFloat gmx_simdcall operator*(SimdFloat a, SimdFloat b)
 static inline SimdFloat gmx_simdcall fma(SimdFloat a, SimdFloat b, SimdFloat c)
 {
     return { _mm256_add_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_) };
+    //return { _mm256_add_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_) };
 }
 
 static inline SimdFloat gmx_simdcall fms(SimdFloat a, SimdFloat b, SimdFloat c)
 {
-    return { _mm256_sub_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_) };
+    //return { _mm256_sub_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_) };
+    return { _mm256_fmsub_ps(a.simdInternal_, b.simdInternal_, c.simdInternal_) };
 }
 
 static inline SimdFloat gmx_simdcall fnma(SimdFloat a, SimdFloat b, SimdFloat c)
 {
-    return { _mm256_sub_ps(c.simdInternal_, _mm256_mul_ps(a.simdInternal_, b.simdInternal_)) };
+    //return { _mm256_sub_ps(c.simdInternal_, _mm256_mul_ps(a.simdInternal_, b.simdInternal_)) };
+    return { _mm256_fnmadd_ps(a.simdInternal_, b.simdInternal_, c.simdInternal_) };
 }
 
 static inline SimdFloat gmx_simdcall fnms(SimdFloat a, SimdFloat b, SimdFloat c)
 {
-    return { _mm256_sub_ps(_mm256_setzero_ps(),
-                           _mm256_add_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_)) };
+    //return { _mm256_sub_ps(_mm256_setzero_ps(),
+    //                       _mm256_add_ps(_mm256_mul_ps(a.simdInternal_, b.simdInternal_), c.simdInternal_)) };
+    return { _mm256_fnmsub_ps(a.simdInternal_, b.simdInternal_, c.simdInternal_) };
 }
 #endif
 

@@ -343,7 +343,7 @@ __device__ __forceinline__ void calculateAndStoreGridForces(float3* __restrict__
  * \param[in]  kernelParams         All the PME GPU data.
  */
 template<int order, bool wrapX, bool wrapY, int numGrids, bool readGlobal, ThreadsPerAtom threadsPerAtom>
-__launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
+LAUNCH_BOUNDS_EXACT(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
         void pme_gather_kernel(const PmeGpuHipKernelParams kernelParams)
 {
     assert(numGrids == 1 || numGrids == 2);

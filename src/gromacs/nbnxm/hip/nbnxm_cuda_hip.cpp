@@ -568,7 +568,6 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     */
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", *adat, *nbp, *plist, stepWork.computeVirial);
 
-#if GMX_GPU_HIP
         bool sumUpEnergy = (stepWork.computeEnergy && c_clEnergyMemoryMultiplier > 1);
         bool sumUpShifts = (stepWork.computeVirial && c_clShiftMemoryMultiplier > 1);
 
@@ -585,16 +584,6 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
 
             const auto kernelSumUp = nbnxn_kernel_sum_up<block_size>;
 
-            //const auto kernelSumUpArgs =
-            //        prepareGpuKernelArguments(
-            //            kernelSumUp,
-            //            configSumUp,
-            //            adat,
-            //            &gmx::c_numShiftVectors,
-            //            &sumUpEnergy,
-            //            &sumUpShifts
-            //        );
-
             launchGpuKernel(
                 kernelSumUp,
                 configSumUp,
@@ -604,7 +593,6 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
 		*adat, SHIFTS, sumUpEnergy, sumUpShifts
             );
         }
-#endif
 
     if (bDoTime)
     {

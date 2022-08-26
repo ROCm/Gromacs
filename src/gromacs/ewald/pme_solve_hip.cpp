@@ -49,6 +49,7 @@
 #include "gromacs/gpu_utils/hip_arch_utils_hip.h"
 
 #include "pme_hip.h"
+#include "gromacs/gpu_utils/cuda_kernel_utils_hip.h"
 
 template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
 __device__ inline
@@ -78,7 +79,7 @@ T warp_move_dpp(const T& input) {
  * \param[in]  kernelParams             Input PME CUDA data in constant memory.
  */
 template<GridOrdering gridOrdering, bool computeEnergyAndVirial, const int gridIndex>
-__launch_bounds__(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
+LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION_ATTRIBUTE __global__
         void pme_solve_kernel(const struct PmeGpuHipKernelParams kernelParams)
 {
     /* This kernel supports 2 different grid dimension orderings: YZX and XYZ */

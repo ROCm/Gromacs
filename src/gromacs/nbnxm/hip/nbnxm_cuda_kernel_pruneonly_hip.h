@@ -113,9 +113,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__
 
 // Add extern declarations so each translation unit understands that
 // there will be a definition provided.
-extern template __global__ void
+extern template __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__ void
 nbnxn_kernel_prune_cuda<true>(const cu_atomdata_t, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
-extern template __global__ void
+extern template __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP) __global__ void
 nbnxn_kernel_prune_cuda<false>(const cu_atomdata_t, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 #else
 {
