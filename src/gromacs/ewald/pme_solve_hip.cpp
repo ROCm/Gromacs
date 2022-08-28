@@ -50,6 +50,7 @@
 
 #include "pme_hip.h"
 #include "gromacs/gpu_utils/cuda_kernel_utils_hip.h"
+#include "gromacs/gpu_utils/vectype_ops.cuh"
 
 template<class T, int dpp_ctrl, int row_mask = 0xf, int bank_mask = 0xf, bool bound_ctrl = true>
 __device__ inline
@@ -109,7 +110,7 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
     const float* __restrict__ gm_splineValueMinor = kernelParams.grid.d_splineModuli[gridIndex]
                                                     + kernelParams.grid.splineValuesOffset[minorDim];
     float* __restrict__ gm_virialAndEnergy = kernelParams.constants.d_virialAndEnergy[gridIndex];
-    float2* __restrict__ gm_grid           = (float2*)kernelParams.grid.d_fourierGrid[gridIndex];
+    float2* __restrict__ gm_grid = reinterpret_cast<float2*>(kernelParams.grid.d_fourierGrid[gridIndex]);
 
     /* Various grid sizes and indices */
     const int localOffsetMinor = 0, localOffsetMajor = 0, localOffsetMiddle = 0; // unused
@@ -133,20 +134,20 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
     const int gridLineSize      = localCountMinor;
     const int gridLineIndex     = threadLocalId / gridLineSize;
     const int gridLineCellIndex = threadLocalId - gridLineSize * gridLineIndex;
-    const int gridLinesPerBlock = max(blockDim.x / gridLineSize, 1);
-    const int activeWarps       = (blockDim.x / warpSize);
-    const int indexMinor        = blockIdx.x * blockDim.x + gridLineCellIndex;
+    const int gridLinesPerBlock = max(c_solveMaxThreadsPerBlock / gridLineSize, 1);
+    const int activeWarps       = (c_solveMaxThreadsPerBlock / warpSize);
+    const int indexMinor        = blockIdx.x * c_solveMaxThreadsPerBlock + gridLineCellIndex;
     const int indexMiddle       = blockIdx.y * gridLinesPerBlock + gridLineIndex;
     const int indexMajor        = blockIdx.z;
 
     /* Optional outputs */
-    float energy = 0.0f;
-    float virxx  = 0.0f;
-    float virxy  = 0.0f;
-    float virxz  = 0.0f;
-    float viryy  = 0.0f;
-    float viryz  = 0.0f;
-    float virzz  = 0.0f;
+    float energy = 0.0F;
+    float virxx  = 0.0F;
+    float virxy  = 0.0F;
+    float virxz  = 0.0F;
+    float viryy  = 0.0F;
+    float viryz  = 0.0F;
+    float virzz  = 0.0F;
 
     assert(indexMajor < kernelParams.grid.complexGridSize[majorDim]);
     if ((indexMiddle < localCountMiddle) & (indexMinor < localCountMinor)
@@ -178,89 +179,100 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
         /* We should skip the k-space point (0,0,0) */
         const bool notZeroPoint = (kMinor > 0) | (kMajor > 0) | (kMiddle > 0);
 
-        float mX, mY, mZ;
+        fast_float3 mm;
         switch (gridOrdering)
         {
             case GridOrdering::YZX:
-                mX = mMinor;
-                mY = mMajor;
-                mZ = mMiddle;
+                mm.x = mMinor;
+                mm.y = mMajor;
+                mm.z = mMiddle;
                 break;
 
             case GridOrdering::XYZ:
-                mX = mMajor;
-                mY = mMiddle;
-                mZ = mMinor;
+                mm.x = mMajor;
+                mm.y = mMiddle;
+                mm.z = mMinor;
                 break;
 
             default: assert(false);
         }
 
         /* 0.5 correction factor for the first and last components of a Z dimension */
-        float corner_fac = 1.0f;
+        float corner_fac = 1.0F;
         switch (gridOrdering)
         {
             case GridOrdering::YZX:
                 if ((kMiddle == 0) | (kMiddle == maxkMiddle))
                 {
-                    corner_fac = 0.5f;
+                    corner_fac = 0.5F;
                 }
                 break;
 
             case GridOrdering::XYZ:
                 if ((kMinor == 0) | (kMinor == maxkMinor))
                 {
-                    corner_fac = 0.5f;
+                    corner_fac = 0.5F;
                 }
                 break;
 
             default: assert(false);
         }
 
+        // TODO: use textures for gm_splineValue
+        float vMajor  = LDG(gm_splineValueMajor + kMajor);
+        float vMiddle = LDG(gm_splineValueMiddle + kMiddle);
+        float vMinor  = LDG(gm_splineValueMinor + kMinor);
+
         if (notZeroPoint)
         {
-            const float mhxk = mX * kernelParams.current.recipBox[XX][XX];
-            const float mhyk = mX * kernelParams.current.recipBox[XX][YY]
-                               + mY * kernelParams.current.recipBox[YY][YY];
-            const float mhzk = mX * kernelParams.current.recipBox[XX][ZZ]
-                               + mY * kernelParams.current.recipBox[YY][ZZ]
-                               + mZ * kernelParams.current.recipBox[ZZ][ZZ];
+            fast_float3 mhk, recip1, recip2, recip3;
+            recip1.x = kernelParams.current.recipBox[XX][XX];
+            recip1.y = kernelParams.current.recipBox[XX][YY];
+            recip1.z = kernelParams.current.recipBox[XX][ZZ];
+            recip2.x = 0.0f;
+            recip2.y = kernelParams.current.recipBox[YY][YY];
+            recip2.z = kernelParams.current.recipBox[YY][ZZ];
+            recip3.x = 0.0f;
+            recip3.y = 0.0f;
+            recip3.z = kernelParams.current.recipBox[ZZ][ZZ];
+            fast_float3 a = mm.x * recip1;
+            fast_float3 b = mm.y * recip2;
+            fast_float3 c = mm.z * recip3;
+            mhk = a + b + c;
 
-            const float m2k = mhxk * mhxk + mhyk * mhyk + mhzk * mhzk;
-            assert(m2k != 0.0f);
-            // TODO: use LDG/textures for gm_splineValue
+            const float m2k = norm2(mhk);
+            assert(m2k != 0.0F);
+
             float denom = m2k * float(HIP_PI_F) * kernelParams.current.boxVolume
-                          * gm_splineValueMajor[kMajor] * gm_splineValueMiddle[kMiddle]
-                          * gm_splineValueMinor[kMinor];
+                          * vMajor * vMiddle * vMinor;
             assert(isfinite(denom));
-            assert(denom != 0.0f);
+            assert(denom != 0.0F);
 
             const float tmp1   = __expf(-kernelParams.grid.ewaldFactor * m2k);
             const float etermk = kernelParams.constants.elFactor * tmp1 / denom;
 
-            float2       gridValue    = *gm_gridCell;
+            float2 gridValue = *gm_gridCell;
             const float2 oldGridValue = gridValue;
-            gridValue.x *= etermk;
-            gridValue.y *= etermk;
+            gridValue = gridValue * etermk;
             *gm_gridCell = gridValue;
 
             if (computeEnergyAndVirial)
             {
                 const float tmp1k =
-                        2.0f * (gridValue.x * oldGridValue.x + gridValue.y * oldGridValue.y);
+                        2.0F * (gridValue.x * oldGridValue.x + gridValue.y * oldGridValue.y);
 
-                float vfactor = (kernelParams.grid.ewaldFactor + 1.0f / m2k) * 2.0f;
+                float vfactor = (kernelParams.grid.ewaldFactor + 1.0F / m2k) * 2.0F;
                 float ets2    = corner_fac * tmp1k;
                 energy        = ets2;
 
                 float ets2vf = ets2 * vfactor;
 
-                virxx = ets2vf * mhxk * mhxk - ets2;
-                virxy = ets2vf * mhxk * mhyk;
-                virxz = ets2vf * mhxk * mhzk;
-                viryy = ets2vf * mhyk * mhyk - ets2;
-                viryz = ets2vf * mhyk * mhzk;
-                virzz = ets2vf * mhzk * mhzk - ets2;
+                virxx = ets2vf * mhk.x * mhk.x - ets2;
+                virxy = ets2vf * mhk.x * mhk.y;
+                virxz = ets2vf * mhk.x * mhk.z;
+                viryy = ets2vf * mhk.y * mhk.y - ets2;
+                viryz = ets2vf * mhk.y * mhk.z;
+                virzz = ets2vf * mhk.z * mhk.z - ets2;
             }
         }
     }
@@ -268,119 +280,99 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
     /* Optional energy/virial reduction */
     if (computeEnergyAndVirial)
     {
-        virxx += warp_move_dpp<float, 0xb1>(virxx);
-        viryy += warp_move_dpp<float, 0xb1>(viryy);
-        virzz += warp_move_dpp<float, 0xb1>(virzz);
-        virxy += warp_move_dpp<float, 0xb1>(virxy);
-        virxz += warp_move_dpp<float, 0xb1>(virxz);
-        viryz += warp_move_dpp<float, 0xb1>(viryz);
-        energy += warp_move_dpp<float, 0xb1>(energy);
 
-        virxx += warp_move_dpp<float, 0x4e>(virxx);
-        viryy += warp_move_dpp<float, 0x4e>(viryy);
-        virzz += warp_move_dpp<float, 0x4e>(virzz);
-        virxy += warp_move_dpp<float, 0x4e>(virxy);
-        virxz += warp_move_dpp<float, 0x4e>(virxz);
-        viryz += warp_move_dpp<float, 0x4e>(viryz);
-        energy += warp_move_dpp<float, 0x4e>(energy);
-
-        virxx += warp_move_dpp<float, 0x114>(virxx);
-        viryy += warp_move_dpp<float, 0x114>(viryy);
-        virzz += warp_move_dpp<float, 0x114>(virzz);
-        virxy += warp_move_dpp<float, 0x114>(virxy);
-        virxz += warp_move_dpp<float, 0x114>(virxz);
-        viryz += warp_move_dpp<float, 0x114>(viryz);
-        energy += warp_move_dpp<float, 0x114>(energy);
-
-        virxx += warp_move_dpp<float, 0x118>(virxx);
-        viryy += warp_move_dpp<float, 0x118>(viryy);
-        virzz += warp_move_dpp<float, 0x118>(virzz);
-        virxy += warp_move_dpp<float, 0x118>(virxy);
-        virxz += warp_move_dpp<float, 0x118>(virxz);
-        viryz += warp_move_dpp<float, 0x118>(viryz);
-        energy += warp_move_dpp<float, 0x118>(energy);
-
-#ifndef __gfx1030__
-        virxx += warp_move_dpp<float, 0x142>(virxx);
-        viryy += warp_move_dpp<float, 0x142>(viryy);
-        virzz += warp_move_dpp<float, 0x142>(virzz);
-        virxy += warp_move_dpp<float, 0x142>(virxy);
-        virxz += warp_move_dpp<float, 0x142>(virxz);
-        viryz += warp_move_dpp<float, 0x142>(viryz);
-        energy += warp_move_dpp<float, 0x142>(energy);
-#else
-        virxx += __shfl(virxx, 15, warpSize);
-        viryy += __shfl(viryy, 15, warpSize);
-        virzz += __shfl(virzz, 15, warpSize);
-        virxy += __shfl(virxy, 15, warpSize);
-        virxz += __shfl(virxz, 15, warpSize);
-        viryz += __shfl(viryz, 15, warpSize);
-        energy += __shfl(energy, 15, warpSize);
-#endif
-
-#ifndef __gfx1030__
-        if (warpSize > 32)
+        virxx += warp_move_dpp<float, /* row_shl:1 */ 0x101>(virxx);
+        viryy += warp_move_dpp<float, /* row_shr:1 */ 0x111>(viryy);
+        virzz += warp_move_dpp<float, /* row_shl:1 */ 0x101>(virzz);
+        virxy += warp_move_dpp<float, /* row_shr:1 */ 0x111>(virxy);
+        virxz += warp_move_dpp<float, /* row_shl:1 */ 0x101>(virxz);
+        viryz += warp_move_dpp<float, /* row_shr:1 */ 0x111>(viryz);
+        energy += warp_move_dpp<float, /* row_shl:1 */ 0x101>(energy);
+        if (threadLocalId & 1)
         {
-            virxx += warp_move_dpp<float, 0x143>(virxx);
-            viryy += warp_move_dpp<float, 0x143>(viryy);
-            virzz += warp_move_dpp<float, 0x143>(virzz);
-            virxy += warp_move_dpp<float, 0x143>(virxy);
-            virxz += warp_move_dpp<float, 0x143>(virxz);
-            viryz += warp_move_dpp<float, 0x143>(viryz);
-            energy += warp_move_dpp<float, 0x143>(energy);
+            virxx = viryy; // virxx now holds virxx and viryy pair sums
+            virzz = virxy; // virzz now holds virzz and virxy pair sums
+            virxz = viryz; // virxz now holds virxz and viryz pair sums
         }
-#endif
-        const int componentIndex = threadLocalId & (warpSize - 1);
-        __shared__ float sm_virialAndEnergy[c_virialAndEnergyCount][warpSize];
 
-        if (componentIndex == (warpSize - 1))
+        virxx += warp_move_dpp<float, /* row_shl:2 */ 0x102>(virxx);
+        virzz += warp_move_dpp<float, /* row_shr:2 */ 0x112>(virzz);
+        virxz += warp_move_dpp<float, /* row_shl:2 */ 0x102>(virxz);
+        energy += warp_move_dpp<float, /* row_shr:2 */ 0x112>(energy);
+        if (threadLocalId & 2)
         {
-            const int warpIndex              = threadLocalId / warpSize;
-            sm_virialAndEnergy[0][warpIndex] = virxx;
-            sm_virialAndEnergy[1][warpIndex] = viryy;
-            sm_virialAndEnergy[2][warpIndex] = virzz;
-            sm_virialAndEnergy[3][warpIndex] = virxy;
-            sm_virialAndEnergy[4][warpIndex] = virxz;
-            sm_virialAndEnergy[5][warpIndex] = viryz;
-            sm_virialAndEnergy[6][warpIndex] = energy;
+            virxx = virzz;  // virxx now holds quad sums of virxx, virxy, virzz and virxy
+            virxz = energy; // virxz now holds quad sums of virxz, viryz, energy and unused paddings
+        }
+
+        virxx += warp_move_dpp<float, /* row_shl:4 */ 0x104>(virxx);
+        virxz += warp_move_dpp<float, /* row_shr:4 */ 0x114>(virxz);
+        if (threadLocalId & 4)
+        {
+            virxx = virxz; // virxx now holds all 7 components' octet sums + unused paddings
+        }
+
+        /* We only need to reduce virxx now */
+#pragma unroll
+        for (int delta = 8; delta < warp_size; delta <<= 1)
+        {
+            virxx += __shfl_down(virxx, delta, warp_size);
+        }
+
+        /* Now first 7 threads of each warp have the full output contributions in virxx */
+
+        const int  componentIndex      = threadLocalId & (warp_size - 1);
+        const bool validComponentIndex = (componentIndex < c_virialAndEnergyCount);
+        /* Reduce 7 outputs per warp in the shared memory */
+        const int stride =
+                8; // this is c_virialAndEnergyCount==7 rounded up to power of 2 for convenience, hence the assert
+        static_assert(c_virialAndEnergyCount == 7);
+        const int        reductionBufferSize = (c_solveMaxThreadsPerBlock / warp_size) * stride;
+        __shared__ float sm_virialAndEnergy[reductionBufferSize];
+
+        if (validComponentIndex)
+        {
+            const int warpIndex                                     = threadLocalId / warp_size;
+            sm_virialAndEnergy[warpIndex * stride + componentIndex] = virxx;
         }
         __syncthreads();
 
-        /* Now use shuffle again for each component */
-        /* NOTE: This reduction assumes that activeWarps is a power of two
-         */
-         if (threadLocalId < activeWarps)
-         {
-             virxx = sm_virialAndEnergy[0][threadLocalId];
-             viryy = sm_virialAndEnergy[1][threadLocalId];
-             virzz = sm_virialAndEnergy[2][threadLocalId];
-             virxy = sm_virialAndEnergy[3][threadLocalId];
-             virxz = sm_virialAndEnergy[4][threadLocalId];
-             viryz = sm_virialAndEnergy[5][threadLocalId];
-             energy = sm_virialAndEnergy[6][threadLocalId];
+        /* Reduce to the single warp size */
+        const int targetIndex = threadLocalId;
+#pragma unroll
+        for (int reductionStride = reductionBufferSize >> 1; reductionStride >= warp_size;
+             reductionStride >>= 1)
+        {
+            const int sourceIndex = targetIndex + reductionStride;
+            if ((targetIndex < reductionStride) & (sourceIndex < activeWarps * stride))
+            {
+                // TODO: the second conditional is only needed on first iteration, actually - see if compiler eliminates it!
+                sm_virialAndEnergy[targetIndex] += sm_virialAndEnergy[sourceIndex];
+            }
+            __syncthreads();
+        }
 
-             for (int offset = (activeWarps >> 1); offset > 0; offset >>= 1)
-             {
-                 virxx += __shfl_down(virxx, offset);
-                 viryy += __shfl_down(viryy, offset);
-                 virzz += __shfl_down(virzz, offset);
-                 virxy += __shfl_down(virxy, offset);
-                 virxz += __shfl_down(virxz, offset);
-                 viryz += __shfl_down(viryz, offset);
-                 energy += __shfl_down(energy, offset);
-             }
-             /* Final output */
-             if (componentIndex == 0)
-             {
-                 atomicAddNoRet(gm_virialAndEnergy, virxx);
-                 atomicAddNoRet(gm_virialAndEnergy + 1, viryy);
-                 atomicAddNoRet(gm_virialAndEnergy + 2, virzz);
-                 atomicAddNoRet(gm_virialAndEnergy + 3, virxy);
-                 atomicAddNoRet(gm_virialAndEnergy + 4, virxz);
-                 atomicAddNoRet(gm_virialAndEnergy + 5, viryz);
-                 atomicAddNoRet(gm_virialAndEnergy + 6, energy);
-             }
-         }
+        /* Now use shuffle again */
+        /* NOTE: This reduction assumes there are at least 4 warps (asserted).
+         *       To use fewer warps, add to the conditional:
+         *       && threadLocalId < activeWarps * stride
+         */
+        assert(activeWarps * stride >= warp_size);
+        if (threadLocalId < warp_size)
+        {
+            float output = sm_virialAndEnergy[threadLocalId];
+#pragma unroll
+            for (int delta = stride; delta < warp_size; delta <<= 1)
+            {
+                output += __shfl_down(output, delta, warp_size);
+            }
+            /* Final output */
+            if (validComponentIndex)
+            {
+                assert(isfinite(output));
+                atomicAdd(gm_virialAndEnergy + componentIndex, output);
+            }
+        }
     }
 }
 

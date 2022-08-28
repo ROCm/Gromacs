@@ -83,8 +83,16 @@
  */
 #define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize)
+
+// MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
+// we can use twice as many registers as on MI100 and earlier devices without spilling.
+// Also it looks like spilling to global memory causes segfaults for some versions of the kernel.
+#if defined(__gfx90a__)
+#define MIN_BLOCKS_PER_MP 1
+#else
 // we want 100% occupancy, so max threads/block
 #define MIN_BLOCKS_PER_MP 8
+#endif
 /**@}*/
 
 /*! \brief Nonbonded list pruning kernel.
@@ -132,7 +140,7 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
     /* thread/block/warp id-s */
     unsigned int tidxi = threadIdx.x;
     unsigned int tidxj = threadIdx.y;
-#    if threadsZ  == 1
+#    if threadsZ == 1
     unsigned int tidxz = 0;
 #    else
     unsigned int tidxz = threadIdx.z;
@@ -176,10 +184,14 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
 
         /* We don't need q, but using float4 in shmem avoids bank conflicts.
            (but it also wastes L2 bandwidth). */
-        float4 tmp                    = xq[ai];
-        float4 xi                     = tmp + shift_vec[nb_sci.shift];
+        const float4 tmp              = xq[ai];
+        const float3 shift            = shift_vec[nb_sci.shift];
+        float4 xi;
+        xi.x = -(tmp.x + shift.x);
+        xi.y = -(tmp.y + shift.y);
+        xi.z = -(tmp.z + shift.z);
         xib[tidxj * c_clSize + tidxi] = xi;
-    } 
+    }
     __syncthreads();
 
     /* loop over the j clusters = seen by any of the atoms in the current super-cluster;
@@ -190,10 +202,10 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
     for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += threadsZ)
     {
         unsigned int imaskFull, imaskCheck, imaskNew;
-	unsigned int imask = pl_cj4[j4].imei[widx].imask;
+        unsigned int imask = pl_cj4[j4].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
         // so imask is stored in a vector register, making it scalar simplifies the code.
-        imask     = __builtin_amdgcn_readfirstlane(imask);
+        imask = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 
         if (haveFreshList)
         {
@@ -207,6 +219,9 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
         {
             /* Read the mask from the "warp-pruned" by rlistOuter mask array */
             imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
+            // "Scalarize" imaskFull when possible, the compiler always generates vector load here
+            // so imaskFull is stored in a vector register, making it scalar simplifies the code.
+            imaskFull = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imaskFull) : imaskFull;
             /* Read the old rolling pruned mask, use as a base for new */
             imaskNew = imask;
             /* We only need to check pairs with different mask */
@@ -227,7 +242,7 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
 
                     /* load j atom data */
                     float4 tmp = xq[aj];
-                    float3 xj  = make_float3(tmp.x, tmp.y, tmp.z);
+                    fast_float3 xj  = make_fast_float3(tmp);
 
 #    pragma unroll
                     for (int i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
@@ -235,11 +250,11 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
                         if (imaskCheck & mask_ji)
                         {
                             /* load i-cluster coordinates from shmem */
-                            float4 xi = xib[i * c_clSize + tidxi];
-
+                            float4 tmp2    = xib[i * c_clSize + tidxi];
+                            fast_float3 xi = make_fast_float3(tmp2);
 
                             /* distance between i and j atoms */
-                            float3 rv = make_float3(xi.x, xi.y, xi.z) - xj;
+                            fast_float3 rv = xi + xj;
                             float  r2 = norm2(rv);
 
                             /* If _none_ of the atoms pairs are in rlistOuter
@@ -268,19 +283,21 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
                 /* copy the list pruned to rlistOuter to a separate buffer */
                 plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
 
-	    #ifndef __gfx1030__
-                count += __popc(imaskNew | warp_move_dpp<int, 0x143>(imaskNew));
-            #else
-                count += __popc(imaskNew) + __popc(__shfl_up(imaskNew, 31, warpSize));
-            #endif	
+                #ifndef __gfx1030__
+                    count += __popc(imaskNew);
+                #else
+                    count += __popc(imaskNew) + __popc(__shfl_up(imaskNew, 31, warpSize));
+                #endif
             }
             /* update the imask with only the pairs up to rlistInner */
             plist.cj4[j4].imei[widx].imask = imaskNew;
+
         }
         // avoid shared memory WAR hazards between loop iterations
-	__builtin_amdgcn_wave_barrier();
+        __builtin_amdgcn_wave_barrier();
     }
-    if (haveFreshList && (tidx == 63))
+
+    if (haveFreshList && tidx == 63)
     {
         if (threadsZ > 1)
         {
@@ -299,15 +316,13 @@ nbnxn_kernel_prune_cuda<false, NTHREAD_Z>(const cu_atomdata_t, const NBParamGpu,
         if(tidxz == 0)
         {
             int index = max(c_sciHistogramSize - (int)count - 1, 0);
-            if(haveFreshList)
-            {
-                int* pl_sci_histogram = plist.sci_histogram;
-                atomicAdd(pl_sci_histogram + index, 1);
-            }
-            int* pl_sci_count  =  haveFreshList ? plist.sci_count : plist.sci_count_sorted;
-            pl_sci_count[bidx * numParts + part] = index; 
-        } 
+            int* pl_sci_histogram = plist.sci_histogram;
+            atomicAdd(pl_sci_histogram + index, 1);
+            int* pl_sci_count  =  plist.sci_count;
+            pl_sci_count[bidx * numParts + part] = index;
+        }
     }
+
 }
 #endif /* FUNCTION_DECLARATION_ONLY */
 

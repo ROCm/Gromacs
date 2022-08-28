@@ -123,11 +123,7 @@ static PmeGpuKernelParamsBase* pme_gpu_get_kernel_params_base_ptr(const PmeGpu* 
  * the numbers of atoms used for determining the size of the memory
  * allocation must be divisible by this.
  */
-#if GMX_GPU_CUDA
 constexpr int c_pmeAtomDataBlockSize = 64;
-#elif GMX_GPU_HIP
-constexpr int c_pmeAtomDataBlockSize = 128;
-#endif
 
 int pme_gpu_get_atom_data_block_size()
 {

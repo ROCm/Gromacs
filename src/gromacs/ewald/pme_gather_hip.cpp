@@ -135,7 +135,9 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
         if (dimIndex < DIM)
         {
             const float n = read_grid_size(realGridSizeFP, dimIndex);
-            *((float*)(&sm_forces[atomIndexLocal]) + dimIndex) = fx * n;
+            float* __restrict__ sm_forcesAtomIndexOffset =
+                    reinterpret_cast<float*>(&sm_forces[atomIndexLocal]);
+            sm_forcesAtomIndexOffset[dimIndex] = fx * n;
         }
     }
     else
@@ -191,7 +193,7 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
         if (dimIndex < DIM)
         {
             int sourceIndex = lineIndex % warpSize;
-#pragma unroll
+            #pragma unroll
             for (int redStride = minStride / 2; redStride > 1; redStride >>= 1)
             {
                 if (!(splineIndex & redStride))
@@ -200,16 +202,17 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
                 }
             }
 
-            //__syncwarp();
-	    //__all(1);
-	    __builtin_amdgcn_wave_barrier();
+            // __syncwarp();
+            __builtin_amdgcn_wave_barrier();
 
             const float n         = read_grid_size(realGridSizeFP, dimIndex);
             const int   atomIndex = sourceIndex / minStride;
 
             if (sourceIndex == minStride * atomIndex)
             {
-                *((float*)(&sm_forces[atomIndex]) + dimIndex) =
+                float* __restrict__ sm_forcesAtomIndexOffset =
+                        reinterpret_cast<float*>(&sm_forces[atomIndex]);
+                sm_forcesAtomIndexOffset[dimIndex] =
                         (sm_forceTemp[dimIndex][sourceIndex] + sm_forceTemp[dimIndex][sourceIndex + 1]) * n;
             }
         }
@@ -343,7 +346,7 @@ __device__ __forceinline__ void calculateAndStoreGridForces(float3* __restrict__
  * \param[in]  kernelParams         All the PME GPU data.
  */
 template<int order, bool wrapX, bool wrapY, int numGrids, bool readGlobal, ThreadsPerAtom threadsPerAtom>
-LAUNCH_BOUNDS_EXACT(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
+__launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global__
         void pme_gather_kernel(const PmeGpuHipKernelParams kernelParams)
 {
     assert(numGrids == 1 || numGrids == 2);
@@ -464,13 +467,12 @@ LAUNCH_BOUNDS_EXACT(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global
         }
         calculate_splines<order, atomsPerBlock, atomsPerWarp, true, false, ThreadsPerAtom::Order>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, sm_dtheta, sm_gridlineIndices);
-        //__syncwarp();
-	//__all(1);
-	__builtin_amdgcn_wave_barrier();
+        // __syncwarp();
+        __builtin_amdgcn_wave_barrier();
     }
-    float fx = 0.0f;
-    float fy = 0.0f;
-    float fz = 0.0f;
+    float fx = 0.0F;
+    float fy = 0.0F;
+    float fz = 0.0F;
 
     const int chargeCheck = pme_gpu_check_atom_charge(gm_coefficientsA[atomIndexGlobal]);
 
@@ -519,8 +521,7 @@ LAUNCH_BOUNDS_EXACT(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global
                                     kernelParams.current.recipBox, scale, gm_coefficientsA);
     }
 
-    //__syncwarp();
-    //__all(1);
+    // __syncwarp();
     __builtin_amdgcn_wave_barrier();
     assert(atomsPerBlock <= warpSize);
 
@@ -567,8 +568,8 @@ LAUNCH_BOUNDS_EXACT(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP) __global
                                         kernelParams.current.recipBox, 1.0F - scale, gm_coefficientsB);
         }
 
-        //__syncwarp();
-	__all(1);
+        // __syncwarp();
+        __builtin_amdgcn_wave_barrier();
 
         /* Writing or adding the final forces component-wise, single warp */
         if (threadLocalId < iterThreads)

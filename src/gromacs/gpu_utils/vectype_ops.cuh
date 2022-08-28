@@ -199,4 +199,91 @@ __forceinline__ __device__ void atomicAdd(float3& a, const float3 b)
     atomicAdd(&a.z, b.z);
 }
 
+/* Special implementation of float3 for faster computations using packed math on gfx90a.
+ * HIP's float3 is defined as a struct of 3 fields, the compiler is not aware of its vector nature
+ * hence it is not able to generate packed math instructions (v_pk_...) without SLP vectorization
+ * (-fno-slp-vectorize). This new type is defined as struct of float2 (x, y) and float (z)
+ * so packed math can be used for x and y.
+ */
+struct fast_float3
+{
+    typedef float __attribute__((ext_vector_type(2))) Native_float2_;
+
+    union
+    {
+        struct __attribute__((packed)) { Native_float2_ dxy; float dz; };
+        struct { float x, y, z; };
+    };
+
+    __host__ __device__
+    fast_float3() = default;
+
+    __host__ __device__
+    fast_float3(float x_, float y_, float z_) : dxy{ x_, y_ }, dz{ z_ } {}
+
+    __host__ __device__
+    fast_float3(Native_float2_ xy_, float z_) : dxy{ xy_ }, dz{ z_ } {}
+
+    __host__ __device__
+    operator float3() const
+    {
+        return float3{ x, y, z };
+    }
+
+    __host__ __device__
+    fast_float3& operator=(const fast_float3& x)
+    {
+        dxy = x.dxy;
+        dz = x.dz;
+        return *this;
+    }
+};
+static_assert(sizeof(fast_float3) == 12);
+
+__forceinline__ __host__ __device__
+fast_float3 operator*(fast_float3 x, fast_float3 y)
+{
+    return fast_float3{ x.dxy * y.dxy, x.dz * y.dz };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator*(fast_float3 x, float y)
+{
+    return fast_float3{ x.dxy * y, x.dz * y };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator*(float x, fast_float3 y)
+{
+    return fast_float3{ x * y.dxy, x * y.dz };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator+(fast_float3 x, fast_float3 y)
+{
+    return fast_float3{ x.dxy + y.dxy, x.dz + y.dz };
+}
+
+__forceinline__ __host__ __device__
+fast_float3 operator-(fast_float3 x, fast_float3 y)
+{
+    return fast_float3{ x.dxy - y.dxy, x.dz - y.dz };
+}
+
+static __forceinline__ __host__ __device__ fast_float3 make_fast_float3(float x)
+{
+    return fast_float3{ x, x, x };
+}
+
+static __forceinline__ __host__ __device__ fast_float3 make_fast_float3(float4 x)
+{
+    return fast_float3{ x.x, x.y, x.z };
+}
+
+static __forceinline__ __host__ __device__ float norm2(fast_float3 a)
+{
+    fast_float3 b = a * a;
+    return (b.x + b.y + b.z);
+}
+
 #endif /* VECTYPE_OPS_CUH */
