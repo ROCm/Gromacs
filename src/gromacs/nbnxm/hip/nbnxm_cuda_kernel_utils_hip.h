@@ -643,35 +643,29 @@ static __forceinline__ __device__ float pmecorrF(float z2)
 /*! Final j-force reduction; this implementation only with power of two
  *  array sizes.
  */
-static __forceinline__ __device__ void
-                       reduce_force_j_warp_shfl(float3 f, float3* fout, int tidxi, int aidx)
+static __forceinline__ __device__ float
+reduce_force_j_warp_shfl(float3 f, unsigned int tidxi)
 {
-    /*for (int offset = c_clSize >> 1; offset > 0; offset >>= 1)
+    f.x += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.x);
+    f.y += warp_move_dpp<float, /* row_shr:1 */ 0x111>(f.y);
+    f.z += warp_move_dpp<float, /* row_shl:1 */ 0x101>(f.z);
+
+    if (tidxi & 1)
     {
-        f.x += __shfl_down(f.x, offset);
-        f.y += __shfl_down(f.y, offset);
-        f.z += __shfl_down(f.z, offset);
-    }*/
-
-    f.x += warp_move_dpp<float, 0xb1>(f.x);
-    f.y += warp_move_dpp<float, 0xb1>(f.y);
-    f.z += warp_move_dpp<float, 0xb1>(f.z);
-
-    f.x += warp_move_dpp<float, 0x4e>(f.x);
-    f.y += warp_move_dpp<float, 0x4e>(f.y);
-    f.z += warp_move_dpp<float, 0x4e>(f.z);
-
-    f.x += warp_move_dpp<float, 0x114>(f.x);
-    f.y += warp_move_dpp<float, 0x114>(f.y);
-    f.z += warp_move_dpp<float, 0x114>(f.z);
-
-    //if (tidxi == 0)
-    if (tidxi == c_clSize - 1)
-    {
-        atomicAdd((&fout[aidx].x), f.x);
-        atomicAdd((&fout[aidx].y), f.y);
-        atomicAdd((&fout[aidx].z), f.z);
+        f.x = f.y;
     }
+
+    f.x += warp_move_dpp<float, /* row_shl:2 */ 0x102>(f.x);
+    f.z += warp_move_dpp<float, /* row_shr:2 */ 0x112>(f.z);
+
+    if (tidxi & 2)
+    {
+        f.x = f.z;
+    }
+
+    f.x += warp_move_dpp<float, /* row_shl:4 */ 0x104>(f.x);
+
+    return f.x;
 }
 
 /*! Final i-force reduction; this implementation works only with power of two

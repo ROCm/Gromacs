@@ -212,16 +212,16 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
     const int atomIndexLocal = warpIndex * atomsPerWarp + atomWarpIndex;
 
     /* Spline contribution index in one dimension */
-    const int orderIndex      = threadIdx.y;
+    const int threadLocalIdXY = (threadIdx.y * blockDim.x) + threadIdx.x;
+    const int orderIndex      = threadLocalIdXY / DIM;
     /* Dimension index */
-    const int dimIndex = threadIdx.x;
+    const int dimIndex = threadLocalIdXY % DIM;
 
     /* Multi-purpose index of rvec/ivec atom data */
     const int sharedMemoryIndex = atomIndexLocal * DIM + dimIndex;
 
     float splineData[order];
-
-    const int localCheck = dimIndex < DIM;
+    const int localCheck = (dimIndex < DIM) && (orderIndex < 1);
 
     /* we have 4 threads per atom, but can only use 3 here for the dimensions */
     if (localCheck)
@@ -267,7 +267,7 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             const float shift = c_pmeMaxUnitcellShift;
             /* Fractional coordinates along box vectors, adding a positive shift to ensure t is positive for triclinic boxes */
             t    = (t + shift) * n;
-            tInt = (int)t;
+            tInt = static_cast<int>(t);
             assert(sharedMemoryIndex < atomsPerBlock * DIM);
             sm_fractCoords[sharedMemoryIndex] = t - tInt;
             tableIndex += tInt;
@@ -276,19 +276,18 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
 
             // TODO have shared table for both parameters to share the fetch, as index is always same?
             // TODO compare texture/LDG performance
-            sm_fractCoords[sharedMemoryIndex] +=
-                    fetchFromParamLookupTable(kernelParams.grid.d_fractShiftsTable,
-                                              kernelParams.fractShiftsTableTexture, tableIndex);
+            sm_fractCoords[sharedMemoryIndex] += fetchFromParamLookupTable(
+                    kernelParams.grid.d_fractShiftsTable, kernelParams.fractShiftsTableTexture, tableIndex);
             sm_gridlineIndices[sharedMemoryIndex] =
                     fetchFromParamLookupTable(kernelParams.grid.d_gridlineIndicesTable,
-                                              kernelParams.gridlineIndicesTableTexture, tableIndex);
+                                              kernelParams.gridlineIndicesTableTexture,
+                                              tableIndex);
             if (writeGlobal)
             {
                 gm_gridlineIndices[atomIndexOffset * DIM + sharedMemoryIndex] =
                         sm_gridlineIndices[sharedMemoryIndex];
             }
         }
-	__syncthreads();
 
         /* B-spline calculation */
 
@@ -302,14 +301,14 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             assert(isfinite(dr));
 
             /* dr is relative offset from lower cell limit */
-            splineData[order - 1] = 0.0f;
+            splineData[order - 1] = 0.0F;
             splineData[1]         = dr;
-            splineData[0]         = 1.0f - dr;
+            splineData[0]         = 1.0F - dr;
 
 #pragma unroll
             for (int k = 3; k < order; k++)
             {
-                div               = 1.0f / (k - 1.0f);
+                div               = 1.0F / (k - 1.0F);
                 splineData[k - 1] = div * dr * splineData[k - 2];
 #pragma unroll
                 for (int l = 1; l < (k - 1); l++)
@@ -317,7 +316,7 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
                     splineData[k - l - 1] =
                             div * ((dr + l) * splineData[k - l - 2] + (k - l - dr) * splineData[k - l - 1]);
                 }
-                splineData[0] = div * (1.0f - dr) * splineData[0];
+                splineData[0] = div * (1.0F - dr) * splineData[0];
             }
 
             const int thetaIndexBase =
@@ -327,15 +326,13 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
             if (writeSmDtheta || writeGlobal)
             {
                 /* Differentiation and storing the spline derivatives (dtheta) */
-		const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
-                const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
 #pragma unroll
                 for (o = 0; o < order; o++)
                 {
                     const int thetaIndex =
                             getSplineParamIndex<order, atomsPerWarp>(thetaIndexBase, dimIndex, o);
 
-                    const float dtheta = ((o > 0) ? splineData[o - 1] : 0.0f) - splineData[o];
+                    const float dtheta = ((o > 0) ? splineData[o - 1] : 0.0F) - splineData[o];
                     assert(isfinite(dtheta));
                     assert(thetaIndex < order * DIM * atomsPerBlock);
                     if (writeSmDtheta)
@@ -350,7 +347,7 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
                 }
             }
 
-            div                   = 1.0f / (order - 1.0f);
+            div                   = 1.0F / (order - 1.0F);
             splineData[order - 1] = div * dr * splineData[order - 2];
 #pragma unroll
             for (int k = 1; k < (order - 1); k++)
@@ -359,11 +356,9 @@ __device__ __forceinline__ void calculate_splines(const PmeGpuHipKernelParams ke
                                             * ((dr + k) * splineData[order - k - 2]
                                                + (order - k - dr) * splineData[order - k - 1]);
             }
-            splineData[0] = div * (1.0f - dr) * splineData[0];
+            splineData[0] = div * (1.0F - dr) * splineData[0];
 
             /* Storing the spline values (theta) */
-	    const int ithyMin = (threadsPerAtom == ThreadsPerAtom::Order) ? 0 : threadIdx.y;
-            const int ithyMax = (threadsPerAtom == ThreadsPerAtom::Order) ? order : threadIdx.y + 1;
 #pragma unroll
             for (o = 0; o < order; o++)
             {

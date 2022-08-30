@@ -617,9 +617,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
                         mask_ji += mask_ji;
                 }
 
-                /* reduce j forces */
-                reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj);
+            /* reduce j forces */
+            float r = reduce_force_j_warp_shfl(fcj_buf, tidxi);
+            if (tidxi < 3)
+            {
+                atomic_add_force(f, aj, tidxi, r);
             }
+        }
 #    ifdef PRUNE_NBL
             /* Update the imask with the new one which does not contain the
                out of range clusters anymore. */

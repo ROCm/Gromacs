@@ -255,9 +255,8 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
         }
         calculate_splines<order, atomsPerBlock, atomsPerWarp, false, writeGlobal, ThreadsPerAtom::Order>(
                 kernelParams, atomIndexOffset, atomX, atomCharge, sm_theta, &dtheta, sm_gridlineIndices);
-        //__syncwarp();
-	//__all(1);
-	__builtin_amdgcn_wave_barrier();
+        // __syncwarp();
+        __builtin_amdgcn_wave_barrier();
     }
     else
     {
