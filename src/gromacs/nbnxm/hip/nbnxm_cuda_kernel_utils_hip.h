@@ -231,7 +231,7 @@ void nbnxn_kernel_bucket_sci_sort(
     const nbnxn_sci_t* pl_sci = plist.sci;
     nbnxn_sci_t* pl_sci_sort  = plist.sci_sorted;
     const int* pl_sci_count   = plist.sci_count;
-    int* pl_sci_count_sorted  = plist.sci_count_sorted;
+
     int* pl_sci_offset        = plist.sci_offset;
 
     int sci_count[ItemsPerThread];
@@ -252,16 +252,16 @@ void nbnxn_kernel_bucket_sci_sort(
     for(unsigned int i = 0; i < ItemsPerThread; i++)
     {
         if( size > (block_offset + ItemsPerThread * flat_id + i) )
-		sci_offset[i] = atomicAdd(&pl_sci_offset[sci_count[i]], 1);
+            sci_offset[i] = atomicAdd(&pl_sci_offset[sci_count[i]], 1);
     }
 
     #pragma unroll
     for(unsigned int i = 0; i < ItemsPerThread; i++)
     {
-        if( size > (block_offset + ItemsPerThread * flat_id + i) ) {
+        if( size > (block_offset + ItemsPerThread * flat_id + i) )
+        {
             pl_sci_sort[sci_offset[i]] = sci[i];
-	    pl_sci_count_sorted[sci_offset[i]] = sci_count[i];
-	}
+        }
     }
 }
 
@@ -394,7 +394,11 @@ static __forceinline__ __device__ void
 static __forceinline__ __device__ float calculate_lj_ewald_c6grid(const NBParamGpu nbparam, int typei, int typej)
 {
 #    if DISABLE_CUDA_TEXTURES
-    return LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej]);
+    float2* nbfp_comb = (float2*)nbparam.nbfp_comb;
+    float c6_i = fast_load(nbfp_comb, typei).x;
+    float c6_j = fast_load(nbfp_comb, typej).x;
+    return c6_i * c6_j;
+    //return LDG(&nbparam.nbfp_comb[2 * typei]) * LDG(&nbparam.nbfp_comb[2 * typej]);
 #    else
     return tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typei)
            * tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * typej);
@@ -466,19 +470,20 @@ static __forceinline__ __device__ void calculate_lj_ewald_comb_geom_F_E(const NB
  */
 static __forceinline__ __device__ float2 fetch_nbfp_comb_c6_c12(const NBParamGpu nbparam, int type)
 {
-    float2 c6c12;
 #    if DISABLE_CUDA_TEXTURES
     /* Force an 8-byte fetch to save a memory instruction. */
     float2* nbfp_comb = (float2*)nbparam.nbfp_comb;
-    c6c12             = LDG(&nbfp_comb[type]);
+    //c6c12             = LDG(&nbfp_comb[type]);
+    return fast_load(nbfp_comb, type);
 #    else
+    float2 c6c12;
     /* NOTE: as we always do 8-byte aligned loads, we could
        fetch float2 here too just as above. */
     c6c12.x = tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * type);
     c6c12.y = tex1Dfetch<float>(nbparam.nbfp_comb_texobj, 2 * type + 1);
+    return c6c12;
 #    endif /* DISABLE_CUDA_TEXTURES */
 
-    return c6c12;
 }
 
 
@@ -541,8 +546,10 @@ static __forceinline__ __device__ float2 fetch_coulomb_force_r(const NBParamGpu 
 
 #    if DISABLE_CUDA_TEXTURES
     /* Can't do 8-byte fetch because some of the addresses will be misaligned. */
-    d.x = LDG(&nbparam.coulomb_tab[index]);
-    d.y = LDG(&nbparam.coulomb_tab[index + 1]);
+    //d.x = LDG(&nbparam.coulomb_tab[index]);
+    d.x = fast_load(nbparam.coulomb_tab, index);
+    d.y = fast_load(nbparam.coulomb_tab, index, 1);
+    //d.y = LDG(&nbparam.coulomb_tab[index + 1]);
 #    else
     d.x     = tex1Dfetch<float>(nbparam.coulomb_tab_texobj, index);
     d.y     = tex1Dfetch<float>(nbparam.coulomb_tab_texobj, index + 1);
@@ -592,6 +599,7 @@ static __forceinline__ __device__ float2 fetch_nbfp_c6_c12(const NBParamGpu nbpa
 #    if DISABLE_CUDA_TEXTURES
     /* Force an 8-byte fetch to save a memory instruction. */
     float2* nbfp = (float2*)nbparam.nbfp;
+    //return fast_load(nbfp, baseIndex);
     return fast_load(nbfp, baseIndex);
 #    else
     /* NOTE: as we always do 8-byte aligned loads, we could
@@ -604,19 +612,19 @@ static __forceinline__ __device__ float2 fetch_nbfp_c6_c12(const NBParamGpu nbpa
 /*! Calculate analytical Ewald correction term. */
 static __forceinline__ __device__ float pmecorrF(float z2)
 {
-    const float FN6 = -1.7357322914161492954e-8f;
-    const float FN5 = 1.4703624142580877519e-6f;
-    const float FN4 = -0.000053401640219807709149f;
-    const float FN3 = 0.0010054721316683106153f;
-    const float FN2 = -0.019278317264888380590f;
-    const float FN1 = 0.069670166153766424023f;
-    const float FN0 = -0.75225204789749321333f;
+    constexpr float FN6 = -1.7357322914161492954e-8f;
+    constexpr float FN5 = 1.4703624142580877519e-6f;
+    constexpr float FN4 = -0.000053401640219807709149f;
+    constexpr float FN3 = 0.0010054721316683106153f;
+    constexpr float FN2 = -0.019278317264888380590f;
+    constexpr float FN1 = 0.069670166153766424023f;
+    constexpr float FN0 = -0.75225204789749321333f;
 
-    const float FD4 = 0.0011193462567257629232f;
-    const float FD3 = 0.014866955030185295499f;
-    const float FD2 = 0.11583842382862377919f;
-    const float FD1 = 0.50736591960530292870f;
-    const float FD0 = 1.0f;
+    constexpr float FD4 = 0.0011193462567257629232f;
+    constexpr float FD3 = 0.014866955030185295499f;
+    constexpr float FD2 = 0.11583842382862377919f;
+    constexpr float FD1 = 0.50736591960530292870f;
+    constexpr float FD0 = 1.0f;
 
     float z4;
     float polyFN0, polyFN1, polyFD0, polyFD1;
