@@ -238,15 +238,15 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
 
     if (computeSplines)
     {
-        const float3* __restrict__ gm_coordinates =
-                asFloat3(&kernelParams.atoms.d_coordinates[kernelParams.pipelineAtomStart]);
+        const float3* __restrict__ gm_coordinates = asFloat3(kernelParams.atoms.d_coordinates);
         if (c_useAtomDataPrefetch)
         {
             // Coordinates
             __shared__ float3 sm_coordinates[atomsPerBlock];
 
             /* Staging coordinates */
-            pme_gpu_stage_atom_data<float3, atomsPerBlock, 1>(sm_coordinates, gm_coordinates);
+            pme_gpu_stage_atom_data<float3, atomsPerBlock, 1>(
+                    sm_coordinates, &gm_coordinates[kernelParams.pipelineAtomStart]);
             __syncthreads();
             atomX = sm_coordinates[atomIndexLocal];
         }
