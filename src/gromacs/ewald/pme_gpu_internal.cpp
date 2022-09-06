@@ -55,6 +55,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <fstream>
 
 #include "gromacs/ewald/ewald_utils.h"
 #include "gromacs/fft/gpu_3dfft.h"
@@ -1617,7 +1618,6 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                                           &kernelParamsPtr->atoms.d_coefficients[FEP_STATE_B],
                                           &kernelParamsPtr->atoms.d_coordinates);
 #endif
-
         launchGpuKernel(kernelPtr,
                         config,
                         pmeGpu->archSpecific->pmeStream_,
@@ -1625,6 +1625,105 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                         "PME spline/spread",
                         kernelArgs);
     }
+
+#if 1
+
+    // let's print the kernel arguments here
+    hipDeviceSynchronize(); // hard sync
+    std::ofstream confFile("gmxEagKernelArguments.txt", std::ofstream::out);
+    
+    // block
+    confFile << "block dimensions" << std::endl;
+    confFile << config.blockSize[0] << " "  << config.blockSize[1] << " " 
+        << config.blockSize[2] << std::endl;
+    
+    // grid
+    confFile << "grid dimensions" << std::endl;
+    confFile << config.gridSize[0] << " " << config.gridSize[1] << " " 
+        << config.gridSize[2] << std::endl;
+
+    // d_theta - floats
+    pme_gpu_copy_output_spread_atom_data(pmeGpu);
+    const size_t splinesCount    = DIM * pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order;
+    hipDeviceSynchronize();
+    confFile << "d_theta (DIM:" << splinesCount << ")" << std::endl;
+    for(int i = 0; i < splinesCount; i++)
+        confFile << pmeGpu->staging.h_theta[i] << " ";
+    confFile << std::endl;
+
+    // d_dtheta - floats  
+    confFile << "d_dtheta (DIM:" << splinesCount << ")" << std::endl;
+    for(int i = 0; i < splinesCount; i++)
+        confFile << pmeGpu->staging.h_dtheta[i] << " ";
+    confFile << std::endl;
+
+    // d_gridlineIndices - ints
+    int gridlineIndSize = kernelParamsPtr->atoms.nAtoms * DIM;
+    confFile << "d_gridlineIndices (DIM: " << gridlineIndSize << ")" << std::endl;
+    for(int i = 0; i < gridlineIndSize; i++)
+        confFile << pmeGpu->staging.h_gridlineIndices[i] << " ";
+    confFile << std::endl;
+
+#if 0
+    // d_realGrid - float;
+    int gridSize = pmeGpu->archSpecific->realGridSize[0];
+    confFile << " d_realGrid (DIM: " << gridSize << std::endl;
+    copyFromDeviceBuffer(h_grid
+                        &pmeGpu->kernelParams->grid.d_realGrid[0],
+                        0,
+                        pmeGpu->archSpecific->realGridSize[0],
+                        pmeGpu->archSpecific->pmeStream_,
+                        pmeGpu->settings.transferKind,
+                        nullptr);
+    hipDeviceSynchronize();
+    for(int i = 0 ; i< gridSize; i++){
+        confFile << h_grid[i] << " " ;
+    }
+    confFile << std::endl;
+#endif
+
+    
+    // d_fractShifts
+    const int nx                  = pmeGpu->common->nk[XX];
+    const int ny                  = pmeGpu->common->nk[YY];
+    const int nz                  = pmeGpu->common->nk[ZZ];
+    const int cellCount           = c_pmeNeighborUnitcellCount;
+    const int newFractShiftsSize = cellCount * (nx + ny + nz);
+    confFile << "d_fractShiftsTable (DIM: " << newFractShiftsSize << ")" <<std::endl;
+    for(int i = 0; i < newFractShiftsSize; i++){
+        confFile << pmeGpu->common->fsh.data()[i] << " ";
+    }
+    confFile << std::endl;
+
+    // d_gridlineINdicesTable
+    confFile << "gridlineIndicesTable (DIM: " << newFractShiftsSize << ")" <<std::endl;
+    for(int i = 0; i < newFractShiftsSize; i++){
+        confFile << pmeGpu->common->nn.data()[i] << " ";
+    }
+    confFile << std::endl;
+
+    // d_coefficients
+    float* h_coefficients = (float *)malloc(sizeof(float)*pmeGpu->nAtomsAlloc);
+    hipMemcpy(h_coefficients, pmeGpu->kernelParams->atoms.d_coefficients[0], pmeGpu->kernelParams->atoms.nAtoms*sizeof(float), hipMemcpyDeviceToHost);
+    hipDeviceSynchronize();
+    confFile << " d_coefficients (DIM: " << pmeGpu->kernelParams->atoms.nAtoms << ")" << std::endl;
+    for(int i = 0 ; i < pmeGpu->nAtomsAlloc; i++){           
+        confFile << h_coefficients[i] << " ";
+    }
+
+    confFile << std::endl;
+    free(h_coefficients);
+    confFile << "d_coordinates (DIM: " << pmeGpu->nAtomsAlloc << ")" << std::endl;
+    gmx::RVec* h_coordinates = (gmx::RVec*)malloc(sizeof(gmx::RVec)*pmeGpu->nAtomsAlloc);
+    hipMemcpy(h_coordinates, pmeGpu->kernelParams->atoms.d_coordinates[0], pmeGpu->kernelParams->atoms.nAtoms*sizeof(gmx::RVec), hipMemcpyDeviceToHost);
+    hipDeviceSynchronize();
+    for(int i = 0 ; i< pmeGpu->kernelParams->atoms.nAtoms; i++){
+        confFile << h_coordinates[i][0] << "," << h_coordinates[i][1] << "," << h_coordinates[i][2] << " ";
+    }
+    free(h_coordinates);
+    confFile.close();
+    exit(1);
+#endif
 
     pme_gpu_stop_timing(pmeGpu, timingId);
 

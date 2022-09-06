@@ -717,6 +717,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
             /* Domain decomposition */
             ivec newGridSize;
             real ewaldcoeff_q = 0, ewaldcoeff_lj = 0;
+            hipRangePush("PME_recvCoeffs");
             ret = gmx_pme_recv_coeffs_coords(pme,
                                              pme_pp.get(),
                                              &natoms,
@@ -733,6 +734,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
                                              useGpuForPme,
                                              stateGpu.get(),
                                              runMode);
+            hipRangePop();
 
             if (ret == pmerecvqxSWITCHGRID)
             {
@@ -808,7 +810,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
         {
             GMX_ASSERT(pme_pp->x.size() == static_cast<size_t>(natoms),
                        "The coordinate buffer should have size natoms");
-
+            hipRangePush( "PME_gmx_pme_do" );
             gmx_pme_do(pme,
                        pme_pp->x,
                        pme_pp->f,
@@ -833,6 +835,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
                        &dvdlambda_q,
                        &dvdlambda_lj,
                        stepWork);
+            hipRangePop();
             output.forces_ = pme_pp->f;
         }
 
