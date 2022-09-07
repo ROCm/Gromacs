@@ -135,7 +135,10 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                                                            realGrid,
                                                            complexGrid);
             break;
-        default: GMX_THROW(InternalError("Unsupported FFT backend requested"));
+        default:
+            GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_HIP,
+                               "Unsupported FFT backend requested");
+            //GMX_THROW(InternalError("Unsupported FFT backend requested"));
     }
 #    elif GMX_GPU_OPENCL
     switch (backend)
@@ -216,6 +219,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
 #    if Heffte_FOUND
     switch (backend)
     {
+        #if GMX_GPU_CUDA
         case FftBackend::HeFFTe_CUDA:
             GMX_RELEASE_ASSERT(
                     GMX_GPU_CUDA,
@@ -238,6 +242,30 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                     complexGrid);
 
             break;
+        #elif GMX_GPU_HIP
+        case FftBackend::HeFFTe_HIP:
+            GMX_RELEASE_ASSERT(
+                    GMX_GPU_HIP,
+                    "HeFFTe_CUDA FFT backend is supported only with GROMACS compiled with HIP");
+            GMX_RELEASE_ASSERT(heffte::backend::is_enabled<heffte::backend::rocfft>::value,
+                               "HeFFTe not compiled with HIP support");
+            impl_ = std::make_unique<Gpu3dFft::ImplHeFfte<heffte::backend::rocfft>>(
+                    allocateGrids,
+                    comm,
+                    gridSizesInXForEachRank,
+                    gridSizesInYForEachRank,
+                    nz,
+                    performOutOfPlaceFFT,
+                    context,
+                    pmeStream,
+                    realGridSize,
+                    realGridSizePadded,
+                    complexGridSizePadded,
+                    realGrid,
+                    complexGrid);
+
+            break;
+        #endif
         default: GMX_RELEASE_ASSERT(impl_ != nullptr, "Unsupported FFT backend requested");
     }
 #    endif

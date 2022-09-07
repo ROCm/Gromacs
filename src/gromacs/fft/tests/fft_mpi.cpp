@@ -223,8 +223,13 @@ TEST_P(GpuFftTest3D, GpuFftDecomposition)
 }
 
 std::vector<GpuFftTestParams> const inputs{
+# if GMX_GPU_CUDA
     { IVec{ 5, 6, 9 }, 4, 1, FftBackend::HeFFTe_CUDA }, // slab decomposition
     { IVec{ 5, 6, 9 }, 2, 2, FftBackend::HeFFTe_CUDA }  // pencil decomposition
+# elif GMX_GPU_HIP
+    { IVec{ 5, 6, 9 }, 4, 1, FftBackend::HeFFTe_HIP }, // slab decomposition
+    { IVec{ 5, 6, 9 }, 2, 2, FftBackend::HeFFTe_HIP }  // pencil decomposition
+#endif
 };
 
 INSTANTIATE_TEST_SUITE_P(GpuFft, GpuFftTest3D, ::testing::ValuesIn(inputs));

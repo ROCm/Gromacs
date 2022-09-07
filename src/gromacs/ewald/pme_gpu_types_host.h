@@ -126,6 +126,10 @@ struct PmeShared
 
     /*! \brief The The number of decomposition dimensions */
     int ndecompdim;
+    /*! \brief MPI rank within communicator */
+    int nodeid;
+    /*! \brief Number of MPI ranks */
+    int nnodes;
     /*! \brief MPI rank within communicator for PME X-decomposition */
     int nodeidX;
     /*! \brief MPI rank within communicator for PME Y-decomposition */
@@ -134,6 +138,8 @@ struct PmeShared
     int nnodesX;
     /*! \brief Number of MPI ranks in Y-decomposition */
     int nnodesY;
+    /*! \brief MPI communicator for PME ranks */
+    MPI_Comm mpiComm;
     /*! \brief MPI communicator for ranks in X-decomposition */
     MPI_Comm mpiCommX;
     /*! \brief MPI communicator for ranks in Y-decomposition */
