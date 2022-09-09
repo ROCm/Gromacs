@@ -75,7 +75,7 @@ constexpr bool gmx_unused debugPrintDepth = false /* enableWallcycleDebug */;
 
 /* Each name should not exceed 19 printing characters
    (ie. terminating null can be twentieth) */
-static const char* enumValuetoString(WallCycleCounter enumValue)
+const char* enumValuetoString(WallCycleCounter enumValue)
 {
     constexpr gmx::EnumerationArray<WallCycleCounter, const char*> wallCycleCounterNames = {
         "Run",
@@ -127,7 +127,7 @@ static const char* enumValuetoString(WallCycleCounter enumValue)
     return wallCycleCounterNames[enumValue];
 }
 
-static const char* enumValuetoString(WallCycleSubCounter enumValue)
+const char* enumValuetoString(WallCycleSubCounter enumValue)
 {
     constexpr gmx::EnumerationArray<WallCycleSubCounter, const char*> wallCycleSubCounterNames = {
         "DD redist.",
