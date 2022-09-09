@@ -220,7 +220,7 @@ void Gpu3dFft::ImplHipFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*t
         resFFT = VkFFTAppend(&appR2C, -1, NULL);
         if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
-        result = hipfftExecR2C(planR2C_, realGrid_, complexGrid_);
+        result = hipfftExecR2C(planR2C_, realGrid_, (hipfftComplex*)complexGrid_);
         handleHipfftError(result, "hipFFT R2C execution failure");
 #endif
     }
@@ -230,7 +230,7 @@ void Gpu3dFft::ImplHipFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*t
         resFFT = VkFFTAppend(&appR2C, 1, NULL);
         if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
-        result = hipfftExecC2R(planC2R_, complexGrid_, realGrid_);
+        result = hipfftExecC2R(planC2R_, (hipfftComplex*)complexGrid_, realGrid_);
         handleHipfftError(result, "hipFFT C2R execution failure");
 #endif
     }
