@@ -84,6 +84,9 @@ target_link_libraries(modularsimulator PUBLIC
 # Module dependencies
 # This module convey transitive dependence on these modules.
 target_link_libraries(modularsimulator PUBLIC
+                      ewald
+                      mdlib
+                      mdrun
                       utility
                       )
 

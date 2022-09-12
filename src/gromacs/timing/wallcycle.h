@@ -41,11 +41,17 @@
 /* NOTE: None of the routines here are safe to call within an OpenMP
  * region */
 
+#include "config.h"
+
 #include <stdio.h>
 
 #include <array>
 #include <memory>
 #include <vector>
+
+#if GMX_USE_ROCTRACER
+#include <roctracer/roctx.h>
+#endif
 
 #include "gromacs/timing/cyclecounter.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -121,6 +127,8 @@ enum class WallCycleCounter : int
     Count
 };
 
+const char* enumValuetoString(WallCycleCounter enumValue);
+
 enum class WallCycleSubCounter : int
 {
     DDRedist,
@@ -159,6 +167,8 @@ enum class WallCycleSubCounter : int
     Test,
     Count
 };
+
+const char* enumValuetoString(WallCycleSubCounter enumValue);
 
 static constexpr int sc_numWallCycleCounters        = static_cast<int>(WallCycleCounter::Count);
 static constexpr int sc_numWallCycleSubCounters     = static_cast<int>(WallCycleSubCounter::Count);
@@ -231,6 +241,9 @@ inline void wallcycle_start(gmx_wallcycle* wc, WallCycleCounter ewc)
     {
         return;
     }
+#if GMX_USE_ROCTRACER
+    roctxRangePush(enumValuetoString(ewc));
+#endif
 
     wallcycleBarrier(wc);
 
@@ -313,6 +326,9 @@ inline double wallcycle_stop(gmx_wallcycle* wc, WallCycleCounter ewc)
         }
     }
 
+#if GMX_USE_ROCTRACER
+    roctxRangePop();
+#endif
     return last;
 }
 
@@ -346,6 +362,9 @@ inline void wallcycle_sub_start(gmx_wallcycle* wc, WallCycleSubCounter ewcs)
 {
     if (sc_useCycleSubcounters && wc != nullptr)
     {
+    #if GMX_USE_ROCTRACER
+        roctxRangePush(enumValuetoString(ewcs));
+    #endif
         wc->wcsc[ewcs].start = gmx_cycles_read();
     }
 }
@@ -365,6 +384,9 @@ inline void wallcycle_sub_stop(gmx_wallcycle* wc, WallCycleSubCounter ewcs)
 {
     if (sc_useCycleSubcounters && wc != nullptr)
     {
+#if GMX_USE_ROCTRACER
+        roctxRangePop();
+#endif
         wc->wcsc[ewcs].c += gmx_cycles_read() - wc->wcsc[ewcs].start;
         wc->wcsc[ewcs].n++;
     }
