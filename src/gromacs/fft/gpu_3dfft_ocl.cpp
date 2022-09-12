@@ -52,6 +52,7 @@
 
 #include "gromacs/gpu_utils/device_context.h"
 #include "gromacs/gpu_utils/device_stream.h"
+#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/gpu_utils/gmxopencl.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
@@ -82,11 +83,26 @@ Gpu3dFft::ImplOcl::ImplOcl(bool allocateGrids,
                            ivec                 complexGridSizePadded,
                            DeviceBuffer<float>* realGrid,
                            DeviceBuffer<float>* complexGrid) :
-    realGrid_(*realGrid), complexGrid_(*complexGrid)
+    realGrid_(*realGrid), performOutOfPlaceFFT_(performOutOfPlaceFFT)
 {
     GMX_RELEASE_ASSERT(allocateGrids == false, "Grids needs to be pre-allocated");
     GMX_RELEASE_ASSERT(gridSizesInXForEachRank.size() == 1 && gridSizesInYForEachRank.size() == 1,
                        "FFT decomposition not implemented with OpenCL backend");
+
+    if (performOutOfPlaceFFT_)
+    {
+        const int newComplexGridSize =
+                complexGridSizePadded[XX] * complexGridSizePadded[YY] * complexGridSizePadded[ZZ] * 2;
+
+        reallocateDeviceBuffer(
+                complexGrid, newComplexGridSize, &complexGridSize_, &complexGridCapacity_, context);
+    }
+    else
+    {
+        *complexGrid = *realGrid;
+    }
+
+    complexGrid_ = *complexGrid;
 
     cl_context clContext = context.context();
     commandStreams_.push_back(pmeStream.stream());
@@ -143,6 +159,11 @@ Gpu3dFft::ImplOcl::ImplOcl(bool allocateGrids,
 
 Gpu3dFft::ImplOcl::~ImplOcl()
 {
+    if (performOutOfPlaceFFT_)
+    {
+        freeDeviceBuffer(&complexGrid_);
+    }
+
     clfftDestroyPlan(&planR2C_);
     clfftDestroyPlan(&planC2R_);
 }

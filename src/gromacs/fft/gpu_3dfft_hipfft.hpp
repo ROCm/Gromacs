@@ -97,11 +97,19 @@ private:
     hipfftHandle   planR2C_;
     hipfftHandle   planC2R_;
     hipfftReal*    realGrid_;
-    hipfftComplex* complexGrid_;
+    //hipfftComplex* complexGrid_;
 #ifdef GMX_GPU_USE_VKFFT
     VkFFTConfiguration configuration;
     VkFFTApplication appR2C;
 #endif
+    DeviceBuffer<float> complexGrid_;
+    /*! \brief A boolean which tells whether the complex and real grids are different or same. Currenty true. */
+    bool performOutOfPlaceFFT_ = false;
+    /*! \brief complexGrid float (not float2!) element count (actual) */
+    int complexGridSize_ = 0;
+    /*! \brief complexGrid float (not float2!) element count (reserved) */
+    int complexGridCapacity_ = 0;
+
 };
 
 } // namespace gmx

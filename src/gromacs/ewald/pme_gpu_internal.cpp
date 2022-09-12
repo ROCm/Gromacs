@@ -132,6 +132,14 @@ int pme_gpu_get_atom_data_block_size()
     return c_pmeAtomDataBlockSize;
 }
 
+int pme_gpu_get_atoms_per_warp(const PmeGpu* pmeGpu)
+{
+    const int order = pmeGpu->common->pme_order;
+    const int threadsPerAtom =
+            (pmeGpu->settings.threadsPerAtom == ThreadsPerAtom::Order ? order : order * order);
+    return pmeGpu->programHandle_->warpSize() / threadsPerAtom;
+}
+
 void pme_gpu_synchronize(const PmeGpu* pmeGpu)
 {
     pmeGpu->archSpecific->pmeStream_.synchronize();
@@ -384,16 +392,13 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
         if (pmeGpu->archSpecific->performOutOfPlaceFFT)
         {
             /* 2 separate grids */
-            reallocateDeviceBuffer(&kernelParamsPtr->grid.d_fourierGrid[gridIndex],
-                                   newComplexGridSize,
-                                   &pmeGpu->archSpecific->complexGridSize[gridIndex],
-                                   &pmeGpu->archSpecific->complexGridCapacity[gridIndex],
-                                   pmeGpu->archSpecific->deviceContext_);
             reallocateDeviceBuffer(&kernelParamsPtr->grid.d_realGrid[gridIndex],
                                    newRealGridSize,
                                    &pmeGpu->archSpecific->realGridSize[gridIndex],
                                    &pmeGpu->archSpecific->realGridCapacity[gridIndex],
                                    pmeGpu->archSpecific->deviceContext_);
+
+            pmeGpu->archSpecific->complexGridSize[gridIndex] = newComplexGridSize;
         }
         else
         {
@@ -404,7 +409,6 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
                                    &pmeGpu->archSpecific->realGridSize[gridIndex],
                                    &pmeGpu->archSpecific->realGridCapacity[gridIndex],
                                    pmeGpu->archSpecific->deviceContext_);
-            kernelParamsPtr->grid.d_fourierGrid[gridIndex] = kernelParamsPtr->grid.d_realGrid[gridIndex];
             pmeGpu->archSpecific->complexGridSize[gridIndex] =
                     pmeGpu->archSpecific->realGridSize[gridIndex];
             // the size might get used later for copying the grid
@@ -414,6 +418,8 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
     // allocate overlap buffers needed for PME grid halo exchanges
     if (pmeGpu->settings.useDecomposition)
     {
+        int overlapX = 0;
+        int overlapY = 0;
         if (pmeGpu->common->nnodesX > 1)
         {
             int rank  = pmeGpu->common->nodeidX;
@@ -424,28 +430,40 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
             int myGrid    = pmeGpu->common->s2g0X[rank + 1] - pmeGpu->common->s2g0X[rank];
             int rightGrid = pmeGpu->common->s2g0X[right + 1] - pmeGpu->common->s2g0X[right];
 
-            int overlapSize = pmeGpu->common->gridHalo * kernelParamsPtr->grid.realGridSizePadded[YY]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+            overlapX = pmeGpu->common->gridHalo;
 
             // if only 2 PME ranks in X-domain and overlap width more than slab width
             // just transfer all grid points from neighbor
-            if (right == left && 2 * overlapSize >= rightGrid)
+            if (right == left && 2 * overlapX >= rightGrid)
             {
-                int slabWidth = std::max(rightGrid, myGrid);
-                overlapSize   = slabWidth * kernelParamsPtr->grid.realGridSizePadded[YY]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+                overlapX = std::max(rightGrid, myGrid);
             }
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftX,
+            int overlapSize = overlapX * kernelParamsPtr->grid.realGridSizePadded[YY]
+                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUp,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapXSizeLeft,
-                                   &pmeGpu->archSpecific->overlapXCapacityLeft,
+                                   &pmeGpu->archSpecific->overlapSendSizeUp,
+                                   &pmeGpu->archSpecific->overlapSendCapacityUp,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightX,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUp,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapXSizeRight,
-                                   &pmeGpu->archSpecific->overlapXCapacityRight,
+                                   &pmeGpu->archSpecific->overlapRecvSizeUp,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityUp,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDown,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeDown,
+                                   &pmeGpu->archSpecific->overlapSendCapacityDown,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDown,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeDown,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityDown,
                                    pmeGpu->archSpecific->deviceContext_);
         }
 
@@ -459,41 +477,94 @@ void pme_gpu_realloc_grids(PmeGpu* pmeGpu)
             int myGrid    = pmeGpu->common->s2g0Y[rank + 1] - pmeGpu->common->s2g0Y[rank];
             int rightGrid = pmeGpu->common->s2g0Y[right + 1] - pmeGpu->common->s2g0Y[right];
 
-            int overlapSize = pmeGpu->common->gridHalo * kernelParamsPtr->grid.realGridSizePadded[XX]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+            overlapY = pmeGpu->common->gridHalo;
 
             // if only 2 PME ranks in Y-domain and overlap width more than slab width
             // just transfer all grid points from neighbor
-            if (right == left && 2 * overlapSize >= rightGrid)
+            if (right == left && 2 * overlapY >= rightGrid)
             {
-                int slabWidth = std::max(rightGrid, myGrid);
-                overlapSize   = slabWidth * kernelParamsPtr->grid.realGridSizePadded[XX]
-                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+                overlapY = std::max(rightGrid, myGrid);
             }
 
+            int overlapSize = overlapY * kernelParamsPtr->grid.realGridSizePadded[XX]
+                              * kernelParamsPtr->grid.realGridSizePadded[ZZ];
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeftY,
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeft,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYSendSizeLeft,
-                                   &pmeGpu->archSpecific->overlapYSendCapacityLeft,
+                                   &pmeGpu->archSpecific->overlapSendSizeLeft,
+                                   &pmeGpu->archSpecific->overlapSendCapacityLeft,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftY,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeft,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYRecvSizeLeft,
-                                   &pmeGpu->archSpecific->overlapYRecvCapacityLeft,
+                                   &pmeGpu->archSpecific->overlapRecvSizeLeft,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityLeft,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRightY,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRight,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYSendSizeRight,
-                                   &pmeGpu->archSpecific->overlapYSendCapacityRight,
+                                   &pmeGpu->archSpecific->overlapSendSizeRight,
+                                   &pmeGpu->archSpecific->overlapSendCapacityRight,
                                    pmeGpu->archSpecific->deviceContext_);
 
-            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightY,
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRight,
                                    overlapSize,
-                                   &pmeGpu->archSpecific->overlapYRecvSizeRight,
-                                   &pmeGpu->archSpecific->overlapYRecvCapacityRight,
+                                   &pmeGpu->archSpecific->overlapRecvSizeRight,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+        }
+
+        if (pmeGpu->common->nnodesX > 1 && pmeGpu->common->nnodesY > 1)
+        {
+            int overlapSize = overlapX * overlapY * kernelParamsPtr->grid.realGridSizePadded[ZZ];
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeUpLeft,
+                                   &pmeGpu->archSpecific->overlapSendCapacityUpLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeUpLeft,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityUpLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeDownLeft,
+                                   &pmeGpu->archSpecific->overlapSendCapacityDownLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownLeft,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeDownLeft,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityDownLeft,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeUpRight,
+                                   &pmeGpu->archSpecific->overlapSendCapacityUpRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeUpRight,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityUpRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapSendSizeDownRight,
+                                   &pmeGpu->archSpecific->overlapSendCapacityDownRight,
+                                   pmeGpu->archSpecific->deviceContext_);
+
+            reallocateDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownRight,
+                                   overlapSize,
+                                   &pmeGpu->archSpecific->overlapRecvSizeDownRight,
+                                   &pmeGpu->archSpecific->overlapRecvCapacityDownRight,
                                    pmeGpu->archSpecific->deviceContext_);
         }
     }
@@ -503,10 +574,6 @@ void pme_gpu_free_grids(const PmeGpu* pmeGpu)
 {
     for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
     {
-        if (pmeGpu->archSpecific->performOutOfPlaceFFT)
-        {
-            freeDeviceBuffer(&pmeGpu->kernelParams->grid.d_fourierGrid[gridIndex]);
-        }
         freeDeviceBuffer(&pmeGpu->kernelParams->grid.d_realGrid[gridIndex]);
     }
 
@@ -514,16 +581,30 @@ void pme_gpu_free_grids(const PmeGpu* pmeGpu)
     {
         if (pmeGpu->common->nnodesX > 1)
         {
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftX);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightX);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUp);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUp);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDown);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDown);
         }
 
         if (pmeGpu->common->nnodesY > 1)
         {
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeftY);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeftY);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRightY);
-            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRightY);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridRight);
+        }
+
+        if (pmeGpu->common->nnodesX > 1 && pmeGpu->common->nnodesY > 1)
+        {
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownLeft);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridUpRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridUpRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_sendGridDownRight);
+            freeDeviceBuffer(&pmeGpu->archSpecific->d_recvGridDownRight);
         }
     }
 }
@@ -612,19 +693,19 @@ void pme_gpu_copy_output_spread_grid(const PmeGpu* pmeGpu, float* h_grid, const 
 
 void pme_gpu_copy_output_spread_atom_data(const PmeGpu* pmeGpu)
 {
-    const size_t splinesCount    = DIM * pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order;
-    auto*        kernelParamsPtr = pmeGpu->kernelParams.get();
+    auto*     kernelParamsPtr = pmeGpu->kernelParams.get();
+    const int nAtoms          = pmeGpu->kernelParams->atoms.nAtoms;
     copyFromDeviceBuffer(pmeGpu->staging.h_dtheta,
                          &kernelParamsPtr->atoms.d_dtheta,
                          0,
-                         splinesCount,
+                         pmeGpu->archSpecific->splineCountActive,
                          pmeGpu->archSpecific->pmeStream_,
                          pmeGpu->settings.transferKind,
                          nullptr);
     copyFromDeviceBuffer(pmeGpu->staging.h_theta,
                          &kernelParamsPtr->atoms.d_theta,
                          0,
-                         splinesCount,
+                         pmeGpu->archSpecific->splineCountActive,
                          pmeGpu->archSpecific->pmeStream_,
                          pmeGpu->settings.transferKind,
                          nullptr);
@@ -639,17 +720,17 @@ void pme_gpu_copy_output_spread_atom_data(const PmeGpu* pmeGpu)
 
 void pme_gpu_copy_input_gather_atom_data(const PmeGpu* pmeGpu)
 {
-    const size_t splinesCount    = DIM * pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order;
+    const size_t splineDataSize  = pmeGpu->archSpecific->splineDataSize;
     auto*        kernelParamsPtr = pmeGpu->kernelParams.get();
 
     // TODO: could clear only the padding and not the whole thing, but this is a test-exclusive code anyway
     clearDeviceBufferAsync(&kernelParamsPtr->atoms.d_gridlineIndices,
                            0,
-                           pmeGpu->nAtomsAlloc * DIM,
+                           splineDataSize,
                            pmeGpu->archSpecific->pmeStream_);
     clearDeviceBufferAsync(&kernelParamsPtr->atoms.d_dtheta,
                            0,
-                           pmeGpu->nAtomsAlloc * pmeGpu->common->pme_order * DIM,
+                           splineDataSize,
                            pmeGpu->archSpecific->pmeStream_);
     clearDeviceBufferAsync(&kernelParamsPtr->atoms.d_theta,
                            0,
@@ -659,14 +740,14 @@ void pme_gpu_copy_input_gather_atom_data(const PmeGpu* pmeGpu)
     copyToDeviceBuffer(&kernelParamsPtr->atoms.d_dtheta,
                        pmeGpu->staging.h_dtheta,
                        0,
-                       splinesCount,
+                       splineDataSize,
                        pmeGpu->archSpecific->pmeStream_,
                        pmeGpu->settings.transferKind,
                        nullptr);
     copyToDeviceBuffer(&kernelParamsPtr->atoms.d_theta,
                        pmeGpu->staging.h_theta,
                        0,
-                       splinesCount,
+                       splineDataSize,
                        pmeGpu->archSpecific->pmeStream_,
                        pmeGpu->settings.transferKind,
                        nullptr);
@@ -719,15 +800,35 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
     if (pme_gpu_settings(pmeGpu).performGPUFFT)
     {
         pmeGpu->archSpecific->fftSetup.resize(0);
-        const bool         performOutOfPlaceFFT      = pmeGpu->archSpecific->performOutOfPlaceFFT;
-        const bool         allocateGrid              = false;
-        MPI_Comm           comm                      = MPI_COMM_NULL;
-        std::array<int, 1> gridOffsetsInXForEachRank = { 0 };
-        std::array<int, 1> gridOffsetsInYForEachRank = { 0 };
+        const bool       performOutOfPlaceFFT = pmeGpu->archSpecific->performOutOfPlaceFFT;
+        bool             allocateGrid         = false;
+        MPI_Comm         comm                 = pmeGpu->common->mpiComm;
+        std::vector<int> gridSizesInXForEachRank(pmeGpu->common->nnodesX);
+        std::vector<int> gridSizesInYForEachRank(pmeGpu->common->nnodesY);
+
+        for (int i = 0; i < pmeGpu->common->nnodesX; ++i)
+        {
+            gridSizesInXForEachRank[i] = pmeGpu->common->s2g0X[i + 1] - pmeGpu->common->s2g0X[i];
+        }
+        for (int i = 0; i < pmeGpu->common->nnodesY; ++i)
+        {
+            gridSizesInYForEachRank[i] = pmeGpu->common->s2g0Y[i + 1] - pmeGpu->common->s2g0Y[i];
+        }
+
 #if GMX_GPU_CUDA
-        const gmx::FftBackend backend = gmx::FftBackend::Cufft;
+        gmx::FftBackend backend = gmx::FftBackend::Cufft;
+        if (pmeGpu->settings.useDecomposition)
+        {
+            backend      = gmx::FftBackend::HeFFTe_CUDA;
+            allocateGrid = true;
+        }
 #elif GMX_GPU_HIP
-        const gmx::FftBackend backend = gmx::FftBackend::Hipfft;
+        gmx::FftBackend backend = gmx::FftBackend::Hipfft;
+        if (pmeGpu->settings.useDecomposition)
+        {
+            backend = gmx::FftBackend::HeFFTe_HIP;
+            allocateGrid = true;
+        }
 #elif GMX_GPU_OPENCL
         const gmx::FftBackend backend = gmx::FftBackend::Ocl;
 #elif GMX_GPU_SYCL
@@ -746,23 +847,58 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
         PmeGpuGridParams& grid = pme_gpu_get_kernel_params_base_ptr(pmeGpu)->grid;
         for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
         {
+            const bool useDecomposition = pmeGpu->settings.useDecomposition;
+
+            // grid needs to be alloacted only with decomposition
+            GMX_RELEASE_ASSERT(allocateGrid == useDecomposition,
+                               "Separate FFT grid needs to be alloacted only with decomposition");
+
+            if (!useDecomposition)
+            {
+                memcpy(grid.localRealGridSize, grid.realGridSize, DIM * sizeof(int));
+                memcpy(grid.localRealGridSizePadded, grid.realGridSizePadded, DIM * sizeof(int));
+                memcpy(grid.localComplexGridSizePadded, grid.complexGridSizePadded, DIM * sizeof(int));
+
+                // PME grid is same as FFT real grid in case of no decomposition
+                grid.d_fftRealGrid[gridIndex] = grid.d_realGrid[gridIndex];
+            }
+
             pmeGpu->archSpecific->fftSetup.push_back(
                     std::make_unique<gmx::Gpu3dFft>(backend,
                                                     allocateGrid,
                                                     comm,
-                                                    gridOffsetsInXForEachRank,
-                                                    gridOffsetsInYForEachRank,
+                                                    gridSizesInXForEachRank,
+                                                    gridSizesInYForEachRank,
                                                     grid.realGridSize[ZZ],
                                                     performOutOfPlaceFFT,
                                                     pmeGpu->archSpecific->deviceContext_,
                                                     pmeGpu->archSpecific->pmeStream_,
-                                                    grid.realGridSize,
-                                                    grid.realGridSizePadded,
-                                                    grid.complexGridSizePadded,
-                                                    &(grid.d_realGrid[gridIndex]),
-                                                    &(grid.d_fourierGrid[gridIndex])));
+                                                    grid.localRealGridSize,
+                                                    grid.localRealGridSizePadded,
+                                                    grid.localComplexGridSizePadded,
+                                                    &(grid.d_fftRealGrid[gridIndex]),
+                                                    &(grid.d_fftComplexGrid[gridIndex])));
+
+            // no difference in padded and unpadded size
+            memcpy(grid.localComplexGridSize, grid.localComplexGridSizePadded, DIM * sizeof(int));
         }
     }
+    else
+    {
+        // Initialize grid.localComplexGridSize with grid.complexGridSize.
+        // These values needs to be initialized for unit tests which run pme_gpu_solve even in mixed
+        // mode. In real world cases, pme_gu_solve is never called in mixed mode.
+        PmeGpuGridParams& grid = pme_gpu_get_kernel_params_base_ptr(pmeGpu)->grid;
+        memcpy(grid.localComplexGridSizePadded, grid.complexGridSizePadded, DIM * sizeof(int));
+        memcpy(grid.localComplexGridSize, grid.complexGridSize, DIM * sizeof(int));
+
+        for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+        {
+            grid.d_fftComplexGrid[gridIndex] = grid.d_realGrid[gridIndex];
+        }
+
+    }
+
 }
 
 void pme_gpu_destroy_3dfft(const PmeGpu* pmeGpu)
@@ -968,8 +1104,10 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
     pmeGpu->common->pmegridNk[YY] = pme->nnodes_minor > 1 ? pme->pmegrid_ny : pme->nky;
     pmeGpu->common->pmegridNk[ZZ] = pme->nkz;
     pmeGpu->common->ndecompdim    = pme->ndecompdim;
+    pmeGpu->common->nodeid        = pme->nodeid;
     pmeGpu->common->nodeidX       = pme->nodeid_major;
     pmeGpu->common->nodeidY       = pme->nodeid_minor;
+    pmeGpu->common->nnodes        = pme->nnodes;
     pmeGpu->common->nnodesX       = pme->nnodes_major;
     pmeGpu->common->nnodesY       = pme->nnodes_minor;
     pmeGpu->common->s2g0X         = pme->overlap[0].s2g0;
@@ -1000,6 +1138,7 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
     pmeGpu->common->boxScaler     = pme->boxScaler.get();
     pmeGpu->common->mpiCommX      = pme->mpi_comm_d[0];
     pmeGpu->common->mpiCommY      = pme->mpi_comm_d[1];
+    pmeGpu->common->mpiComm       = pme->mpi_comm;
 }
 
 /*! \libinternal \brief
@@ -1101,9 +1240,8 @@ void pme_gpu_reinit(gmx_pme_t*           pme,
         /* After this call nothing in the GPU code should refer to the gmx_pme_t *pme itself - until the next pme_gpu_reinit */
         pme_gpu_copy_common_data_from(pme);
     }
-    /* GPU FFT will only get used for a single rank.*/
-    pme->gpu->settings.performGPUFFT =
-            (pme->gpu->common->runMode == PmeRunMode::GPU) && !pme->gpu->settings.useDecomposition;
+
+    pme->gpu->settings.performGPUFFT   = (pme->gpu->common->runMode == PmeRunMode::GPU);
     pme->gpu->settings.performGPUSolve = (pme->gpu->common->runMode == PmeRunMode::GPU);
 
     /* Reinit active timers */
@@ -1140,10 +1278,14 @@ void pme_gpu_reinit_atoms(PmeGpu* pmeGpu, const int nAtoms, const real* chargesA
 {
     auto* kernelParamsPtr         = pme_gpu_get_kernel_params_base_ptr(pmeGpu);
     kernelParamsPtr->atoms.nAtoms = nAtoms;
-    const int  block_size         = pme_gpu_get_atom_data_block_size();
-    const int  nAtomsNewPadded    = ((nAtoms + block_size - 1) / block_size) * block_size;
+    const int  blockSize          = pme_gpu_get_atom_data_block_size();
+    const int  nAtomsNewPadded    = ((nAtoms + blockSize - 1) / blockSize) * blockSize;
     const bool haveToRealloc      = (pmeGpu->nAtomsAlloc < nAtomsNewPadded);
     pmeGpu->nAtomsAlloc           = nAtomsNewPadded;
+
+    const auto atomsPerWarp                 = pme_gpu_get_atoms_per_warp(pmeGpu);
+    const int  nWarps                       = ((nAtoms + atomsPerWarp - 1) / atomsPerWarp);
+    pmeGpu->archSpecific->splineCountActive = DIM * nWarps * atomsPerWarp * pmeGpu->common->pme_order;
 
 #if GMX_DOUBLE
     GMX_RELEASE_ASSERT(false, "Only single precision supported");
@@ -1631,24 +1773,37 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     // halo exchange
     if (settings.useDecomposition)
     {
-        // mark event once spread has been launched, this event is consumed in pmeGpuGridHaloExchange
-        pmeGpu->archSpecific->spreadCompleted.markEvent(pmeGpu->archSpecific->pmeStream_);
         pmeGpuGridHaloExchange(pmeGpu);
     }
 
-    const bool copyBackGrid = spreadCharges && (!settings.performGPUFFT || settings.copyAllOutputs);
+    const bool copyBackGrid =
+            spreadCharges
+            && (settings.useDecomposition || !settings.performGPUFFT || settings.copyAllOutputs);
     if (copyBackGrid)
     {
         if (settings.useDecomposition)
         {
-            // non-contiguous data - need to run kernel
-            for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+            if (!settings.performGPUFFT || settings.copyAllOutputs) // mixed mode - multiple PME rank
             {
-                float* h_grid = h_grids[gridIndex];
-                convertPmeGridToFftGrid<true>(pmeGpu, h_grid, fftSetup, gridIndex);
+                // non-contiguous data - need to run kernel
+                for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+                {
+                    float* h_grid = h_grids[gridIndex];
+
+                    convertPmeGridToFftGrid<true>(pmeGpu, h_grid, fftSetup, gridIndex);
+                }
+            }
+            else // full PME GPU decomposition
+            {
+                // non-contiguous data - need to run kernel
+                for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+                {
+                    convertPmeGridToFftGrid<true>(
+                            pmeGpu, &kernelParamsPtr->grid.d_fftRealGrid[gridIndex], gridIndex);
+                }
             }
         }
-        else
+        else // mixed mode - single PME rank
         {
             for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
             {
@@ -1682,13 +1837,16 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
 
     auto* kernelParamsPtr = pmeGpu->kernelParams.get();
 
-    float* h_gridFloat = reinterpret_cast<float*>(h_grid);
+    float*    h_gridFloat              = reinterpret_cast<float*>(h_grid);
+    const int localComplexGridElements = kernelParamsPtr->grid.localComplexGridSizePadded[XX]
+                                         * kernelParamsPtr->grid.localComplexGridSizePadded[YY]
+                                         * kernelParamsPtr->grid.localComplexGridSizePadded[ZZ] * 2;
     if (copyInputAndOutputGrid)
     {
-        copyToDeviceBuffer(&kernelParamsPtr->grid.d_fourierGrid[gridIndex],
+        copyToDeviceBuffer(&kernelParamsPtr->grid.d_fftComplexGrid[gridIndex],
                            h_gridFloat,
                            0,
-                           pmeGpu->archSpecific->complexGridSize[gridIndex],
+                           localComplexGridElements,
                            pmeGpu->archSpecific->pmeStream_,
                            pmeGpu->settings.transferKind,
                            nullptr);
@@ -1714,10 +1872,31 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
 
     const int maxBlockSize = pmeGpu->programHandle_->impl_->solveMaxWorkGroupSize;
 
-    const int gridLineSize      = pmeGpu->kernelParams->grid.complexGridSize[minorDim];
+    const int gridLineSize      = pmeGpu->kernelParams->grid.localComplexGridSize[minorDim];
     const int gridLinesPerBlock = std::max(maxBlockSize / gridLineSize, 1);
     const int blocksPerGridLine = (gridLineSize + maxBlockSize - 1) / maxBlockSize;
     int       cellsPerBlock;
+
+    if (pmeGpu->common->nnodesY > 1
+        && pmeGpu->kernelParams->grid.complexGridSize[ZZ] >= pmeGpu->common->nnodes)
+    {
+        pmeGpu->kernelParams->grid.kOffsets[XX] = 0;
+        pmeGpu->kernelParams->grid.kOffsets[YY] = 0;
+        pmeGpu->kernelParams->grid.kOffsets[ZZ] = pmeGpu->common->nodeid
+                                                  * pmeGpu->kernelParams->grid.complexGridSize[ZZ]
+                                                  / pmeGpu->common->nnodes;
+    }
+    else
+    {
+        pmeGpu->kernelParams->grid.kOffsets[XX] = 0;
+        pmeGpu->kernelParams->grid.kOffsets[YY] = pmeGpu->common->nodeidX
+                                                  * pmeGpu->kernelParams->grid.complexGridSize[YY]
+                                                  / pmeGpu->common->nnodesX;
+        pmeGpu->kernelParams->grid.kOffsets[ZZ] = pmeGpu->common->nodeidY
+                                                  * pmeGpu->kernelParams->grid.complexGridSize[ZZ]
+                                                  / pmeGpu->common->nnodesY;
+    }
+
     if (blocksPerGridLine == 1)
     {
         cellsPerBlock = gridLineSize * gridLinesPerBlock;
@@ -1738,9 +1917,11 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     config.blockSize[0] = blockSize;
     config.gridSize[0]  = blocksPerGridLine;
     // rounding up to full warps so that shuffle operations produce defined results
-    config.gridSize[1] = (pmeGpu->kernelParams->grid.complexGridSize[middleDim] + gridLinesPerBlock - 1)
-                         / gridLinesPerBlock;
-    config.gridSize[2] = pmeGpu->kernelParams->grid.complexGridSize[majorDim];
+    config.gridSize[1] =
+            (pmeGpu->kernelParams->grid.localComplexGridSize[middleDim] + gridLinesPerBlock - 1)
+            / gridLinesPerBlock;
+
+    config.gridSize[2] = pmeGpu->kernelParams->grid.localComplexGridSize[majorDim];
 
     PmeStage                           timingId  = PmeStage::Solve;
     PmeGpuProgramImpl::PmeKernelHandle kernelPtr = nullptr;
@@ -1782,7 +1963,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
                                       kernelParamsPtr,
                                       &kernelParamsPtr->grid.d_splineModuli[gridIndex],
                                       &kernelParamsPtr->constants.d_virialAndEnergy[gridIndex],
-                                      &kernelParamsPtr->grid.d_fourierGrid[gridIndex]);
+                                      &kernelParamsPtr->grid.d_fftComplexGrid[gridIndex]);
 #endif
     launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME solve", kernelArgs);
     pme_gpu_stop_timing(pmeGpu, timingId);
@@ -1801,9 +1982,9 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     if (copyInputAndOutputGrid)
     {
         copyFromDeviceBuffer(h_gridFloat,
-                             &kernelParamsPtr->grid.d_fourierGrid[gridIndex],
+                             &kernelParamsPtr->grid.d_fftComplexGrid[gridIndex],
                              0,
-                             pmeGpu->archSpecific->complexGridSize[gridIndex],
+                             localComplexGridElements,
                              pmeGpu->archSpecific->pmeStream_,
                              pmeGpu->settings.transferKind,
                              nullptr);
@@ -1887,20 +2068,36 @@ void pme_gpu_gather(PmeGpu* pmeGpu, real** h_grids, gmx_parallel_3dfft_t* fftSet
             pmeGpu->common->ngrids == 1 || pmeGpu->common->ngrids == 2,
             "Only one (normal Coulomb PME) or two (FEP coulomb PME) PME grids can be used on GPU");
 
-    const auto& settings = pmeGpu->settings;
+    const auto& settings        = pmeGpu->settings;
+    auto*       kernelParamsPtr = pmeGpu->kernelParams.get();
 
-    if (!settings.performGPUFFT || settings.copyAllOutputs)
+    const bool copyBackGrid =
+            (settings.useDecomposition || !settings.performGPUFFT || settings.copyAllOutputs);
+
+    if (copyBackGrid)
     {
         if (settings.useDecomposition)
         {
-            // non-contiguous data - need to run kernel
-            for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+            if (!settings.performGPUFFT || settings.copyAllOutputs) // mixed mode - multple PME rank
             {
-                float* h_grid = const_cast<float*>(h_grids[gridIndex]);
-                convertPmeGridToFftGrid<false>(pmeGpu, h_grid, fftSetup, gridIndex);
+                // non-contiguous data - need to run kernel
+                for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+                {
+                    float* h_grid = const_cast<float*>(h_grids[gridIndex]);
+                    convertPmeGridToFftGrid<false>(pmeGpu, h_grid, fftSetup, gridIndex);
+                }
+            }
+            else // full PME GPU decomposition
+            {
+                // non-contiguous data - need to run kernel
+                for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
+                {
+                    convertPmeGridToFftGrid<false>(
+                            pmeGpu, &kernelParamsPtr->grid.d_fftRealGrid[gridIndex], gridIndex);
+                }
             }
         }
-        else
+        else // mixed mode - single PME rank
         {
             for (int gridIndex = 0; gridIndex < pmeGpu->common->ngrids; gridIndex++)
             {
@@ -1940,37 +2137,39 @@ void pme_gpu_gather(PmeGpu* pmeGpu, real** h_grids, gmx_parallel_3dfft_t* fftSet
     GMX_ASSERT(!(c_pmeAtomDataBlockSize % atomsPerBlock),
                "inconsistent atom data padding vs. gathering block size");
 
-    const int blockCount = pmeGpu->nAtomsAlloc / atomsPerBlock;
-    auto      dimGrid    = pmeGpuCreateGrid(pmeGpu, blockCount);
-
-    KernelLaunchConfig config;
-    config.blockSize[0] = order;
-    config.blockSize[1] = (pmeGpu->settings.threadsPerAtom == ThreadsPerAtom::Order ? 1 : order);
-    config.blockSize[2] = atomsPerBlock;
-    config.gridSize[0]  = dimGrid.first;
-    config.gridSize[1]  = dimGrid.second;
-
-    // TODO test different cache configs
-
-    PmeStage                           timingId = PmeStage::Gather;
-    PmeGpuProgramImpl::PmeKernelHandle kernelPtr =
-            selectGatherKernelPtr(pmeGpu,
-                                  pmeGpu->settings.threadsPerAtom,
-                                  readGlobal || (!recalculateSplines),
-                                  pmeGpu->common->ngrids);
-    // TODO design kernel selection getters and make PmeGpu a friend of PmeGpuProgramImpl
-
-    pme_gpu_start_timing(pmeGpu, timingId);
-    auto* timingEvent     = pme_gpu_fetch_timing_event(pmeGpu, timingId);
-    auto* kernelParamsPtr = pmeGpu->kernelParams.get();
-    if (pmeGpu->common->ngrids == 1)
+    // launch gather only if nAtoms > 0
+    if (kernelParamsPtr->atoms.nAtoms > 0)
     {
-        kernelParamsPtr->current.scale = 1.0;
-    }
-    else
-    {
-        kernelParamsPtr->current.scale = 1.0 - lambda;
-    }
+        const int blockCount = pmeGpu->nAtomsAlloc / atomsPerBlock;
+        auto      dimGrid    = pmeGpuCreateGrid(pmeGpu, blockCount);
+
+        KernelLaunchConfig config;
+        config.blockSize[0] = order;
+        config.blockSize[1] = (pmeGpu->settings.threadsPerAtom == ThreadsPerAtom::Order ? 1 : order);
+        config.blockSize[2] = atomsPerBlock;
+        config.gridSize[0]  = dimGrid.first;
+        config.gridSize[1]  = dimGrid.second;
+
+        // TODO test different cache configs
+
+        PmeStage                           timingId = PmeStage::Gather;
+        PmeGpuProgramImpl::PmeKernelHandle kernelPtr =
+                selectGatherKernelPtr(pmeGpu,
+                                      pmeGpu->settings.threadsPerAtom,
+                                      readGlobal || (!recalculateSplines),
+                                      pmeGpu->common->ngrids);
+        // TODO design kernel selection getters and make PmeGpu a friend of PmeGpuProgramImpl
+
+        pme_gpu_start_timing(pmeGpu, timingId);
+        auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
+        if (pmeGpu->common->ngrids == 1)
+        {
+            kernelParamsPtr->current.scale = 1.0;
+        }
+        else
+        {
+            kernelParamsPtr->current.scale = 1.0 - lambda;
+        }
 
 #if c_canEmbedBuffers
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
@@ -1988,16 +2187,17 @@ void pme_gpu_gather(PmeGpu* pmeGpu, real** h_grids, gmx_parallel_3dfft_t* fftSet
                                       &kernelParamsPtr->atoms.d_gridlineIndices,
                                       &kernelParamsPtr->atoms.d_forces);
 #endif
-    launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather", kernelArgs);
-    pme_gpu_stop_timing(pmeGpu, timingId);
+        launchGpuKernel(kernelPtr, config, pmeGpu->archSpecific->pmeStream_, timingEvent, "PME gather", kernelArgs);
+        pme_gpu_stop_timing(pmeGpu, timingId);
 
-    if (pmeGpu->settings.useGpuForceReduction)
-    {
-        pmeGpu->archSpecific->pmeForcesReady.markEvent(pmeGpu->archSpecific->pmeStream_);
-    }
-    else
-    {
-        pme_gpu_copy_output_forces(pmeGpu);
+        if (pmeGpu->settings.useGpuForceReduction)
+        {
+            pmeGpu->archSpecific->pmeForcesReady.markEvent(pmeGpu->archSpecific->pmeStream_);
+        }
+        else
+        {
+            pme_gpu_copy_output_forces(pmeGpu);
+        }
     }
 }
 

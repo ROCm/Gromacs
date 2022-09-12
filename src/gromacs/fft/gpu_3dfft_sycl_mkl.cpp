@@ -53,6 +53,8 @@
 
 #include "config.h"
 
+#include "gromacs/gpu_utils/device_stream.h"
+#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/gpu_utils/devicebuffer_sycl.h"
 #include "gromacs/gpu_utils/device_stream.h"
 #include "gromacs/utility/arrayref.h"
@@ -100,8 +102,8 @@ Gpu3dFft::ImplSyclMkl::ImplSyclMkl(bool allocateGrids,
                                    ArrayRef<const int> gridSizesInXForEachRank,
                                    ArrayRef<const int> gridSizesInYForEachRank,
                                    int /*nz*/,
-                                   const bool performOutOfPlaceFFT,
-                                   const DeviceContext& /*context*/,
+                                   const bool           performOutOfPlaceFFT,
+                                   const DeviceContext& context,
                                    const DeviceStream&  pmeStream,
                                    ivec                 realGridSize,
                                    ivec                 realGridSizePadded,
@@ -109,10 +111,10 @@ Gpu3dFft::ImplSyclMkl::ImplSyclMkl(bool allocateGrids,
                                    DeviceBuffer<float>* realGrid,
                                    DeviceBuffer<float>* complexGrid) :
     realGrid_(*realGrid->buffer_),
-    complexGrid_(*complexGrid->buffer_),
     queue_(pmeStream.stream()),
     r2cDescriptor_(initDescriptor(realGridSize)),
-    c2rDescriptor_(initDescriptor(realGridSize))
+    c2rDescriptor_(initDescriptor(realGridSize)),
+    performOutOfPlaceFFT_(performOutOfPlaceFFT)
 {
     GMX_RELEASE_ASSERT(!allocateGrids, "Grids needs to be pre-allocated");
     GMX_RELEASE_ASSERT(gridSizesInXForEachRank.size() == 1 && gridSizesInYForEachRank.size() == 1,
@@ -129,6 +131,21 @@ Gpu3dFft::ImplSyclMkl::ImplSyclMkl(bool allocateGrids,
                                  complexGridSizePadded[XX] * complexGridSizePadded[YY]
                                          * complexGridSizePadded[ZZ] * 2),
                "Complex grid buffer is too small for the declared padded size");
+
+    if (performOutOfPlaceFFT_)
+    {
+        const int newComplexGridSize =
+                complexGridSizePadded[XX] * complexGridSizePadded[YY] * complexGridSizePadded[ZZ] * 2;
+
+        reallocateDeviceBuffer(
+                complexGrid, newComplexGridSize, &complexGridSize_, &complexGridCapacity_, context);
+    }
+    else
+    {
+        *complexGrid = *realGrid;
+    }
+
+    complexGrid_ = *complexGrid;
 
     // MKL expects row-major
     const std::array<MKL_LONG, 4> realGridStrides = {
@@ -174,7 +191,13 @@ Gpu3dFft::ImplSyclMkl::ImplSyclMkl(bool allocateGrids,
     }
 }
 
-Gpu3dFft::ImplSyclMkl::~ImplSyclMkl() = default;
+Gpu3dFft::ImplSyclMkl::~ImplSyclMkl()
+{
+    if (performOutOfPlaceFFT_)
+    {
+        freeDeviceBuffer(&complexGrid_);
+    }
+}
 
 void Gpu3dFft::ImplSyclMkl::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
 {
@@ -183,7 +206,7 @@ void Gpu3dFft::ImplSyclMkl::perform3dFft(gmx_fft_direction dir, CommandEvent* /*
         case GMX_FFT_REAL_TO_COMPLEX:
             try
             {
-                oneapi::mkl::dft::compute_forward(r2cDescriptor_, realGrid_, complexGrid_);
+                oneapi::mkl::dft::compute_forward(r2cDescriptor_, realGrid_, complexGrid_->buffer_);
             }
             catch (oneapi::mkl::exception& exc)
             {
@@ -194,7 +217,7 @@ void Gpu3dFft::ImplSyclMkl::perform3dFft(gmx_fft_direction dir, CommandEvent* /*
         case GMX_FFT_COMPLEX_TO_REAL:
             try
             {
-                oneapi::mkl::dft::compute_backward(c2rDescriptor_, complexGrid_, realGrid_);
+                oneapi::mkl::dft::compute_backward(c2rDescriptor_, complexGrid_->buffer_, realGrid_);
             }
             catch (oneapi::mkl::exception& exc)
             {
