@@ -120,7 +120,7 @@ namespace Nbnxm
 {
 
 /*! Nonbonded kernel function pointer type */
-typedef void (*nbnxn_cu_kfunc_ptr_t)(const NBAtomDataGpu, const NBParamGpu, const gpu_plist, bool);
+typedef void (*nbnxn_cu_kfunc_ptr_t)(const NBAtomDataGpu, const NBParamGpu, const gpu_plist, bool, nbnxn_cj4_t* pl_cj4);
 
 /*********************************/
 
@@ -527,7 +527,7 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
                                 (plist->haveFreshList && !nb->timers->interaction[iloc].didPrune),
                                 &nb->deviceContext_->deviceInfo());
     const auto kernelArgs =
-            prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
+            prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial, &plist->cj4);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
 
 

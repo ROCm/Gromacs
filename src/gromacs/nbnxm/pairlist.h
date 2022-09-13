@@ -200,6 +200,9 @@ struct nbnxn_im_ei_t
 
 //! Four-way j-cluster lists
 typedef struct
+#if GMX_GPU_HIP
+alignas(32) // Make sizeof(nbnxn_cj4_t) = 32 when c_nbnxnGpuClusterpairSplit is 1
+#endif
 {
     //! The 4 j-clusters
     int cj[c_nbnxnGpuJgroupSize];
