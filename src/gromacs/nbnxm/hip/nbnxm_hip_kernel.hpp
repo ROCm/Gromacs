@@ -389,6 +389,14 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     for (j4 = cij4_start; j4 < cij4_end; ++j4)
     {
         imask     = pl_cj4[j4].imei[widx].imask;
+        /* When c_nbnxnGpuClusterpairSplit = 1, i.e. on CDNA, ROCm 5.2's compiler correctly
+         * generates scalar loads for __restrict__ pl_cj4 (but not for plist.cj4),
+         * ROCm 5.0.2's compiler generates vector loads, imask is a vector register.
+         * If this happens, "scalarize" imask so it goes to a scalar register and
+         * all imask-related checks become simpler scalar instructions.
+         * (__builtin_amdgcn_readfirstlane is no-op if it's already a scalar register).
+         */
+        imask     = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 #    ifndef PRUNE_NBL
         if (!imask)
         {
