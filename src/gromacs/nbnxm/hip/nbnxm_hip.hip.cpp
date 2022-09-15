@@ -120,7 +120,7 @@ namespace Nbnxm
 {
 
 /*! Nonbonded kernel function pointer type */
-typedef void (*nbnxn_cu_kfunc_ptr_t)(const NBAtomDataGpu, const NBParamGpu, const gpu_plist, bool, nbnxn_cj4_t* pl_cj4);
+typedef void (*nbnxn_cu_kfunc_ptr_t)(const NBAtomDataGpu, const NBParamGpu, const gpu_plist, bool, nbnxn_cj4_t*);
 
 /*********************************/
 
