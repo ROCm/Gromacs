@@ -53,6 +53,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
 
 #include "pme_grid.h"
 #include "pme_internal.h"
@@ -924,7 +925,9 @@ void spread_on_grid(const gmx_pme_t*  pme,
                 /* Compute fftgrid index for all atoms,
                  * with help of some extra variables.
                  */
+                hipRangePush("calc_interpolation_idx");
                 calc_interpolation_idx(pme, atc, start, grid_index, end, thread);
+                hipRangePop();
             }
             GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
         }
@@ -963,12 +966,14 @@ void spread_on_grid(const gmx_pme_t*  pme,
                 else
                 {
                     /* Get the indices our thread should operate on */
+                    hipRangePush("make_thread_local_ind");
                     make_thread_local_ind(atc, thread, spline);
                 }
             }
 
             if (bCalcSplines)
             {
+                hipRangePush("make_bsplines");
                 make_bsplines(spline->theta.coefficients,
                               spline->dtheta.coefficients,
                               pme->pme_order,
@@ -977,6 +982,7 @@ void spread_on_grid(const gmx_pme_t*  pme,
                               spline->ind.data(),
                               atc->coefficient.data(),
                               bDoSplines);
+                hipRangePop();
             }
 
             if (bSpread)
@@ -987,11 +993,15 @@ void spread_on_grid(const gmx_pme_t*  pme,
 #ifdef PME_TIME_SPREAD
                 ct1a = omp_cyc_start();
 #endif
+                hipRangePush("spread_coefficients_bsplines_thread");
                 spread_coefficients_bsplines_thread(grid, atc, spline, pme->spline_work);
+                hipRangePop();
 
                 if (pme->bUseThreads)
                 {
+                    hipRangePush("copy_local_grid");
                     copy_local_grid(pme, grids, grid_index, thread, fftgrid);
+                    hipRangePop();
                 }
 #ifdef PME_TIME_SPREAD
                 ct1a = omp_cyc_end(ct1a);
@@ -1016,6 +1026,7 @@ void spread_on_grid(const gmx_pme_t*  pme,
         {
             try
             {
+                hipRangePush("reduce_threadgrid_overlap");
                 reduce_threadgrid_overlap(pme,
                                           grids,
                                           thread,
@@ -1023,6 +1034,7 @@ void spread_on_grid(const gmx_pme_t*  pme,
                                           const_cast<real*>(pme->overlap[0].sendbuf.data()),
                                           const_cast<real*>(pme->overlap[1].sendbuf.data()),
                                           grid_index);
+                hipRangePop();
             }
             GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
         }
@@ -1037,7 +1049,9 @@ void spread_on_grid(const gmx_pme_t*  pme,
              * For this communication call we need to check pme->bUseThreads
              * to have all ranks communicate here, regardless of pme->nthread.
              */
+            hipRangePush("sum_fftgrid_dd");
             sum_fftgrid_dd(pme, fftgrid, grid_index);
+            hipRangePop();
         }
     }
 

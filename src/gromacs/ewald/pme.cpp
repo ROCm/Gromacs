@@ -1266,7 +1266,9 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
         wallcycle_start(wcycle, WallCycleCounter::PmeSpread);
 
         /* Spread the coefficients on a grid */
+        hipRangePush("spread_on_grid");
         spread_on_grid(pme, &atc, pmegrid, bFirst, TRUE, fftgrid, bDoSplines, grid_index);
+        hipRangePop();
 
         if (bFirst)
         {
@@ -1281,7 +1283,9 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
             /* sum contributions to local grid from other nodes */
             if (pme->nnodes > 1)
             {
+                hipRangePush("gmx_sum_qgrid_dd");
                 gmx_sum_qgrid_dd(pme, grid, GMX_SUM_GRID_FORWARD);
+                hipRangePop();
             }
 
             copy_pmegrid_to_fftgrid(pme, grid, fftgrid, grid_index);
@@ -1308,13 +1312,16 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
                 {
                     wallcycle_start(wcycle, WallCycleCounter::PmeFft);
                 }
+                hipRangePush("gmx_parallel_3dfft_execute");
                 gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_REAL_TO_COMPLEX, thread, wcycle);
+                hipRangePop();
                 if (thread == 0)
                 {
                     wallcycle_stop(wcycle, WallCycleCounter::PmeFft);
                 }
 
                 /* solve in k-space for our local cells */
+                hipRangePush("solve_pme_yzx");
                 if (thread == 0)
                 {
                     wallcycle_start(
@@ -1341,6 +1348,7 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
                                              pme->nthread,
                                              thread);
                 }
+                hipRangePop();
 
                 if (thread == 0)
                 {
@@ -1355,7 +1363,9 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
                 {
                     wallcycle_start(wcycle, WallCycleCounter::PmeFft);
                 }
+                hipRangePush("gmx_parallel_3dfft_execute");
                 gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_COMPLEX_TO_REAL, thread, wcycle);
+                hipRangePop();
                 if (thread == 0)
                 {
                     wallcycle_stop(wcycle, WallCycleCounter::PmeFft);
@@ -1374,7 +1384,9 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
                     wallcycle_start(wcycle, WallCycleCounter::PmeGather);
                 }
 
+                hipRangePush("copy_fftgrid_to_pmegrid");
                 copy_fftgrid_to_pmegrid(pme, fftgrid, grid, grid_index, pme->nthread, thread);
+                hipRangePop();
             }
             GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
         }
@@ -1406,12 +1418,14 @@ int gmx_pme_do(struct gmx_pme_t*              pme,
             {
                 try
                 {
+                    hipRangePush("gather_f_bsplines");
                     gather_f_bsplines(pme,
                                       grid,
                                       bClearF,
                                       &atc,
                                       &atc.spline[thread],
                                       pme->bFEP ? (grid_index % 2 == 0 ? 1.0 - lambda : lambda) : 1.0);
+                    hipRangePop();
                 }
                 GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
             }

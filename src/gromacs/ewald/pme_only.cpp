@@ -717,6 +717,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
             /* Domain decomposition */
             ivec newGridSize;
             real ewaldcoeff_q = 0, ewaldcoeff_lj = 0;
+            hipRangePush("Pme_gmx_recvCoeffs");
             ret = gmx_pme_recv_coeffs_coords(pme,
                                              pme_pp.get(),
                                              &natoms,
@@ -733,6 +734,7 @@ int gmx_pmeonly(struct gmx_pme_t*               pme,
                                              useGpuForPme,
                                              stateGpu.get(),
                                              runMode);
+            hipRangePop();
 
             if (ret == pmerecvqxSWITCHGRID)
             {
