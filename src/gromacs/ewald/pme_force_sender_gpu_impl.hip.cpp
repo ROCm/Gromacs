@@ -161,12 +161,12 @@ void PmeForceSenderGpu::Impl::sendFToPpCudaDirect(int ppRank, int numAtoms, bool
     {
         // Perform local D2H (from remote GPU memory to remote PP rank's CPU memory)
         // to finalize staged data transfer
-        stat = cudaMemcpyAsync(pmeRemoteCpuForcePtr_[ppRank],
+        stat = hipMemcpyAsync(pmeRemoteCpuForcePtr_[ppRank],
                                pmeRemoteGpuForcePtr_[ppRank],
                                numAtoms * sizeof(rvec),
-                               cudaMemcpyDefault,
+                               hipMemcpyDefault,
                                ppCommStream_[ppRank]->stream());
-        CU_RET_ERR(stat, "cudaMemcpyAsync on local device to host transfer of PME forces failed");
+        HIP_RET_ERR(stat, "cudaMemcpyAsync on local device to host transfer of PME forces failed");
     }
 
     ppCommEvent_[ppRank]->markEvent(*ppCommStream_[ppRank]);

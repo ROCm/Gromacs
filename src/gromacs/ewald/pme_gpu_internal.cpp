@@ -2043,9 +2043,3 @@ GpuEventSynchronizer* pme_gpu_get_forces_ready_synchronizer(const PmeGpu* pmeGpu
         return nullptr;
     }
 }
-
-void pme_set_grid_and_size(const PmeGpu* pmeGpu, int* realGridSize, DeviceBuffer<real>* d_grid){
-    *realGridSize =  pmeGpu->archSpecific->realGridSize[0];
-    *d_grid        = pmeGpu->kernelParams->grid.d_realGrid[0];
-    // fprintf(stderr, "setting realGridSize to %d and d_grid to %p\n", *realGridSize, *d_grid);
-}

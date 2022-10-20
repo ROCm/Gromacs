@@ -120,7 +120,6 @@ public:
                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                    bool                              doParrinelloRahman,
                    float                             dtPressureCouple,
-                   const bool                        isPmeRank, 
                    const matrix                      prVelocityScalingMatrix);
 
     /*! \brief Scale coordinates on the GPU for the pressure coupling.
@@ -150,8 +149,6 @@ public:
      */
     void set(DeviceBuffer<Float3>          d_x,
              DeviceBuffer<Float3>          d_v,
-             const int                     realGridSize, 
-             DeviceBuffer<real>*           d_grid, 
              DeviceBuffer<Float3>          d_f,
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
@@ -198,10 +195,6 @@ private:
     DeviceBuffer<Float3> d_v_;
     //! Local copy of the pointer to the device forces buffer
     DeviceBuffer<Float3> d_f_;
-    //! Local copy of the pointer to the first PME real grid for zeroing-out
-    DeviceBuffer<real>* d_grid_;
-    //! Number of real grid poitns
-    int realGridSize_;
 
     //! Device buffer for intermediate positions (maintained internally)
     DeviceBuffer<Float3> d_xp_;
