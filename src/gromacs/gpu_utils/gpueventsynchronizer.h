@@ -115,7 +115,7 @@ public:
      */
     inline void markEvent(const DeviceStream& deviceStream)
     {
-#if !GMX_GPU_CUDA // For now, we have relaxed conditions for CUDA
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP // For now, we have relaxed conditions for CUDA
         if (consumptionCount_ < minConsumptionCount_)
         {
             GMX_THROW(gmx::InternalError("Trying to mark event before fully consuming it"));
@@ -153,7 +153,7 @@ public:
      */
     inline void consume()
     {
-#if !GMX_GPU_CUDA // For now, we have relaxed conditions for CUDA
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP // For now, we have relaxed conditions for CUDA
         if (consumptionCount_ >= maxConsumptionCount_)
         {
             GMX_THROW(gmx::InternalError(
@@ -199,7 +199,7 @@ public:
 private:
     DeviceEvent event_;
     int         consumptionCount_;
-#if defined(__clang__) && GMX_GPU_CUDA
+#if defined(__clang__) && (GMX_GPU_CUDA || GMX_GPU_HIP)
     [[maybe_unused]]
 #endif
     int minConsumptionCount_; // Unused in CUDA builds, yet

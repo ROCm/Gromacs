@@ -491,6 +491,8 @@ TEST_P(ParameterizedFFTTest3D, RunsOnDevices)
 
 #    if GMX_GPU_CUDA
         const FftBackend backend = FftBackend::Cufft;
+#    elif GMX_GPU_HIP
+        const FftBackend backend = FftBackend::Hipfft;
 #    elif GMX_GPU_OPENCL
         const FftBackend backend = FftBackend::Ocl;
 #    elif GMX_GPU_SYCL

@@ -67,6 +67,9 @@
 #include "pme_grid.h"
 #include "pme_internal.h"
 #include "pme_solve.h"
+#ifdef GMX_USE_ROCTX
+#include "roctx.h"
+#endif
 
 /*! \brief
  * Finds out if PME is currently running on GPU.
@@ -352,7 +355,7 @@ bool pme_gpu_try_finish_task(gmx_pme_t*               pme,
     // time needed for that checking, but do not yet record that the
     // gather has occured.
     bool           needToSynchronize      = true;
-    constexpr bool c_streamQuerySupported = GMX_GPU_CUDA;
+    constexpr bool c_streamQuerySupported = (bool(GMX_GPU_CUDA) || bool(GMX_GPU_HIP));
 
     // TODO: implement c_streamQuerySupported with an additional GpuEventSynchronizer per stream (#2521)
     if ((completionKind == GpuTaskCompletion::Check) && c_streamQuerySupported)
@@ -441,9 +444,15 @@ void pme_gpu_reinit_computation(const gmx_pme_t* pme, gmx_wallcycle* wcycle)
     wallcycle_sub_start_nocount(wcycle, WallCycleSubCounter::LaunchGpuPme);
 
     pme_gpu_update_timings(pme->gpu);
+    hipRangePush("pme_gpu_clear_grids");
 
-    pme_gpu_clear_grids(pme->gpu);
+    // update needs to be running on the GPU here so we can skip pme_gpu_clear_grids
+    if(pme->gpu->cleangrid) pme_gpu_clear_grids(pme->gpu);
+    hipRangePop();
+
+    hipRangePush("pme_gpu_clear_energy_virial");
     pme_gpu_clear_energy_virial(pme->gpu);
+    hipRangePop();
 
     wallcycle_sub_stop(wcycle, WallCycleSubCounter::LaunchGpuPme);
     wallcycle_stop(wcycle, WallCycleCounter::LaunchGpu);
@@ -474,4 +483,12 @@ GpuEventSynchronizer* pme_gpu_get_f_ready_synchronizer(const gmx_pme_t* pme)
     }
 
     return pme_gpu_get_forces_ready_synchronizer(pme->gpu);
+}
+
+void pme_register_grid_and_size(const gmx_pme_t* pme, int* realGridSize, DeviceBuffer<real>* d_grid){
+    const PmeGpu* gpu = pme->gpu;
+    // also need to check if update gpu is running -> how to parse?
+    // but this should be called only if update is on the gpu
+    if(pme->gpu->common->ngrids == 1) pme->gpu->cleangrid = false;
+    pme_set_grid_and_size(gpu, realGridSize, d_grid);
 }

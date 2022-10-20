@@ -133,4 +133,7 @@ void setupGpuDevicePeerAccess(const std::vector<int>& CUDA_FUNC_ARGUMENT(gpuIdsT
  */
 bool decideGpuTimingsUsage();
 
+void hipRangePush(const char* msg);
+void hipRangePop();
+
 #endif

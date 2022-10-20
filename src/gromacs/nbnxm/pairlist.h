@@ -162,30 +162,33 @@ constexpr int c_nbnxnGpuJgroupSize = (32 / c_nbnxnGpuNumClusterPerSupercluster);
  */
 struct nbnxn_ci_t
 {
+    int cjIndEnd() const { return cj_ind_start + cj_length; }
     //! i-cluster
     int ci;
-    //! Shift vector index plus possible flags, see above
-    int shift;
     //! Start index into cj
     int cj_ind_start;
     //! End index into cj
-    int cj_ind_end;
+    short cj_length;
+    //! Shift vector index plus possible flags, see above
+    short shift;
 };
 
 //! Grouped pair-list i-unit
 typedef struct nbnxn_sci
 {
     //! Returns the number of j-cluster groups in this entry
-    int numJClusterGroups() const { return cj4_ind_end - cj4_ind_start; }
+    int numJClusterGroups() const { return static_cast<int>(cj4_length); }
+
+    int cj4IndEnd() const { return cj4_ind_start + cj4_length; }
 
     //! i-super-cluster
     int sci;
-    //! Shift vector index plus possible flags
-    int shift;
     //! Start index into cj4
     int cj4_ind_start;
     //! End index into cj4
-    int cj4_ind_end;
+    short cj4_length;
+    //! Shift vector index plus possible flags
+    short shift;
 } nbnxn_sci_t;
 
 //! Interaction data for a j-group for one warp

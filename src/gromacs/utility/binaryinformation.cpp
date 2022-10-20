@@ -85,6 +85,7 @@
 #include "gromacs/utility/mpiinfo.h"
 
 #include "cuda_version_information.h"
+#include "hip_version_information.h"
 #include "sycl_version_information.h"
 
 namespace
@@ -224,6 +225,10 @@ const char* getGpuFftDescriptionString()
         {
             return "cuFFT";
         }
+        else if (GMX_GPU_HIP)
+        {
+        	return "hipFFT";
+        }
         else if (GMX_GPU_OPENCL)
         {
             return "clFFT";
@@ -340,6 +345,13 @@ void gmx_print_version_info(gmx::TextWriter* writer)
             "CUDA compiler flags:%s %s", CUDA_COMPILER_FLAGS, CMAKE_BUILD_CONFIGURATION_CXX_FLAGS));
     writer->writeLine("CUDA driver:        " + gmx::getCudaDriverVersionString());
     writer->writeLine("CUDA runtime:       " + gmx::getCudaRuntimeVersionString());
+#endif
+#if GMX_GPU_HIP
+    writer->writeLine(formatString("HIP compiler:      %s", HIP_COMPILER_INFO));
+    writer->writeLine(formatString(
+            "HIP compiler flags:%s %s", HIP_COMPILER_FLAGS, CMAKE_BUILD_CONFIGURATION_CXX_FLAGS));
+    writer->writeLine("HIP driver:        " + gmx::getHipDriverVersionString());
+    writer->writeLine("HIP runtime:       " + gmx::getHipRuntimeVersionString());
 #endif
 #if GMX_SYCL_DPCPP
     writer->writeLine(formatString("SYCL DPC++ flags:   %s", SYCL_DPCPP_COMPILER_FLAGS));

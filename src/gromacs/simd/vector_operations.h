@@ -85,8 +85,8 @@ iprod(SimdFloat ax, SimdFloat ay, SimdFloat az, SimdFloat bx, SimdFloat by, Simd
     SimdFloat ret;
 
     ret = ax * bx;
-    ret = ay * by + ret;
-    ret = az * bz + ret;
+    ret = fma(ay, by, ret);
+    ret = fma(az, bz, ret);
 
     return ret;
 }
@@ -107,8 +107,8 @@ static inline SimdFloat gmx_simdcall norm2(SimdFloat ax, SimdFloat ay, SimdFloat
     SimdFloat ret;
 
     ret = ax * ax;
-    ret = ay * ay + ret;
-    ret = az * az + ret;
+    ret = fma(ay, ay, ret);
+    ret = fma(az, az, ret);
 
     return ret;
 }
@@ -172,8 +172,8 @@ iprod(SimdDouble ax, SimdDouble ay, SimdDouble az, SimdDouble bx, SimdDouble by,
     SimdDouble ret;
 
     ret = ax * bx;
-    ret = ay * by + ret;
-    ret = az * bz + ret;
+    ret = fma(ay, by, ret);
+    ret = fma(az, bz, ret);
 
     return ret;
 }

@@ -335,7 +335,7 @@
         const int ish    = (ciEntry.shift & NBNXN_CI_SHIFT);
         const int ish3   = ish * 3;
         const int cjind0 = ciEntry.cj_ind_start;
-        const int cjind1 = ciEntry.cj_ind_end;
+        const int cjind1 = ciEntry.cjIndEnd();
         const int ci     = ciEntry.ci;
         const int ci_sh  = (ish == gmx::c_centralShiftIndex ? ci : -1);
 

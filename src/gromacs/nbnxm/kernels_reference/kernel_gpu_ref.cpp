@@ -112,7 +112,7 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*        nbl,
         const real shY      = shiftvec[ish][YY];
         const real shZ      = shiftvec[ish][ZZ];
         const int  cj4_ind0 = nbln.cj4_ind_start;
-        const int  cj4_ind1 = nbln.cj4_ind_end;
+        const int  cj4_ind1 = nbln.cj4_ind_start + nbln.cj4_length;;
         const int  sci      = nbln.sci;
         real       vctot    = 0;
         real       Vvdwtot  = 0;
@@ -147,7 +147,10 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*        nbl,
         for (int cj4_ind = cj4_ind0; (cj4_ind < cj4_ind1); cj4_ind++)
         {
             excl[0] = &nbl->excl[nbl->cj4[cj4_ind].imei[0].excl_ind];
-            excl[1] = &nbl->excl[nbl->cj4[cj4_ind].imei[1].excl_ind];
+            if (c_nbnxnGpuClusterpairSplit == 2)
+            {
+                excl[1] = &nbl->excl[nbl->cj4[cj4_ind].imei[1].excl_ind];
+            }
 
             for (int jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {

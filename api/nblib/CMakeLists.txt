@@ -77,6 +77,11 @@ if (GMX_GPU_CUDA)
     endif()
 endif()
 
+if (GMX_GPU_HIP)
+    find_package(HIP)
+    target_include_directories(nblib PRIVATE "${HIP_INCLUDE_DIRS}")
+endif()
+
 target_sources(nblib
         PRIVATE
         box.cpp

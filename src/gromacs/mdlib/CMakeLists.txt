@@ -37,14 +37,19 @@ file(GLOB MDLIB_SOURCES *.cpp)
 # To avoid listing all the necessary files manually, we will remove SYCL-specific files here:
 list(REMOVE_ITEM MDLIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/gpuforcereduction_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/gpuforcereduction_impl_internal.hip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gpuforcereduction_impl_internal_sycl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/leapfrog_gpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/leapfrog_gpu_internal.hip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/leapfrog_gpu_internal_sycl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lincs_gpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/lincs_gpu_internal.hip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lincs_gpu_internal_sycl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/settle_gpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/settle_gpu_internal.hip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/settle_gpu_internal_sycl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/update_constrain_gpu_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/update_constrain_gpu_internal.hip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/update_constrain_gpu_internal_sycl.cpp)
 
 set(MDLIB_SOURCES ${MDLIB_SOURCES} PARENT_SCOPE)
@@ -69,7 +74,32 @@ if(GMX_GPU_CUDA)
        update_constrain_gpu_impl.cpp
        )
 endif()
-
+if(GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+       gpuforcereduction_impl.cpp
+       gpuforcereduction_impl_internal.hip.cpp
+       leapfrog_gpu.cpp
+       leapfrog_gpu_internal.hip.cpp
+       lincs_gpu.cpp
+       lincs_gpu_internal.hip.cpp
+       settle_gpu.cpp
+       settle_gpu_internal.hip.cpp
+       update_constrain_gpu_impl.cpp
+       update_constrain_gpu_internal.hip.cpp
+       )
+    _gmx_add_files_to_property(HIP_SOURCES
+        gpuforcereduction_impl.cpp
+        gpuforcereduction_impl_internal.hip.cpp
+        leapfrog_gpu.cpp
+        leapfrog_gpu_internal.hip.cpp
+        lincs_gpu.cpp
+        lincs_gpu_internal.hip.cpp
+        settle_gpu.cpp
+        settle_gpu_internal.hip.cpp
+        update_constrain_gpu_impl.cpp
+        update_constrain_gpu_internal.hip.cpp
+       )
+endif()
 if(GMX_GPU_SYCL)
     gmx_add_libgromacs_sources(
         gpuforcereduction_impl.cpp

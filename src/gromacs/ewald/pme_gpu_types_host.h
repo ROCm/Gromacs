@@ -69,11 +69,11 @@ struct PmeGpuSpecific;
 typedef int PmeGpuSpecific;
 #endif
 
-#if GMX_GPU_CUDA
+#if (GMX_GPU_CUDA || GMX_GPU_HIP)
 struct PmeGpuCudaKernelParams;
 /*! \brief A typedef for including the GPU kernel arguments data by pointer */
 typedef PmeGpuCudaKernelParams PmeGpuKernelParams;
-#elif GMX_GPU_OPENCL || GMX_GPU_SYCL
+#elif (GMX_GPU_OPENCL || GMX_GPU_SYCL)
 struct PmeGpuKernelParamsBase;
 /*! \brief A typedef for including the GPU kernel arguments data by pointer */
 typedef PmeGpuKernelParamsBase PmeGpuKernelParams;
@@ -200,6 +200,9 @@ struct PmeGpu
 
     /*! \brief The pointer to GPU-framework specific host-side data, such as CUDA streams and events. */
     std::shared_ptr<PmeGpuSpecific> archSpecific; /* FIXME: make it an unique_ptr */
+
+    /*! \brief Flags if update is true to skip zeroing-out kernels */
+    bool cleangrid = true;
 };
 
 #endif

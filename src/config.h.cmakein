@@ -218,6 +218,9 @@
 /* Define if CUDA GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU_CUDA
 
+/* Define if HIP GPU acceleration is compiled */
+#cmakedefine01 GMX_GPU_HIP
+
 /* Define if OpenCL GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU_OPENCL
 
@@ -241,6 +244,12 @@
 
 /* Use a single compilation unit when compiling the CUDA (non-bonded) kernels.  */
 #cmakedefine01 GMX_CUDA_NB_SINGLE_COMPILATION_UNIT
+
+/* Use a single compilation unit when compiling the HIP (non-bonded) kernels.  */
+#cmakedefine01 GMX_HIP_NB_SINGLE_COMPILATION_UNIT
+
+/* Define if NAVI GPU acceleration is compiled */
+#cmakedefine01 GMX_NAVI_BUILD
 
 /* Use CUDA-aware MPI.  */
 #cmakedefine01 HAVE_MPI_EXT

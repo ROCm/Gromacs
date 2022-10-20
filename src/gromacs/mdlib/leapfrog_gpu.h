@@ -47,6 +47,8 @@
 
 #if GMX_GPU_CUDA
 #    include "gromacs/gpu_utils/gputraits.cuh"
+#elif GMX_GPU_HIP
+#    include "gromacs/gpu_utils/gputraits.hpp"
 #endif
 #if GMX_GPU_SYCL
 #    include "gromacs/gpu_utils/gputraits_sycl.h"
@@ -57,6 +59,7 @@
 #include "gromacs/gpu_utils/devicebuffer_datatype.h"
 #include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/utility/arrayref.h"
+#include "gromacs/ewald/pme_gpu_types.h"
 
 class DeviceContext;
 class DeviceStream;
@@ -119,16 +122,20 @@ public:
      * \param[in]     doParrinelloRahman       If current step is a Parrinello-Rahman pressure coupling step.
      * \param[in]     dtPressureCouple         Period between pressure coupling steps
      * \param[in]     prVelocityScalingMatrix  Parrinello-Rahman velocity scaling matrix
+     * \param[in]     isPmeRank                If this rank has ONE grid that needs cleanings
      */
     void integrate(DeviceBuffer<Float3>              d_x,
                    DeviceBuffer<Float3>              d_xp,
                    DeviceBuffer<Float3>              d_v,
+                   const int                         realGridSize,
+                   DeviceBuffer<float>               d_grids,
                    DeviceBuffer<Float3>              d_f,
                    float                             dt,
                    bool                              doTemperatureScaling,
                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                    bool                              doParrinelloRahman,
                    float                             dtPressureCouple,
+                   bool                              isPmeRank, 
                    const matrix                      prVelocityScalingMatrix);
 
     /*! \brief Set the integrator

@@ -118,6 +118,7 @@ function (gmx_add_gtest_executable EXENAME)
         set(_multi_value_keywords
             CPP_SOURCE_FILES
             CUDA_CU_SOURCE_FILES
+            HIP_CPP_SOURCE_FILES
             GPU_CPP_SOURCE_FILES
             OPENCL_CPP_SOURCE_FILES
             SYCL_CPP_SOURCE_FILES
@@ -159,6 +160,63 @@ function (gmx_add_gtest_executable EXENAME)
                 ${ARG_CPP_SOURCE_FILES}
                 ${ARG_CUDA_CU_SOURCE_FILES}
                 ${ARG_GPU_CPP_SOURCE_FILES})
+	    elseif (GMX_GPU_HIP)
+                if (NOT DEFINED ROCM_PATH)
+                    if (NOT DEFINED ENV{ROCM_PATH})
+                        set(ROCM_PATH "/opt/rocm")
+                    else()
+                        set(ROCM_PATH $ENV{ROCM_PATH})
+                    endif()
+                endif()
+	        set(CMAKE_HIP_LINK_EXECUTABLE "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HIP_CLANG_PATH} ${HIP_CLANG_PARALLEL_BUILD_LINK_OPTIONS} <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+            if(NOT GMX_THREAD_MPI)
+                find_package(MPI)
+	        message (STATUS "MPI_C_FOUND:" ${MPI_C_FOUND})
+                if(MPI_C_FOUND)
+                   if(NOT MPI_C_INCLUDE_DIRS)
+                       execute_process(
+                           COMMAND ${MPI_C_COMPILER} -showme:incdirs
+                           OUTPUT_VARIABLE  MPI_INCDIRS OUTPUT_STRIP_TRAILING_WHITESPACE
+                           ERROR_VARIABLE   MPI_INCDIRS ERROR_STRIP_TRAILING_WHITESPACE
+                           RESULT_VARIABLE  ret)
+                       if(ret AND NOT ret EQUAL 0)
+                           message(STATUS "no -showme:incdir MPI_C_INCLUDE_DIRS: ${MPI_C_INCLUDE_DIRS}")
+                           include_directories(SYSTEM ${MPI_C_INCLUDE_DIRS})
+                       else()
+                           separate_arguments(MPI_INCDIRS)
+                           message(STATUS "MPI_INCDIRS: ${MPI_INCDIRS}")
+                           include_directories(SYSTEM ${MPI_INCDIRS})
+                       endif()
+                   else()
+                       include_directories(SYSTEM ${MPI_C_INCLUDE_DIRS})
+                   endif()
+                endif()
+            endif()
+
+            check_hip_path()
+
+            get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
+
+	        if (NOT HIP_ADD_LIBRARY_FOUND)
+		        list(APPEND CMAKE_MODULE_PATH ${ROCM_PATH}/hip/cmake)
+	            # set(CMAKE_MODULE_PATH "${ROCM_PATH}/cmake" ${CMAKE_MODULE_PATH})
+	 	        list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH}/hip ${ROCM_PATH})
+		        # set(CMAKE_PREFIX_PATH "${ROCM_PATH}/hip" ${CMAKE_PREFIX_PATH})
+	            find_package(HIP)
+		        set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
+	            if(HIP_FOUND)
+		            message(STATUS "Found HIP: " ${HIP_VERSION} ${HIP_COMPILER})
+	    	    else()
+	      	        message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
+	            endif()
+ 	        endif()
+	        set_source_files_properties(${ARG_HIP_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+	        set_source_files_properties(${ARG_GPU_CPP_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+	        hip_add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
+	            ${ARG_CPP_SOURCE_FILES}
+	            ${ARG_HIP_CPP_SOURCE_FILES}
+	    	    ${ARG_GPU_CPP_SOURCE_FILES}
+                HIPCC_OPTIONS "-fPIC -fno-gpu-rdc -std=c++17 -ggdb -ffast-math -DNDEBUG" CLANG_OPTIONS "" NVCC_OPTIONS)
         else()
             add_executable(${EXENAME} ${UNITTEST_TARGET_OPTIONS}
                 ${ARG_CPP_SOURCE_FILES})
@@ -175,6 +233,11 @@ function (gmx_add_gtest_executable EXENAME)
                 if(ARG_CUDA_CU_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
                     target_link_libraries(${EXENAME} PRIVATE ${GMX_EXTRA_LIBRARIES})
                 endif()
+            endif()
+        elseif (GMX_GPU_HIP)
+            # target_sources(${EXENAME} PRIVATE ${ARG_HIP_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})
+            if(ARG_HIP_CPP_SOURCE_FILES OR ARG_GPU_CPP_SOURCE_FILES)
+                target_link_libraries(${EXENAME} PRIVATE hip::host)
             endif()
         elseif (GMX_GPU_OPENCL)
             target_sources(${EXENAME} PRIVATE ${ARG_OPENCL_CPP_SOURCE_FILES} ${ARG_GPU_CPP_SOURCE_FILES})

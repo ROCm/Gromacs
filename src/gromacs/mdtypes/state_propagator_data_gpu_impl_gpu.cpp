@@ -54,7 +54,7 @@
 #    include "gromacs/utility/classhelpers.h"
 
 #    include "state_propagator_data_gpu_impl.h"
-
+#    include "gromacs/gpu_utils/gpu_utils.h"
 
 namespace gmx
 {
@@ -172,7 +172,7 @@ void StatePropagatorDataGpu::Impl::reinit(int numAtomsLocal, int numAtomsAll)
     // Clearing of the forces can be done in local stream since the nonlocal stream cannot reach
     // the force accumulation stage before syncing with the local stream. Only done in CUDA and
     // SYCL, since the force buffer ops are not implemented in OpenCL.
-    static constexpr bool sc_haveGpuFBufferOps = ((GMX_GPU_CUDA != 0) || (GMX_GPU_SYCL != 0));
+    static constexpr bool sc_haveGpuFBufferOps = ((GMX_GPU_CUDA != 0) || (GMX_GPU_HIP != 0)  || (GMX_GPU_SYCL != 0));
     if (sc_haveGpuFBufferOps)
     {
         clearDeviceBufferAsync(&d_f_, 0, d_fCapacity_, *localStream_);
@@ -433,8 +433,9 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
 
     copyFromDevice(h_x, d_x_, d_xSize_, atomLocality, *deviceStream);
     // Note: unlike copyCoordinatesToGpu this is not used in OpenCL, and the conditional is not needed.
-    xReadyOnHost_[atomLocality].markEvent(*deviceStream);
-
+    hipRangePush("copyCoordinatesFromGPU::markEvent");
+    //xReadyOnHost_[atomLocality].markEvent(*deviceStream);
+    hipRangePop();
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchStatePropagatorData);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
 }
@@ -442,7 +443,8 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
 void StatePropagatorDataGpu::Impl::waitCoordinatesReadyOnHost(AtomLocality atomLocality)
 {
     wallcycle_start(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);
-    xReadyOnHost_[atomLocality].waitForEvent();
+    // xReadyOnHost_[atomLocality].waitForEvent();
+    hipStreamSynchronize(xCopyStreams_[atomLocality]->stream());
     wallcycle_stop(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);
 }
 

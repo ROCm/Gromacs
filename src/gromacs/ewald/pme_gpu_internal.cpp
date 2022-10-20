@@ -79,6 +79,10 @@
 #    include "pme.cuh"
 #endif
 
+#if GMX_GPU_HIP
+#    include "pme.hpp"
+#endif
+
 #include "pme_gpu_calculate_splines.h"
 #include "pme_gpu_constants.h"
 #include "pme_gpu_program_impl.h"
@@ -568,7 +572,7 @@ void pme_gpu_realloc_and_copy_fract_shifts(PmeGpu* pmeGpu)
 void pme_gpu_free_fract_shifts(const PmeGpu* pmeGpu)
 {
     auto* kernelParamsPtr = pmeGpu->kernelParams.get();
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     destroyParamLookupTable(&kernelParamsPtr->grid.d_fractShiftsTable,
                             &kernelParamsPtr->fractShiftsTableTexture);
     destroyParamLookupTable(&kernelParamsPtr->grid.d_gridlineIndicesTable,
@@ -699,7 +703,7 @@ static void pme_gpu_init_internal(PmeGpu* pmeGpu, const DeviceContext& deviceCon
      * TODO: PME could also try to pick up nice grid sizes (with factors of 2, 3, 5, 7).
      */
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     pmeGpu->kernelParams->usePipeline       = char(false);
     pmeGpu->kernelParams->pipelineAtomStart = 0;
     pmeGpu->kernelParams->pipelineAtomEnd   = 0;
@@ -723,6 +727,8 @@ void pme_gpu_reinit_3dfft(const PmeGpu* pmeGpu)
         std::array<int, 1> gridOffsetsInYForEachRank = { 0 };
 #if GMX_GPU_CUDA
         const gmx::FftBackend backend = gmx::FftBackend::Cufft;
+#elif GMX_GPU_HIP
+        const gmx::FftBackend backend = gmx::FftBackend::Hipfft;
 #elif GMX_GPU_OPENCL
         const gmx::FftBackend backend = gmx::FftBackend::Ocl;
 #elif GMX_GPU_SYCL
@@ -1006,7 +1012,7 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
  */
 static void pme_gpu_select_best_performing_pme_spreadgather_kernels(PmeGpu* pmeGpu)
 {
-    if (GMX_GPU_CUDA && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
+    if ((GMX_GPU_CUDA || GMX_GPU_HIP) && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
     {
         pmeGpu->settings.threadsPerAtom     = ThreadsPerAtom::Order;
         pmeGpu->settings.recalculateSplines = true;
@@ -1726,7 +1732,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     const int warpSize  = pmeGpu->programHandle_->warpSize();
     const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
-    static_assert(!GMX_GPU_CUDA || c_solveMaxWarpsPerBlock / 2 >= 4,
+    static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
                   "The CUDA solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");
 
@@ -2036,4 +2042,10 @@ GpuEventSynchronizer* pme_gpu_get_forces_ready_synchronizer(const PmeGpu* pmeGpu
     {
         return nullptr;
     }
+}
+
+void pme_set_grid_and_size(const PmeGpu* pmeGpu, int* realGridSize, DeviceBuffer<real>* d_grid){
+    *realGridSize =  pmeGpu->archSpecific->realGridSize[0];
+    *d_grid        = pmeGpu->kernelParams->grid.d_realGrid[0];
+    // fprintf(stderr, "setting realGridSize to %d and d_grid to %p\n", *realGridSize, *d_grid);
 }

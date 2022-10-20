@@ -81,7 +81,7 @@ struct PmeGpuProgramImpl
     const DeviceContext& deviceContext_;
 
     //! Conveniently all the PME kernels use the same single argument type
-#if GMX_GPU_CUDA
+#if (GMX_GPU_CUDA || GMX_GPU_HIP)
     using PmeKernelHandle = void (*)(const struct PmeGpuCudaKernelParams);
 #elif GMX_GPU_OPENCL
     using PmeKernelHandle = cl_kernel;

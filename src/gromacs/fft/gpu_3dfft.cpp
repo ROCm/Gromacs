@@ -47,6 +47,8 @@
 
 #if GMX_GPU_CUDA
 #    include "gpu_3dfft_cufft.h"
+#elif GMX_GPU_HIP
+#    include "gpu_3dfft_hipfft.hpp"
 #elif GMX_GPU_OPENCL
 #    include "gpu_3dfft_ocl.h"
 #elif GMX_GPU_SYCL
@@ -75,7 +77,7 @@ namespace gmx
 #    pragma clang diagnostic ignored "-Wmissing-noreturn"
 #endif
 
-#if (GMX_GPU_CUDA || GMX_GPU_OPENCL || GMX_GPU_SYCL)
+#if (GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_OPENCL || GMX_GPU_SYCL)
 
 Gpu3dFft::Gpu3dFft(FftBackend           backend,
                    bool                 allocateGrids,
@@ -113,6 +115,26 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
         default:
             GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_CUDA,
                                "Unsupported FFT backend requested");
+    }
+#    elif GMX_GPU_HIP
+    switch (backend)
+    {
+        case FftBackend::Hipfft:
+            impl_ = std::make_unique<Gpu3dFft::ImplHipFft>(allocateGrids,
+                                                           comm,
+                                                           gridSizesInXForEachRank,
+                                                           gridSizesInYForEachRank,
+                                                           nz,
+                                                           performOutOfPlaceFFT,
+                                                           context,
+                                                           pmeStream,
+                                                           realGridSize,
+                                                           realGridSizePadded,
+                                                           complexGridSizePadded,
+                                                           realGrid,
+                                                           complexGrid);
+            break;
+        default: GMX_THROW(InternalError("Unsupported FFT backend requested"));
     }
 #    elif GMX_GPU_OPENCL
     switch (backend)

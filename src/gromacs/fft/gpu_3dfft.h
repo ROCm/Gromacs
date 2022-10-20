@@ -67,6 +67,7 @@ class ArrayRef;
 enum class FftBackend
 {
     Cufft, // supports only single-GPU
+    Hipfft,
     Ocl,   // supports only single-GPU
     HeFFTe_CUDA,
     SyclMkl,    // supports only single-GPU
@@ -126,6 +127,7 @@ public:
 private:
     class Impl;
     class ImplCuFft;
+    class ImplHipFft;
     class ImplOcl;
     class ImplSyclMkl;
     class ImplSyclRocfft;

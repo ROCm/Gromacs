@@ -50,6 +50,15 @@
 #    include "cuda/nbnxm_cuda_types.h"
 #endif
 
+#if GMX_GPU_HIP
+#    include "gromacs/gpu_utils/hiputils.hpp"
+#    include "hip/nbnxm_hip_types.h"
+#    include "hip/nbnxm_hip_kernel_utils.hpp"
+#ifdef GMX_USE_ROCTX
+#    include "roctx.h"
+#endif
+#endif
+
 #if GMX_GPU_OPENCL
 #    include "opencl/nbnxm_ocl_types.h"
 #endif
@@ -78,6 +87,8 @@
 
 #include "nbnxm_gpu.h"
 #include "pairlistsets.h"
+
+#include <rocprim/rocprim.hpp>
 
 namespace Nbnxm
 {
@@ -137,6 +148,8 @@ static inline ElecType nbnxn_gpu_pick_ewald_kernel_type(const interaction_const_
 #if GMX_GPU_CUDA
             (deviceInfo.prop.major == 7 && deviceInfo.prop.minor == 0)
             || (deviceInfo.prop.major == 8 && deviceInfo.prop.minor == 0);
+#elif GMX_GPU_HIP
+            true;
 #else
             false;
 #endif
@@ -199,24 +212,39 @@ static inline void init_plist(gpu_plist* pl)
 {
     /* initialize to nullptr pointers to data that is not allocated here and will
        need reallocation in nbnxn_gpu_init_pairlist */
-    pl->sci   = nullptr;
-    pl->cj4   = nullptr;
-    pl->imask = nullptr;
-    pl->excl  = nullptr;
+    pl->sci                 = nullptr;
+    pl->scan_temporary      = nullptr;
+    pl->sci_histogram       = nullptr;
+    pl->sci_offset          = nullptr;
+    pl->sci_count           = nullptr;
+    pl->sci_sorted          = nullptr;
+    pl->cj4                 = nullptr;
+    pl->imask               = nullptr;
+    pl->excl                = nullptr;
 
     /* size -1 indicates that the respective array hasn't been initialized yet */
-    pl->na_c                   = -1;
-    pl->nsci                   = -1;
-    pl->sci_nalloc             = -1;
-    pl->ncj4                   = -1;
-    pl->cj4_nalloc             = -1;
-    pl->nimask                 = -1;
-    pl->imask_nalloc           = -1;
-    pl->nexcl                  = -1;
-    pl->excl_nalloc            = -1;
-    pl->haveFreshList          = false;
-    pl->rollingPruningNumParts = 0;
-    pl->rollingPruningPart     = 0;
+    pl->na_c                       = -1;
+    pl->nsci                       = -1;
+    pl->sci_nalloc                 = -1;
+    pl->nscan_temporary            = -1;
+    pl->scan_temporary_nalloc      = -1;
+    pl->nsci_histogram             = -1;
+    pl->sci_histogram_nalloc       = -1;
+    pl->nsci_offset                = -1;
+    pl->sci_offset_nalloc          = -1;
+    pl->nsci_count                 = -1;
+    pl->sci_count_nalloc           = -1;
+    pl->nsci_sorted                = -1;
+    pl->sci_sorted_nalloc          = -1;
+    pl->ncj4                       = -1;
+    pl->cj4_nalloc                 = -1;
+    pl->nimask                     = -1;
+    pl->imask_nalloc               = -1;
+    pl->nexcl                      = -1;
+    pl->excl_nalloc                = -1;
+    pl->haveFreshList              = false;
+    pl->rollingPruningNumParts     = 0;
+    pl->rollingPruningPart         = 0;
 }
 
 static inline void init_timings(gmx_wallclock_gpu_nbnxn_t* t)
@@ -250,13 +278,13 @@ static inline void initAtomdataFirst(NBAtomDataGpu*       atomdata,
     allocateDeviceBuffer(&atomdata->shiftVec, gmx::c_numShiftVectors, deviceContext);
     atomdata->shiftVecUploaded = false;
 
-    allocateDeviceBuffer(&atomdata->fShift, gmx::c_numShiftVectors, deviceContext);
-    allocateDeviceBuffer(&atomdata->eLJ, 1, deviceContext);
-    allocateDeviceBuffer(&atomdata->eElec, 1, deviceContext);
+    allocateDeviceBuffer(&atomdata->fShift, c_clShiftMemorySize * gmx::c_numShiftVectors, deviceContext);
+    allocateDeviceBuffer(&atomdata->eLJ, c_clEnergyMemorySize, deviceContext);
+    allocateDeviceBuffer(&atomdata->eElec, c_clEnergyMemorySize, deviceContext);
 
-    clearDeviceBufferAsync(&atomdata->fShift, 0, gmx::c_numShiftVectors, localStream);
-    clearDeviceBufferAsync(&atomdata->eElec, 0, 1, localStream);
-    clearDeviceBufferAsync(&atomdata->eLJ, 0, 1, localStream);
+    clearDeviceBufferAsync(&atomdata->fShift, 0, c_clShiftMemorySize * gmx::c_numShiftVectors, localStream);
+    clearDeviceBufferAsync(&atomdata->eElec, 0, c_clEnergyMemorySize, localStream);
+    clearDeviceBufferAsync(&atomdata->eLJ, 0, c_clEnergyMemorySize, localStream);
 
     /* initialize to nullptr pointers to data that is not allocated here and will
        need reallocation in later */
@@ -562,6 +590,43 @@ void gpu_init_pairlist(NbnxmGpu* nb, const NbnxnPairlistGpu* h_plist, const Inte
                        bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
 
     reallocateDeviceBuffer(
+           &d_plist->sci_sorted, h_plist->sci.size(), &d_plist->nsci_sorted, &d_plist->sci_sorted_nalloc, deviceContext);
+
+    copyToDeviceBuffer(&d_plist->sci_sorted,
+                       h_plist->sci.data(),
+                       0,
+                       h_plist->sci.size(),
+                       deviceStream,
+                       GpuApiCallBehavior::Async,
+                       bDoTime ? iTimers.pl_h2d.fetchNextEvent() : nullptr);
+
+    reallocateDeviceBuffer(
+           &d_plist->sci_count, h_plist->sci.size(), &d_plist->nsci_count, &d_plist->sci_count_nalloc, deviceContext);
+
+    reallocateDeviceBuffer(
+                &d_plist->sci_histogram, c_sciHistogramSize + 1, &d_plist->nsci_histogram, &d_plist->sci_histogram_nalloc, deviceContext);
+
+    reallocateDeviceBuffer(
+                &d_plist->sci_offset, c_sciHistogramSize, &d_plist->nsci_offset, &d_plist->sci_offset_nalloc, deviceContext);
+
+    size_t scan_temporary_size = 0;
+
+     rocprim::exclusive_scan(
+         nullptr,
+         scan_temporary_size,
+         *reinterpret_cast<int**>(&d_plist->sci_histogram),
+         *reinterpret_cast<int**>(&d_plist->sci_offset),
+         0,
+         c_sciHistogramSize,
+         rocprim::plus<int>(),
+         deviceStream.stream()
+     );
+
+     reallocateDeviceBuffer(
+            &d_plist->scan_temporary, (int)scan_temporary_size, &d_plist->nscan_temporary, &d_plist->scan_temporary_nalloc, deviceContext);
+
+
+    reallocateDeviceBuffer(
             &d_plist->cj4, h_plist->cj4.size(), &d_plist->ncj4, &d_plist->cj4_nalloc, deviceContext);
     copyToDeviceBuffer(&d_plist->cj4,
                        h_plist->cj4.data(),
@@ -705,9 +770,9 @@ void gpu_clear_outputs(NbnxmGpu* nb, bool computeVirial)
     // Clear shift force array and energies if the outputs were used in the current step
     if (computeVirial)
     {
-        clearDeviceBufferAsync(&adat->fShift, 0, gmx::c_numShiftVectors, localStream);
-        clearDeviceBufferAsync(&adat->eLJ, 0, 1, localStream);
-        clearDeviceBufferAsync(&adat->eElec, 0, 1, localStream);
+        clearDeviceBufferAsync(&adat->fShift, 0, c_clShiftMemorySize * gmx::c_numShiftVectors, localStream);
+        clearDeviceBufferAsync(&adat->eLJ, 0, c_clEnergyMemorySize, localStream);
+        clearDeviceBufferAsync(&adat->eElec, 0, c_clEnergyMemorySize, localStream);
     }
     issueClFlushInStream(localStream);
 }
@@ -1137,6 +1202,11 @@ void gpu_free(NbnxmGpu* nb)
     /* Free plist */
     auto* plist = nb->plist[InteractionLocality::Local];
     freeDeviceBuffer(&plist->sci);
+    freeDeviceBuffer(&plist->scan_temporary);
+    freeDeviceBuffer(&plist->sci_histogram);
+    freeDeviceBuffer(&plist->sci_offset);
+    freeDeviceBuffer(&plist->sci_count);
+    freeDeviceBuffer(&plist->sci_sorted);
     freeDeviceBuffer(&plist->cj4);
     freeDeviceBuffer(&plist->imask);
     freeDeviceBuffer(&plist->excl);
@@ -1145,6 +1215,11 @@ void gpu_free(NbnxmGpu* nb)
     {
         auto* plist_nl = nb->plist[InteractionLocality::NonLocal];
         freeDeviceBuffer(&plist_nl->sci);
+        freeDeviceBuffer(&plist_nl->scan_temporary);
+        freeDeviceBuffer(&plist_nl->sci_histogram);
+        freeDeviceBuffer(&plist_nl->sci_offset);
+        freeDeviceBuffer(&plist_nl->sci_count);
+        freeDeviceBuffer(&plist_nl->sci_sorted);
         freeDeviceBuffer(&plist_nl->cj4);
         freeDeviceBuffer(&plist_nl->imask);
         freeDeviceBuffer(&plist_nl->excl);

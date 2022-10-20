@@ -80,6 +80,10 @@ const char* getGpuImplementationString()
         {
             return "CUDA";
         }
+        else if (GMX_GPU_HIP)
+        {
+            return "HIP";
+        }
         else if (GMX_GPU_OPENCL)
         {
             return "OpenCL";

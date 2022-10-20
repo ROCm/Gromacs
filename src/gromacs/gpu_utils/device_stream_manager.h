@@ -100,7 +100,8 @@ public:
     DeviceStreamManager(const DeviceInformation& deviceInfo,
                         bool                     havePpDomainDecomposition,
                         SimulationWorkload       simulationWork,
-                        bool                     useTiming);
+                        bool                     useTiming,
+			bool hasPme=true, bool hasPP=true);
     ~DeviceStreamManager();
 
     /*! \brief Get the device information object of the associated device.
