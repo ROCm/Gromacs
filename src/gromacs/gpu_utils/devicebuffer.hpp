@@ -68,10 +68,15 @@ template<typename ValueType>
 void allocateDeviceBuffer(DeviceBuffer<ValueType>* buffer, size_t numValues, const DeviceContext& /* deviceContext */)
 {
     GMX_ASSERT(buffer, "needs a buffer pointer");
+#ifdef GMX_UNIFIED_MEM
+    const int align = (numValues >= 256) ? 256 : __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+    *buffer = new (std::align_val_t(align)) ValueType[numValues]; 
+#else
     hipError_t stat = hipMalloc(buffer, numValues * sizeof(ValueType));
     GMX_RELEASE_ASSERT(
             stat == hipSuccess,
             ("Allocation of the device buffer failed. " + gmx::getDeviceErrorString(stat)).c_str());
+#endif
 }
 
 /*! \brief
@@ -88,10 +93,14 @@ void freeDeviceBuffer(DeviceBuffer* buffer)
     GMX_ASSERT(buffer, "needs a buffer pointer");
     if (*buffer)
     {
+#ifdef GMX_UNIFIED_MEM
+        delete *buffer;
+#else
         hipError_t stat = hipFree(*buffer);
         GMX_RELEASE_ASSERT(
                 stat == hipSuccess,
                 ("Freeing of the device buffer failed. " + gmx::getDeviceErrorString(stat)).c_str());
+#endif
     }
 }
 
@@ -125,7 +134,7 @@ void copyToDeviceBuffer(DeviceBuffer<ValueType>* buffer,
     GMX_ASSERT(hostBuffer, "needs a host buffer pointer");
     hipError_t  stat;
     const size_t bytes = numValues * sizeof(ValueType);
-
+#ifndef GMX_UNIFIED_MEM
     switch (transferKind)
     {
         case GpuApiCallBehavior::Async:
@@ -152,6 +161,13 @@ void copyToDeviceBuffer(DeviceBuffer<ValueType>* buffer,
 
         default: throw;
     }
+#else
+    stat = hipStreamSynchronize(deviceStream.stream());
+    memcpy(*reinterpret_cast<ValueType**>(buffer) + startingOffset, hostBuffer, bytes);
+    GMX_RELEASE_ASSERT(
+                    stat == hipSuccess,
+                    ("Synchronous H2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+#endif
 }
 
 /*! \brief
@@ -185,6 +201,7 @@ void copyFromDeviceBuffer(ValueType*               hostBuffer,
 
     hipError_t  stat;
     const size_t bytes = numValues * sizeof(ValueType);
+#ifndef GMX_UNIFIED_MEM
     switch (transferKind)
     {
         case GpuApiCallBehavior::Async:
@@ -212,6 +229,13 @@ void copyFromDeviceBuffer(ValueType*               hostBuffer,
 
         default: throw;
     }
+#else
+    stat = hipStreamSynchronize(deviceStream.stream());
+    memcpy(hostBuffer, *reinterpret_cast<ValueType**>(buffer) + startingOffset, bytes);
+    GMX_RELEASE_ASSERT(
+                    stat == hipSuccess,
+                    ("Synchronous H2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+#endif
 }
 
 /*! \brief
@@ -243,6 +267,7 @@ void copyBetweenDeviceBuffers(DeviceBuffer<ValueType>* destinationDeviceBuffer,
 
     hipError_t  stat;
     const size_t bytes = numValues * sizeof(ValueType);
+#ifndef GMX_UNIFIED_MEM
     switch (transferKind)
     {
         case GpuApiCallBehavior::Async:
@@ -265,6 +290,14 @@ void copyBetweenDeviceBuffers(DeviceBuffer<ValueType>* destinationDeviceBuffer,
 
         default: throw;
     }
+#else
+    // conventional memcpy. do we need the host involvement here?
+    stat = hipStreamSynchronize(deviceStream.stream());
+    memcpy(*sourceDeviceBuffer, *(destinationDeviceBuffer), bytes);
+    GMX_RELEASE_ASSERT(
+                    stat == hipSuccess,
+                    ("Synchronous D2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
+#endif
 }
 
 template<
@@ -377,8 +410,13 @@ void clearDeviceBufferAsync(DeviceBuffer<ValueType>* buffer,
     const size_t bytes   = numValues * sizeof(ValueType);
     const char   pattern = 0;
 
+#ifdef GMX_UNIFIED_MEM
+    hipError_t stat = hipStreamSynchronize(deviceStream.stream());
+    memset(*reinterpret_cast<ValueType**>(buffer) + startingOffset, pattern, bytes);
+#else
     hipError_t stat = hipMemsetAsync(
             *reinterpret_cast<ValueType**>(buffer) + startingOffset, pattern, bytes, deviceStream.stream());
+#endif
 
     /*KernelLaunchConfig config;
     constexpr unsigned int blockSize = 256;

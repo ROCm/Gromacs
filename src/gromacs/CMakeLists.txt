@@ -251,6 +251,10 @@ elseif(GMX_GPU_HIP)
         target_compile_definitions(VkFFT INTERFACE -DVKFFT_BACKEND=2)
     endif()
 
+    if (GMX_UNIFIED_MEM)
+        add_definitions(-DGMX_UNIFIED_MEM)
+    endif()
+
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
         # -fno-slp-vectorize disables SLP vectorization (superword-level parallelism) becuase it produces non-optimal packed math instructions on gfx90a (MI200)
