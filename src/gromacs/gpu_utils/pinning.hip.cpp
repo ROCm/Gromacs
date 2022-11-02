@@ -77,7 +77,11 @@ void pinBuffer(void* pointer, std::size_t numBytes) noexcept
             1, numBytes); // C++11 3.7.4.1 gurantees that every pointer is different thus at least 1 byte
 
     ensureNoPendingDeviceError(errorMessage);
+#ifdef GMX_UNIFIED_MEM
+    hipError_t stat = hipSuccess;
+#else
     hipError_t stat = hipHostRegister(pointer, numBytes, hipHostRegisterDefault);
+#endif
 
     // These errors can only arise from a coding error somewhere.
     GMX_RELEASE_ASSERT(stat != hipErrorInvalidValue && stat != hipErrorNotSupported
@@ -108,7 +112,11 @@ void unpinBuffer(void* pointer) noexcept
     GMX_ASSERT(pointer != nullptr, (errorMessage + "Pointer should not be nullptr when pinned.").c_str());
 
     ensureNoPendingDeviceError(errorMessage);
+#ifdef GMX_UNIFIED_MEM
+    hipError_t stat = hipSuccess;
+#else
     hipError_t stat = hipHostUnregister(pointer);
+#endif
     // These errors can only arise from a coding error somewhere.
     GMX_RELEASE_ASSERT(stat != hipErrorInvalidValue && stat != hipErrorHostMemoryNotRegistered,
                        (errorMessage + getDeviceErrorString(stat)).c_str());
