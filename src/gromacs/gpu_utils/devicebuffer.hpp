@@ -490,8 +490,14 @@ void initParamLookupTable(DeviceBuffer<ValueType>* deviceBuffer,
 
     const size_t sizeInBytes = numValues * sizeof(ValueType);
 
+#ifdef GMX_UNIFIED_MEM
+    // no stream is passed to this functions so I assume that this is not performance critical
+    hipError_t stat = hipDeviceSynchronize();
+    memcpy(*reinterpret_cast<ValueType**>(deviceBuffer), hostBuffer, sizeInBytes);
+#else
     hipError_t stat = hipMemcpy(
             *reinterpret_cast<ValueType**>(deviceBuffer), hostBuffer, sizeInBytes, hipMemcpyHostToDevice);
+#endif
 
     GMX_RELEASE_ASSERT(stat == hipSuccess,
                        ("Synchronous H2D copy failed. " + gmx::getDeviceErrorString(stat)).c_str());
