@@ -1530,9 +1530,9 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
         pme_gpu_start_timing(pmeGpu, timingId);
         auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
 
-        kernelParamsPtr->usePipeline = char(computeSplines && spreadCharges && useGpuDirectComm
-                                            && (pmeCoordinateReceiverGpu->ppCommNumSenderRanks() > 1)
-                                            && !writeGlobalOrSaveSplines);
+        kernelParamsPtr->usePipeline = false;//char(computeSplines && spreadCharges && useGpuDirectComm
+                                       //     && (pmeCoordinateReceiverGpu->ppCommNumSenderRanks() > 1)
+                                       //     && !writeGlobalOrSaveSplines);
         if (kernelParamsPtr->usePipeline != 0)
         {
             int numStagesInPipeline = pmeCoordinateReceiverGpu->ppCommNumSenderRanks();
