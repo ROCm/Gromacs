@@ -64,7 +64,7 @@ GpuAwareMpiStatus checkMpiCudaAwareSupport()
         status = GpuAwareMpiStatus::Forced;
     }
 
-    return status;
+    return GpuAwareMpiStatus::Supported;
 }
 
 } // namespace gmx

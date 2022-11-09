@@ -111,7 +111,7 @@ static bool __device__ __forceinline__ pme_gpu_check_atom_charge(const float coe
 }
 
 //! Controls if the atom and charge data is prefeched into shared memory or loaded per thread from global
-static const bool c_useAtomDataPrefetch = false;
+static const bool c_useAtomDataPrefetch = true;
 
 /*! \brief Asserts if the argument is finite.
  *
