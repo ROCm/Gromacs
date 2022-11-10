@@ -47,7 +47,10 @@ namespace gmx
 
 GpuAwareMpiStatus checkMpiCudaAwareSupport()
 {
-#if MPI_SUPPORTS_CUDA_AWARE_DETECTION
+#if GMX_GPU_HIP
+    GpuAwareMpiStatus status = GpuAwareMpiStatus::Supported;
+#else
+ #if MPI_SUPPORTS_CUDA_AWARE_DETECTION
     // With OMPI version <=4.x, this function doesn't check if UCX PML is built with CUDA-support
     // or if CUDA is disabled at runtime.
     // Expect this function to work only if OMPI uses OB1 PML
@@ -55,16 +58,16 @@ GpuAwareMpiStatus checkMpiCudaAwareSupport()
     // expected soon (written March 2021)
     GpuAwareMpiStatus status = (MPIX_Query_cuda_support() == 1) ? GpuAwareMpiStatus::Supported
                                                                 : GpuAwareMpiStatus::NotSupported;
-#else
+ #else
     GpuAwareMpiStatus status = GpuAwareMpiStatus::NotKnown;
+ #endif
 #endif
-
     if (status != GpuAwareMpiStatus::Supported && getenv("GMX_FORCE_GPU_AWARE_MPI") != nullptr)
     {
         status = GpuAwareMpiStatus::Forced;
     }
 
-    return GpuAwareMpiStatus::Supported;
+    return status;
 }
 
 } // namespace gmx
