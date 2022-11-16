@@ -604,6 +604,34 @@ void StatePropagatorDataGpu::Impl::copyForcesFromGpu(gmx::ArrayRef<gmx::RVec> h_
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
 }
 
+void StatePropagatorDataGpu::Impl::copyNHVectorsToGpu(
+    const t_grpopts*       opts, 
+    const gmx_ekinddata_t* ekind,
+    gmx::ArrayRef<real> h_xi, // does it need to be double??
+    gmx::ArrayRef<real> h_vxi, 
+    AtomLocality atomLocality)
+{
+    int xi_size = opts->ngtc;
+    GMX_ASSERT(atomLocality < AtomLocality::Count, "Wrong atom locality.");
+    const DeviceStream* deviceStream = vcopyStreams_[atomLocality];
+    GMX_ASSERT(deviceStream != nullptr,
+               "No stream is valid for copying forces with given atom locality.");
+    
+    // h_xi and h_vxi are doubles, we need to cast them to float first
+    // I assume that the nose-hoover vectors are in the same precision level as xi
+    copyToDevice(d_xi_,  h_xi,  xi_size, atomLocality, *deviceStream);
+    copyToDevice(d_vxi_, h_vxi, xi_size, atomLocality, *deviceStream);
+
+    // now i need to copy the remaining data -> aggregating data from nosehoover_tcoupl: reft and th
+    std::vector<real> h_th   = new float[xi_size];
+    // awkward loop to traverse AoS-type 'th' and grab everything in a vector of floats
+    for(int i = 0 ; i < h_th; i++){
+        h_th[i] = ekind->tcstat[i].Th;
+    }
+    copyToDevice(d_th,   &(h_th[0]),        xi_size, atomLocality, *deviceStream);
+    copyToDevice(d_reft, &(opts->ref_t[0]), xi_size, atomLocality, *deviceStream);
+}
+
 void StatePropagatorDataGpu::Impl::waitForcesReadyOnHost(AtomLocality atomLocality)
 {
     wallcycle_start(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);

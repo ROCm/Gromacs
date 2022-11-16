@@ -690,10 +690,12 @@ static void do_update_md(int                                  start,
 
     /* NEMD (also cosine) acceleration is applied in updateMDLeapFrogGeneral */
     const bool doAcceleration = (useConstantAcceleration || ekind->cosacc.cos_accel != 0);
+    fprintf(stderr, "going to integrate boolean values: %d %d %d %d\n", doTempCouple, doAcceleration, doNoseHoover, doPROffDiagonal);
 
     if (doNoseHoover || doPROffDiagonal || doAcceleration)
     {
         matrix stepM;
+        fprintf(stderr, "doing noseHoover\n");
         if (!doParrinelloRahman)
         {
             /* We should not apply PR scaling at this step */
