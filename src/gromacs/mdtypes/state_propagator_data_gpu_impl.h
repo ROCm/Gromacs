@@ -432,6 +432,21 @@ private:
     //! Whether this instance of the class is used on a PME-only rank
     bool isPmeOnly_ = false;
 
+     //! Number of temperature control groups
+    int numTemperatureGroups_;
+
+    //! Period of temperature coupling (can be > 1 for Nose-Hoover)
+    int numTemperatureCouplingSteps_;
+
+    //! Local copy of the pointer to the reference temperatures
+    DeviceBuffer<float> d_reft_;
+    //! Local copy of the pointer to the TODO
+    DeviceBuffer<float> d_th_;
+    //! Local copy of the pointer to the Nose-hoover ref xi
+    DeviceBuffer<float> d_xi_;
+    //! Local copy of the pointer to the Nose_hoover ref vxi
+    DeviceBuffer<float> d_vxi;
+
     /*! \brief Performs the copy of data from host to device buffer.
      *
      * \todo Template on locality.

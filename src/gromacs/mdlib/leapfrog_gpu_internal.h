@@ -50,6 +50,15 @@
 namespace gmx
 {
 
+
+void launchNoseHooverCoupleKernel(const float               dt,
+                                  const int                 ngtc, 
+                                  const DeviceBuffer<float> d_reft, 
+                                  const DeviceBuffer<float> d_th, 
+                                  const DeviceBuffer<float> d_inverseMasses, 
+                                  DeviceBuffer<float>       d_xi, 
+                                  DeviceBuffer<float>       d_vxi);
+
 /*! \brief Backend-specific function to launch GPU Leap Frog kernel.
  *
  * \param numAtoms Total number of atoms.
@@ -78,6 +87,7 @@ void launchLeapFrogKernel(int                          numAtoms,
                           DeviceBuffer<float>          d_inverseMasses,
                           float                        dt,
                           bool                         doTemperatureScaling,
+                          bool                         doNoseHoover, 
                           int                          numTempScaleValues,
                           DeviceBuffer<unsigned short> d_tempScaleGroups,
                           DeviceBuffer<float>          d_lambdas,
