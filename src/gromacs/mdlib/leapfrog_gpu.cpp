@@ -70,8 +70,13 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                             const int                         realGridSize, 
                             DeviceBuffer<float>               d_grid,  
                             const DeviceBuffer<Float3>        d_f,
+                            DeviceBuffer<float>               d_reft, 
+                            DeviceBuffer<float>               d_th, 
+                            DeviceBuffer<float>               d_xi, 
+                            DeviceBuffer<float>               d_vxi, 
                             const float                       dt,
                             const bool                        doTemperatureScaling,
+                            const bool                        doNoseHoover, 
                             gmx::ArrayRef<const t_grp_tcstat> tcstat,
                             const bool                        doParrinelloRahman,
                             const float                       dtPressureCouple,
@@ -118,6 +123,17 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                                                    dtPressureCouple * prVelocityScalingMatrix[ZZ][ZZ] };
     }
 
+    if(doNoseHoover && doTemperatureScaling){
+        launchNoseHooverCoupleKernel(dt,
+                                     numTempScaleValues_, 
+                                     d_reft, 
+                                     d_th, 
+                                     d_inverseMasses_, 
+                                     d_xi, 
+                                     d_vxi, 
+                                     deviceStream_);
+    }
+
     launchLeapFrogKernel(numAtoms_,
                          d_x,
                          d_xp,
@@ -129,9 +145,11 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                          d_inverseMasses_,
                          dt,
                          doTemperatureScaling,
+                         doNoseHoover, 
                          numTempScaleValues_,
                          d_tempScaleGroups_,
                          d_lambdas_,
+                         d_vxi, 
                          prVelocityScalingType,
                          prVelocityScalingMatrixDiagonal_,
                          deviceStream_);

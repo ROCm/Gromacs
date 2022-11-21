@@ -57,7 +57,8 @@ void launchNoseHooverCoupleKernel(const float               dt,
                                   const DeviceBuffer<float> d_th, 
                                   const DeviceBuffer<float> d_inverseMasses, 
                                   DeviceBuffer<float>       d_xi, 
-                                  DeviceBuffer<float>       d_vxi);
+                                  DeviceBuffer<float>       d_vxi, 
+                                  const DeviceStream&       deviceStream);
 
 /*! \brief Backend-specific function to launch GPU Leap Frog kernel.
  *
@@ -91,6 +92,7 @@ void launchLeapFrogKernel(int                          numAtoms,
                           int                          numTempScaleValues,
                           DeviceBuffer<unsigned short> d_tempScaleGroups,
                           DeviceBuffer<float>          d_lambdas,
+                          DeviceBuffer<float>          d_vxi, 
                           VelocityScalingType          prVelocityScalingType,
                           Float3                       prVelocityScalingMatrixDiagonal,
                           const DeviceStream&          deviceStream);

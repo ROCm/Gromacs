@@ -274,6 +274,30 @@ public:
      */
     DeviceBuffer<RVec> getForces();
 
+     /*! \brief Get reference temperatures on the GPU
+     *
+     *  \returns GPU reference temperatures buffer.
+     */
+    DeviceBuffer<float> getReft();
+
+     /*! \brief Get reference Ths on the GPU
+     *
+     *  \returns GPU reference Th buffer.
+     */
+    DeviceBuffer<float> getTh();
+
+     /*! \brief Get xi buffer the GPU
+     *
+     *  \returns GPU reference xi buffer.
+     */
+    DeviceBuffer<float> getXi();
+
+    /*! \brief Get vxi buffer the GPU
+     *
+     *  \returns GPU reference vxi buffer.
+     */
+    DeviceBuffer<float> getVxi();
+
     /*! \brief Copy forces to the GPU memory.
      *
      *  \param[in] h_f           Forces in the host memory.
@@ -332,6 +356,15 @@ public:
      *  \param[in] atomLocality  Locality of the particles to wait for.
      */
     void waitForcesReadyOnHost(AtomLocality atomLocality);
+
+     /*! \brief Copies Nose-hoover auxiliary data to GPU
+     */
+    void copyNHVectorsToGpu(const int               numTemperatureGroups, 
+                            gmx::ArrayRef<float>    h_reft, 
+                            gmx::ArrayRef<float>    h_th, 
+                            std::vector<double>     h_xi, 
+                            std::vector<double>     h_vxi, 
+                            AtomLocality            atomLocality);
 
     /*! \brief Getter for the update stream.
      *
@@ -438,14 +471,30 @@ private:
     //! Period of temperature coupling (can be > 1 for Nose-Hoover)
     int numTemperatureCouplingSteps_;
 
-    //! Local copy of the pointer to the reference temperatures
+    //! Device buffer to reference temperatures
     DeviceBuffer<float> d_reft_;
-    //! Local copy of the pointer to the TODO
+    //! Number of particles saved in the reft buffer
+    int d_reftSize_ = -1;
+    //! Allocation size for the reft buffer
+    int d_reftCapacity_ = -1;
+    //! TODO
     DeviceBuffer<float> d_th_;
-    //! Local copy of the pointer to the Nose-hoover ref xi
+    //! Number of particles saved in the th buffer
+    int d_thSize_ = -1;
+    //! Allocation size for the force buffer
+    int d_thCapacity_ = -1;
+    //! Device buffer to Nose-hoover ref xi values - todo better description here 
     DeviceBuffer<float> d_xi_;
-    //! Local copy of the pointer to the Nose_hoover ref vxi
-    DeviceBuffer<float> d_vxi;
+    //! Number of particles saved in the xi buffer
+    int d_xiSize_ = -1;
+    //! Allocation size for the xi buffer
+    int d_xiCapacity_ = -1;
+    //! Device buffer to Nose-hoover ref vxi values - todo better description here
+    DeviceBuffer<float> d_vxi_;
+    //! Number of particles saved in the xi buffer
+    int d_vxiSize_ = -1;
+    //! Allocation size for the xi buffer
+    int d_vxiCapacity_ = -1;
 
     /*! \brief Performs the copy of data from host to device buffer.
      *

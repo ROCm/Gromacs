@@ -97,15 +97,17 @@ __launch_bounds__(c_threadsPerBlock) __global__
         float* __restrict__  gm_xi,
         float* __restrict__  gm_vxi)
     {
-        int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;\
+        int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
         
         // gm_vxi, gm_xi are scalars here
+        // Also, this looks like a really bad use of a kernel here 
+        //  how frequent is to have multiple temperature groups?
         if(threadIndex < ngtc){
             // updates v
             float r_reft = max(0.f, gm_reft[threadIndex]);
             float invmass = gm_inverseMasses[threadIndex] * dt;
-            float3 oldvxi = gm_vxi[threadIndex];
-            gm_vxi[threadIndex] += invmass*( gm_th[i].x - r_reft);
+            float oldvxi = gm_vxi[threadIndex];
+            gm_vxi[threadIndex] += invmass*( gm_th[threadIndex] - r_reft);
             gm_xi[threadIndex]  += dt * (oldvxi + gm_vxi[threadIndex]) * 0.5f;
         } 
     }
@@ -161,6 +163,7 @@ __launch_bounds__(c_threadsPerBlock) __global__
         float3 f    = gm_f[threadIndex];
         float  im   = gm_inverseMasses[threadIndex];
         float  imdt = im * dt;
+        float factorNH = 0.f;
 
         // Swapping places for xp and x so that the x will contain the updated coordinates and xp - the
         // coordinates before update. This should be taken into account when (if) constraints are applied
@@ -171,7 +174,6 @@ __launch_bounds__(c_threadsPerBlock) __global__
         if (numTempScaleValues != NumTempScaleValues::None || velocityScaling != VelocityScalingType::None)
         {
             float3 vp = v;
-            float factorNH = 0.f;
 
             if (numTempScaleValues != NumTempScaleValues::None)
             {
@@ -317,7 +319,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
     kernelLaunchConfig.sharedMemorySize = 0;
 
     auto kernelPtr =
-            selectLeapFrogKernelPtr(doTemperatureScaling, numTempScaleValues, prVelocityScalingType);
+            selectLeapFrogKernelPtr(doTemperatureScaling, doNoseHoover, numTempScaleValues, prVelocityScalingType);
     // fprintf(stderr, "Starting to prepare gpu kernel arguments\n");
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr,
                                                       kernelLaunchConfig,
@@ -344,12 +346,13 @@ void launchLeapFrogKernel(const int                          numAtoms,
 }
 
 void launchNoseHooverCoupleKernel(const float               dt,
-                             const int                 ngtc, 
-                             const DeviceBuffer<float> d_reft, 
-                             const DeviceBuffer<float> d_th, 
-                             const DeviceBuffer<float> d_inverseMasses, 
-                             DeviceBuffer<float>       d_xi, 
-                             DeviceBuffer<float>       d_vxi)
+                                  const int                 ngtc, 
+                                  const DeviceBuffer<float> d_reft, 
+                                  const DeviceBuffer<float> d_th, 
+                                  const DeviceBuffer<float> d_inverseMasses, 
+                                  DeviceBuffer<float>       d_xi, 
+                                  DeviceBuffer<float>       d_vxi, 
+                                  const DeviceStream&       deviceStream)
 {
     
     KernelLaunchConfig kernelLaunchConfig;
@@ -361,7 +364,7 @@ void launchNoseHooverCoupleKernel(const float               dt,
     kernelLaunchConfig.blockSize[2]     = 1;
     kernelLaunchConfig.sharedMemorySize = 0;
 
-    const auto kernelArgs = prepareGpuKernelArguments(nosehoover_tcoupl_kernel,
+    const auto kernelArgs = prepareGpuKernelArguments(nosehoover_tcouple_kernel,
                                                       kernelLaunchConfig,
                                                       &dt,
                                                       &ngtc,
@@ -369,7 +372,9 @@ void launchNoseHooverCoupleKernel(const float               dt,
                                                       &d_th,
                                                       &d_inverseMasses,
                                                       &d_xi, 
-                                                      &d_vxi,);
+                                                      &d_vxi);
+
+    launchGpuKernel(nosehoover_tcouple_kernel, kernelLaunchConfig, deviceStream, nullptr, "nose_hoover_tcouple_kernel", kernelArgs);                    
 }
 
 } // namespace gmx
