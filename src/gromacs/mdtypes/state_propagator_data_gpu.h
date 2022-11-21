@@ -67,6 +67,12 @@ class DeviceStream;
 class GpuEventSynchronizer;
 struct gmx_wallcycle;
 
+/* 
+    t_grpopts and gmx_ekindata_t needed for now on copyNHVectors 
+    TODO: Move the copies elsewhere and pass only vectors so we can remove this */
+struct t_grpopts;
+class gmx_ekindata_t;
+
 namespace gmx
 {
 
@@ -310,6 +316,30 @@ public:
      */
     DeviceBuffer<RVec> getForces();
 
+    /*! \brief Get reference temperatures on the GPU
+     *
+     *  \returns GPU reference temperatures buffer.
+     */
+    DeviceBuffer<float> getReft();
+
+     /*! \brief Get reference Ths on the GPU
+     *
+     *  \returns GPU reference Th buffer.
+     */
+    DeviceBuffer<float> getTh();
+
+     /*! \brief Get xi buffer the GPU
+     *
+     *  \returns GPU reference xi buffer.
+     */
+    DeviceBuffer<float> getXi();
+
+    /*! \brief Get vxi buffer the GPU
+     *
+     *  \returns GPU reference vxi buffer.
+     */
+    DeviceBuffer<float> getVxi();
+
     /*! \brief Copy forces to the GPU memory.
      *
      *  \param[in] h_f           Forces in the host memory.
@@ -371,6 +401,15 @@ public:
      *  \param[in] atomLocality  Locality of the particles to wait for.
      */
     void waitForcesReadyOnHost(AtomLocality atomLocality);
+
+    /*! \brief Copies Nose-hoover auxiliary data to GPU
+     */
+    void copyNHVectorsToGpu(const int               numTemperatureGroups, 
+                            gmx::ArrayRef<float>    h_reft, 
+                            gmx::ArrayRef<float>    h_th, 
+                            std::vector<double>     h_xi, 
+                            std::vector<double>     h_vxi, 
+                            AtomLocality            atomLocality);
 
     /*! \brief Getter for the update stream.
      *

@@ -212,6 +212,38 @@ DeviceBuffer<RVec> StatePropagatorDataGpu::getForces()
     return {};
 }
 
+DeviceBuffer<float> StatePropagatorDataGpu::getReft()
+{
+    GMX_ASSERT(!impl_,
+               "A CPU stub method from GPU state propagator data was called instead of one from "
+               "GPU implementation.");
+    return {};
+}
+
+DeviceBuffer<float> StatePropagatorDataGpu::getTh()
+{
+    GMX_ASSERT(!impl_,
+               "A CPU stub method from GPU state propagator data was called instead of one from "
+               "GPU implementation.");
+    return {};
+}
+
+DeviceBuffer<float> StatePropagatorDataGpu::getXi()
+{
+    GMX_ASSERT(!impl_,
+               "A CPU stub method from GPU state propagator data was called instead of one from "
+               "GPU implementation.");
+    return {};
+}
+
+DeviceBuffer<float> StatePropagatorDataGpu::getVxi()
+{
+    GMX_ASSERT(!impl_,
+               "A CPU stub method from GPU state propagator data was called instead of one from "
+               "GPU implementation.");
+    return {};
+}
+
 void StatePropagatorDataGpu::copyForcesToGpu(const gmx::ArrayRef<const gmx::RVec> /* h_f          */,
                                              AtomLocality /* atomLocality */)
 {
