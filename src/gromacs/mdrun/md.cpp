@@ -151,6 +151,8 @@
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/gpu_utils/pmalloc.h"
+
 
 #include "legacysimulator.h"
 #include "replicaexchange.h"
@@ -488,9 +490,13 @@ void gmx::LegacySimulator::do_md()
         stateGpu->setXUpdatedOnDeviceEvent(integrator->xUpdatedOnDeviceEvent());
         if (bNoseHoover) 
         {
-            // XXX verify if is it ok to copy stuff here
-            float* c_rt = new float[state->ngtc];
-            float* c_th   = new float[state->ngtc];
+            // XXX verify if is it ok to copy stuff here - also find a better place to do this allocation
+            //float* c_rt = new float[state->ngtc];
+            //float* c_th   = new float[state->ngtc];
+            float* c_rt;
+            float* c_th;
+            pmalloc(reinterpret_cast<void**>(&c_rt),  sizeof(float)*state->ngtc);
+            pmalloc(reinterpret_cast<void**>(&c_th), sizeof(float)*state->ngtc);
             gmx::ArrayRef<float> h_reft = gmx::arrayRefFromArray<float>(c_rt, state->ngtc);
             gmx::ArrayRef<float> h_th   = gmx::arrayRefFromArray<float>(c_th, state->ngtc);
             for(int i = 0 ; i < state->ngtc; i++)
@@ -499,10 +505,8 @@ void gmx::LegacySimulator::do_md()
                 h_th[i] = ekind->tcstat[i].Th;
             }
             stateGpu->copyNHVectorsToGpu(state->ngtc, h_reft, h_th, state->nosehoover_xi, state->nosehoover_vxi, AtomLocality::Local);
-            delete &h_reft;
-            delete &h_th;
-            delete &c_rt;
-            delete &c_th;
+            pfree(reinterpret_cast<void*>(c_rt));
+            pfree(reinterpret_cast<void*>(c_th));
         }
         integrator->setPbc(PbcType::Xyz, state->box);
     }
@@ -1855,6 +1859,7 @@ void gmx::LegacySimulator::do_md()
             {
                 enerd->term[F_EKIN] = last_ekin;
             }
+            fprintf(stderr, "Energy step: Epot %lf Ekin %lf\n", enerd->term[F_EPOT], enerd->term[F_EKIN]);
             enerd->term[F_ETOT] = enerd->term[F_EPOT] + enerd->term[F_EKIN];
 
             if (integratorHasConservedEnergyQuantity(ir))
