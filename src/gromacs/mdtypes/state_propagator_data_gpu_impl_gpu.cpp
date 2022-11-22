@@ -56,6 +56,8 @@
 
 #    include "state_propagator_data_gpu_impl.h"
 #    include "gromacs/gpu_utils/gpu_utils.h"
+#    include "gromacs/gpu_utils/pmalloc.h"
+
 
 namespace gmx
 {
@@ -645,17 +647,23 @@ void StatePropagatorDataGpu::Impl::copyNHVectorsToGpu(
     reallocateDeviceBuffer(&d_vxi_,  numTemperatureGroups, &d_vxiSize_,  &d_vxiCapacity_,  deviceContext_ );
     
     // h_xi and h_vxi are doubles, we need to cast them to float first
-    std::vector<float> f_xi(xi_size);
-    std::vector<float> f_vxi(xi_size);
+    // std::vector<float> f_xi(xi_size);
+    // std::vector<float> f_vxi(xi_size);
+    float* f_xi;
+    float* f_vxi;
+    pmalloc(reinterpret_cast<void**>(&f_xi),  sizeof(float)*xi_size);
+    pmalloc(reinterpret_cast<void**>(&f_vxi), sizeof(float)*xi_size);
 
-    std::copy(h_xi.begin(), h_xi.end(), f_xi.begin());
-    std::copy(h_vxi.begin(), h_vxi.end(), f_vxi.begin());
+    std::copy(h_xi.begin(), h_xi.end(), f_xi);
+    std::copy(h_vxi.begin(), h_vxi.end(), f_vxi);
 
-    copyToDeviceBuffer(&d_xi_,  reinterpret_cast<const float*>(&h_xi[0]),  0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
-    copyToDeviceBuffer(&d_vxi_, reinterpret_cast<const float*>(&h_vxi[0]), 0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
+    copyToDeviceBuffer(&d_xi_,  reinterpret_cast<const float*>(&f_xi[0]),  0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
+    copyToDeviceBuffer(&d_vxi_, reinterpret_cast<const float*>(&f_vxi[0]), 0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
 
     copyToDeviceBuffer(&d_th_,   reinterpret_cast<const float*>(&(h_th[0])),        0, xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
     copyToDeviceBuffer(&d_reft_, reinterpret_cast<const float*>(&(h_reft[0])), 0, xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
+    pfree(reinterpret_cast<void*>(f_xi));
+    pfree(reinterpret_cast<void*>(f_vxi));
 }
 
 void StatePropagatorDataGpu::Impl::waitForcesReadyOnHost(AtomLocality atomLocality)
@@ -892,3 +900,4 @@ int StatePropagatorDataGpu::numAtomsAll() const
 } // namespace gmx
 
 #endif // GMX_GPU
+                                                                                
