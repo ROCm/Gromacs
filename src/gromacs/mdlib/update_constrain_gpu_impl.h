@@ -115,6 +115,7 @@ public:
      */
     void integrate(GpuEventSynchronizer*             fReadyOnDevice,
                    real                              dt,
+                   real                              dttc,
                    bool                              updateVelocities,
                    bool                              computeVirial,
                    tensor                            virial,
@@ -158,6 +159,7 @@ public:
              DeviceBuffer<Float3>          d_f,
              DeviceBuffer<float>           d_reft, 
              DeviceBuffer<float>           d_th, 
+             DeviceBuffer<float>           d_massQInv, 
              DeviceBuffer<float>           d_xi, 
              DeviceBuffer<float>           d_vxi,
              const InteractionDefinitions& idef,
@@ -247,10 +249,13 @@ private:
     DeviceBuffer<float> d_reft_;
     //! Local copy of the pointer to the TODO
     DeviceBuffer<float> d_th_;
+    //! Local copy of the pointer to the TODO
+    DeviceBuffer<float> d_massQInv_;
     //! Local copy of the pointer to the Nose-hoover ref xi
     DeviceBuffer<float> d_xi_;
     //! Local copy of the pointer to the Nose_hoover ref vxi
     DeviceBuffer<float> d_vxi_;
+
 };
 
 } // namespace gmx

@@ -228,6 +228,14 @@ DeviceBuffer<float> StatePropagatorDataGpu::getTh()
     return {};
 }
 
+DeviceBuffer<float> StatePropagatorDataGpu::getMassQInv()
+{
+    GMX_ASSERT(!impl_,
+               "A CPU stub method from GPU state propagator data was called instead of one from "
+               "GPU implementation.");
+    return {};
+}
+
 DeviceBuffer<float> StatePropagatorDataGpu::getXi()
 {
     GMX_ASSERT(!impl_,

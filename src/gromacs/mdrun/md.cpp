@@ -488,26 +488,6 @@ void gmx::LegacySimulator::do_md()
                 wcycle);
 
         stateGpu->setXUpdatedOnDeviceEvent(integrator->xUpdatedOnDeviceEvent());
-        if (bNoseHoover) 
-        {
-            // XXX verify if is it ok to copy stuff here - also find a better place to do this allocation
-            //float* c_rt = new float[state->ngtc];
-            //float* c_th   = new float[state->ngtc];
-            float* c_rt;
-            float* c_th;
-            pmalloc(reinterpret_cast<void**>(&c_rt),  sizeof(float)*state->ngtc);
-            pmalloc(reinterpret_cast<void**>(&c_th), sizeof(float)*state->ngtc);
-            gmx::ArrayRef<float> h_reft = gmx::arrayRefFromArray<float>(c_rt, state->ngtc);
-            gmx::ArrayRef<float> h_th   = gmx::arrayRefFromArray<float>(c_th, state->ngtc);
-            for(int i = 0 ; i < state->ngtc; i++)
-            {       
-                h_reft[i] = inputrec->opts.ref_t[i];
-                h_th[i] = ekind->tcstat[i].Th;
-            }
-            stateGpu->copyNHVectorsToGpu(state->ngtc, h_reft, h_th, state->nosehoover_xi, state->nosehoover_vxi, AtomLocality::Local);
-            pfree(reinterpret_cast<void*>(c_rt));
-            pfree(reinterpret_cast<void*>(c_th));
-        }
         integrator->setPbc(PbcType::Xyz, state->box);
     }
 
@@ -1456,7 +1436,8 @@ void gmx::LegacySimulator::do_md()
         }
         else
         {
-            update_tcouple(step,
+            {
+                update_tcouple(step,
                            ir,
                            state,
                            ekind,
@@ -1464,6 +1445,30 @@ void gmx::LegacySimulator::do_md()
                            md->homenr,
                            md->cTC ? gmx::arrayRefFromArray(md->cTC, md->nr)
                                    : gmx::ArrayRef<const unsigned short>());
+                if (bNoseHoover && useGpuForUpdate) 
+                {
+                    // XXX verify if is it ok to copy stuff here - also find a better place to do this allocation
+                    float* c_rt;
+                    float* c_th;
+                    float* c_massQinv;
+                    pmalloc(reinterpret_cast<void**>(&c_rt),  sizeof(float)*state->ngtc);
+                    pmalloc(reinterpret_cast<void**>(&c_th), sizeof(float)*state->ngtc);
+                    pmalloc(reinterpret_cast<void**>(&c_massQinv),  sizeof(float)*state->ngtc);
+                    gmx::ArrayRef<float> h_reft     = gmx::arrayRefFromArray<float>(c_rt, state->ngtc);
+                    gmx::ArrayRef<float> h_th       = gmx::arrayRefFromArray<float>(c_th, state->ngtc);
+                    gmx::ArrayRef<float> h_massQinv = gmx::arrayRefFromArray<float>(c_massQinv, state->ngtc);
+                    for(int i = 0 ; i < state->ngtc; i++)
+                    {       
+                        h_reft[i] = inputrec->opts.ref_t[i];
+                        h_th[i] = ekind->tcstat[i].Th;
+                        h_massQinv[i] = MassQ.Qinv[i];
+                    }
+                    // xxx todo eliminate copying this set of vectors and copy vxi only
+                    stateGpu->copyNHVectorsToGpu(state->ngtc, h_reft, h_th, h_massQinv, state->nosehoover_xi, state->nosehoover_vxi, AtomLocality::Local);
+                    pfree(reinterpret_cast<void*>(c_rt));
+                    pfree(reinterpret_cast<void*>(c_th));
+                }
+            }
             update_pcouple_before_coordinates(fplog, step, ir, state, pressureCouplingMu, M, bInitStep);
         }
 
@@ -1534,6 +1539,7 @@ void gmx::LegacySimulator::do_md()
                                     stateGpu->getForces(),
                                     stateGpu->getReft(), 
                                     stateGpu->getTh(), 
+                                    stateGpu->getMassQInv(), 
                                     stateGpu->getXi(),
                                     stateGpu->getVxi(), 
                                     top->idef,
@@ -1572,6 +1578,7 @@ void gmx::LegacySimulator::do_md()
                 integrator->integrate(stateGpu->getLocalForcesReadyOnDeviceEvent(
                                               runScheduleWork->stepWork, runScheduleWork->simulationWork),
                                       ir->delta_t,
+                                      ir->nsttcouple, 
                                       true,
                                       bCalcVir,
                                       shake_vir,
@@ -1837,7 +1844,6 @@ void gmx::LegacySimulator::do_md()
             {
                 enerd->term[F_EKIN] = last_ekin;
             }
-            fprintf(stderr, "Energy step: Epot %lf Ekin %lf\n", enerd->term[F_EPOT], enerd->term[F_EKIN]);
             enerd->term[F_ETOT] = enerd->term[F_EPOT] + enerd->term[F_EKIN];
 
             if (integratorHasConservedEnergyQuantity(ir))
