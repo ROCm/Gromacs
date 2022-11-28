@@ -150,6 +150,7 @@ __launch_bounds__(c_threadsPerBlock) __global__
                              const float3* __restrict__ gm_f,
                              const float* __restrict__ gm_inverseMasses,
                              const float dt,
+                             const float dttc,
                              const float* __restrict__ gm_lambdas,
                              const float* __restrict__ gm_nh_vxi, 
                              const unsigned short* __restrict__ gm_tempScaleGroups,
@@ -164,12 +165,14 @@ __launch_bounds__(c_threadsPerBlock) __global__
         float  im   = gm_inverseMasses[threadIndex];
         float  imdt = im * dt;
         float factorNH = 0.f;
+        float3 v0 = v;
 
         // Swapping places for xp and x so that the x will contain the updated coordinates and xp - the
         // coordinates before update. This should be taken into account when (if) constraints are applied
         // after the update: x and xp have to be passed to constraints in the 'wrong' order.
         // TODO: Issue #3727
         gm_xp[threadIndex] = x;
+        int tempScaleGroup = 0;
 
         if (numTempScaleValues != NumTempScaleValues::None || velocityScaling != VelocityScalingType::None)
         {
@@ -178,16 +181,17 @@ __launch_bounds__(c_threadsPerBlock) __global__
             if (numTempScaleValues != NumTempScaleValues::None)
             {
                 float lambda = 1.0F;
+                if(doNoseHoover || numTempScaleValues == NumTempScaleValues::Multiple){
+                    tempScaleGroup = gm_tempScaleGroups[threadIndex];
+                    if (doNoseHoover) factorNH = 0.5f * dttc * dt * gm_nh_vxi[tempScaleGroup];
+                }
                 if (numTempScaleValues == NumTempScaleValues::Single)
                 {
                     lambda = gm_lambdas[0];
-                    if (doNoseHoover) factorNH = 0.5f * dt * gm_nh_vxi[0];
                 }
                 else if (numTempScaleValues == NumTempScaleValues::Multiple)
                 {              
-                    int tempScaleGroup = gm_tempScaleGroups[threadIndex];
-                    lambda             = gm_lambdas[tempScaleGroup];
-                    if (doNoseHoover) factorNH = 0.5f * dt * gm_nh_vxi[tempScaleGroup];
+                    lambda = gm_lambdas[tempScaleGroup];
                 }
                 vp *= lambda;
             }
@@ -202,10 +206,9 @@ __launch_bounds__(c_threadsPerBlock) __global__
         }
         if(doNoseHoover)
         {
-            v = (v + (f * imdt - factorNH * v)) * (1.f / (1.f - factorNH));
+            v = (v + (f * imdt - factorNH * v)) * (1.f/(1.f + factorNH));
         } 
         else v = v + f * imdt;
-
         x = x + v * dt;
         gm_v[threadIndex] = v;
         gm_x[threadIndex] = x;
@@ -297,6 +300,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
                           const DeviceBuffer<Float3>         d_f,
                           const DeviceBuffer<float>          d_inverseMasses,
                           const float                        dt,
+                          const float                        dttc,
                           const bool                         doTemperatureScaling,
                           const bool                         doNoseHoover,
                           const int                          numTempScaleValues,
@@ -333,6 +337,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
                                                       asFloat3Pointer(&d_f),
                                                       &d_inverseMasses,
                                                       &dt,
+                                                      &dttc,
                                                       &d_lambdas,
                                                       &d_nh_vxi, 
                                                       &d_tempScaleGroups,

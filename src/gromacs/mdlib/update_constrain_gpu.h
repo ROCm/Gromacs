@@ -114,6 +114,7 @@ public:
 
     void integrate(GpuEventSynchronizer*             fReadyOnDevice,
                    real                              dt,
+                   real                              dttc,
                    bool                              updateVelocities,
                    bool                              computeVirial,
                    tensor                            virial,
@@ -157,6 +158,7 @@ public:
              DeviceBuffer<RVec>            d_f,
              DeviceBuffer<float>           d_reft, 
              DeviceBuffer<float>           d_th, 
+             DeviceBuffer<float>           d_massQInv, 
              DeviceBuffer<float>           d_xi, 
              DeviceBuffer<float>           d_vxi,
              const InteractionDefinitions& idef,

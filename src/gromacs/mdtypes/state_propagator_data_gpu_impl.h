@@ -286,6 +286,12 @@ public:
      */
     DeviceBuffer<float> getTh();
 
+     /*! \brief Get reference massQinv on the GPU
+     *
+     *  \returns GPU reference Th buffer.
+     */
+    DeviceBuffer<float> getMassQInv();
+
      /*! \brief Get xi buffer the GPU
      *
      *  \returns GPU reference xi buffer.
@@ -362,6 +368,7 @@ public:
     void copyNHVectorsToGpu(const int               numTemperatureGroups, 
                             gmx::ArrayRef<float>    h_reft, 
                             gmx::ArrayRef<float>    h_th, 
+                            gmx::ArrayRef<float>    h_massQInv, 
                             std::vector<double>     h_xi, 
                             std::vector<double>     h_vxi, 
                             AtomLocality            atomLocality);
@@ -495,6 +502,12 @@ private:
     int d_vxiSize_ = -1;
     //! Allocation size for the xi buffer
     int d_vxiCapacity_ = -1;
+    //! Device buffer to Nose-hoover massQInv values - todo better description here
+    DeviceBuffer<float> d_massQInv_;
+    //! Number of particles saved in the xi buffer
+    int d_massQInvSize_ = -1;
+    //! Allocation size for the xi buffer
+    int d_massQInvCapacity_ = -1;
 
     /*! \brief Performs the copy of data from host to device buffer.
      *

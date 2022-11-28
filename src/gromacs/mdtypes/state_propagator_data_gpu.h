@@ -328,6 +328,12 @@ public:
      */
     DeviceBuffer<float> getTh();
 
+    /*! \brief Get reference massQinvs on the GPU
+     *
+     *  \returns GPU reference Th buffer.
+     */
+    DeviceBuffer<float> getMassQInv();
+
      /*! \brief Get xi buffer the GPU
      *
      *  \returns GPU reference xi buffer.
@@ -407,6 +413,7 @@ public:
     void copyNHVectorsToGpu(const int               numTemperatureGroups, 
                             gmx::ArrayRef<float>    h_reft, 
                             gmx::ArrayRef<float>    h_th, 
+                            gmx::ArrayRef<float>    h_massQInv, 
                             std::vector<double>     h_xi, 
                             std::vector<double>     h_vxi, 
                             AtomLocality            atomLocality);
