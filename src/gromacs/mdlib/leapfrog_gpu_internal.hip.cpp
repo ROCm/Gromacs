@@ -87,31 +87,6 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  * \param[in,out] gm_vxi                           set of nose-hoover velocities  to update.
  */
 
-__launch_bounds__(c_threadsPerBlock) __global__
-    void nosehoover_tcouple_kernel(
-        const float          dt, 
-        const int            ngtc, 
-        const float*         gm_reft,
-        const float*         gm_th,  
-        const float*         gm_inverseMasses, 
-        float* __restrict__  gm_xi,
-        float* __restrict__  gm_vxi)
-    {
-        int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
-        
-        // gm_vxi, gm_xi are scalars here
-        // Also, this looks like a really bad use of a kernel here 
-        //  how frequent is to have multiple temperature groups?
-        if(threadIndex < ngtc){
-            // updates v
-            float r_reft = max(0.f, gm_reft[threadIndex]);
-            float invmass = gm_inverseMasses[threadIndex] * dt;
-            float oldvxi = gm_vxi[threadIndex];
-            gm_vxi[threadIndex] += invmass*( gm_th[threadIndex] - r_reft);
-            gm_xi[threadIndex]  += dt * (oldvxi + gm_vxi[threadIndex]) * 0.5f;
-        } 
-    }
-
 /*! \brief Main kernel for Leap-Frog integrator.
  *
  *  The coordinates and velocities are updated on the GPU. Also saves the intermediate values of the coordinates for
@@ -151,8 +126,8 @@ __launch_bounds__(c_threadsPerBlock) __global__
                              const float* __restrict__ gm_inverseMasses,
                              const float dt,
                              const float dttc,
-                             const float* __restrict__ gm_lambdas,
-                             const float* __restrict__ gm_nh_vxi, 
+                             const float*  __restrict__ gm_lambdas,
+                             const double* __restrict__ gm_nh_vxi, 
                              const unsigned short* __restrict__ gm_tempScaleGroups,
                              const float3 prVelocityScalingMatrixDiagonal)
 {
@@ -183,7 +158,7 @@ __launch_bounds__(c_threadsPerBlock) __global__
                 float lambda = 1.0F;
                 if(doNoseHoover || numTempScaleValues == NumTempScaleValues::Multiple){
                     tempScaleGroup = gm_tempScaleGroups[threadIndex];
-                    if (doNoseHoover) factorNH = 0.5f * dttc * dt * gm_nh_vxi[tempScaleGroup];
+                    if (doNoseHoover) factorNH = 0.5f * dttc * dt * (float)gm_nh_vxi[tempScaleGroup];
                 }
                 if (numTempScaleValues == NumTempScaleValues::Single)
                 {
@@ -307,7 +282,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
                           const int                          numTempScaleValues,
                           const DeviceBuffer<unsigned short> d_tempScaleGroups,
                           const DeviceBuffer<float>          d_lambdas,
-                          const DeviceBuffer<float>          d_nh_vxi, 
+                          const DeviceBuffer<double>         d_nh_vxi, 
                           const VelocityScalingType          prVelocityScalingType,
                           const Float3                       prVelocityScalingMatrixDiagonal,
                           const DeviceStream&                deviceStream)
@@ -351,36 +326,5 @@ void launchLeapFrogKernel(const int                          numAtoms,
     // fprintf(stderr, " finished leapFrogKernel, error = %d\n", err);
 }
 
-void launchNoseHooverCoupleKernel(const float               dt,
-                                  const int                 ngtc, 
-                                  const DeviceBuffer<float> d_reft, 
-                                  const DeviceBuffer<float> d_th, 
-                                  const DeviceBuffer<float> d_inverseMasses, 
-                                  DeviceBuffer<float>       d_xi, 
-                                  DeviceBuffer<float>       d_vxi, 
-                                  const DeviceStream&       deviceStream)
-{
-    
-    KernelLaunchConfig kernelLaunchConfig;
-    static_assert(sizeof(*d_inverseMasses) == sizeof(float), "Incompatible types");
-
-    kernelLaunchConfig.gridSize[0]      = (ngtc + c_threadsPerBlock - 1) / c_threadsPerBlock;
-    kernelLaunchConfig.blockSize[0]     = c_threadsPerBlock;
-    kernelLaunchConfig.blockSize[1]     = 1;
-    kernelLaunchConfig.blockSize[2]     = 1;
-    kernelLaunchConfig.sharedMemorySize = 0;
-
-    const auto kernelArgs = prepareGpuKernelArguments(nosehoover_tcouple_kernel,
-                                                      kernelLaunchConfig,
-                                                      &dt,
-                                                      &ngtc,
-                                                      &d_reft,
-                                                      &d_th,
-                                                      &d_inverseMasses,
-                                                      &d_xi, 
-                                                      &d_vxi);
-
-    launchGpuKernel(nosehoover_tcouple_kernel, kernelLaunchConfig, deviceStream, nullptr, "nose_hoover_tcouple_kernel", kernelArgs);                    
-}
 
 } // namespace gmx

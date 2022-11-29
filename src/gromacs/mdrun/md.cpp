@@ -1448,25 +1448,7 @@ void gmx::LegacySimulator::do_md()
                 if (bNoseHoover && useGpuForUpdate) 
                 {
                     // XXX verify if is it ok to copy stuff here - also find a better place to do this allocation
-                    float* c_rt;
-                    float* c_th;
-                    float* c_massQinv;
-                    pmalloc(reinterpret_cast<void**>(&c_rt),  sizeof(float)*state->ngtc);
-                    pmalloc(reinterpret_cast<void**>(&c_th), sizeof(float)*state->ngtc);
-                    pmalloc(reinterpret_cast<void**>(&c_massQinv),  sizeof(float)*state->ngtc);
-                    gmx::ArrayRef<float> h_reft     = gmx::arrayRefFromArray<float>(c_rt, state->ngtc);
-                    gmx::ArrayRef<float> h_th       = gmx::arrayRefFromArray<float>(c_th, state->ngtc);
-                    gmx::ArrayRef<float> h_massQinv = gmx::arrayRefFromArray<float>(c_massQinv, state->ngtc);
-                    for(int i = 0 ; i < state->ngtc; i++)
-                    {       
-                        h_reft[i] = inputrec->opts.ref_t[i];
-                        h_th[i] = ekind->tcstat[i].Th;
-                        h_massQinv[i] = MassQ.Qinv[i];
-                    }
-                    // xxx todo eliminate copying this set of vectors and copy vxi only
-                    stateGpu->copyNHVectorsToGpu(state->ngtc, h_reft, h_th, h_massQinv, state->nosehoover_xi, state->nosehoover_vxi, AtomLocality::Local);
-                    pfree(reinterpret_cast<void*>(c_rt));
-                    pfree(reinterpret_cast<void*>(c_th));
+                    stateGpu->copyNHVectorsToGpu(state->ngtc, state->nosehoover_vxi, AtomLocality::Local);
                 }
             }
             update_pcouple_before_coordinates(fplog, step, ir, state, pressureCouplingMu, M, bInitStep);
@@ -1537,10 +1519,6 @@ void gmx::LegacySimulator::do_md()
                                     realGridSize,
                                     &d_grid,
                                     stateGpu->getForces(),
-                                    stateGpu->getReft(), 
-                                    stateGpu->getTh(), 
-                                    stateGpu->getMassQInv(), 
-                                    stateGpu->getXi(),
                                     stateGpu->getVxi(), 
                                     top->idef,
                                     *md);

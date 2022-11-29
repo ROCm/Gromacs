@@ -70,11 +70,7 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
                             const int                         realGridSize, 
                             DeviceBuffer<float>               d_grid,  
                             const DeviceBuffer<Float3>        d_f,
-                            DeviceBuffer<float>               d_reft, 
-                            DeviceBuffer<float>               d_th, 
-                            DeviceBuffer<float>               d_massQInv, 
-                            DeviceBuffer<float>               d_xi, 
-                            DeviceBuffer<float>               d_vxi, 
+                            DeviceBuffer<double>              d_vxi, 
                             const float                       dt,
                             const float                       dttc,
                             const bool                        doTemperatureScaling,
@@ -123,17 +119,6 @@ void LeapFrogGpu::integrate(DeviceBuffer<Float3>              d_x,
         prVelocityScalingMatrixDiagonal_ = Float3{ dtPressureCouple * prVelocityScalingMatrix[XX][XX],
                                                    dtPressureCouple * prVelocityScalingMatrix[YY][YY],
                                                    dtPressureCouple * prVelocityScalingMatrix[ZZ][ZZ] };
-    }
-
-    if(0){
-        launchNoseHooverCoupleKernel(dttc,
-                                     numTempScaleValues_, 
-                                     d_reft, 
-                                     d_th, 
-                                     d_massQInv, 
-                                     d_xi, 
-                                     d_vxi, 
-                                     deviceStream_);
     }
 
     launchLeapFrogKernel(numAtoms_,

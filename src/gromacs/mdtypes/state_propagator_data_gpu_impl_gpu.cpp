@@ -520,27 +520,7 @@ DeviceBuffer<RVec> StatePropagatorDataGpu::Impl::getForces()
     return d_f_;
 }
 
-DeviceBuffer<float> StatePropagatorDataGpu::Impl::getReft()
-{
-    return d_reft_;
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::Impl::getTh()
-{
-    return d_th_;
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::Impl::getMassQInv()
-{
-    return d_massQInv_;
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::Impl::getXi()
-{
-    return d_xi_;
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::Impl::getVxi()
+DeviceBuffer<double> StatePropagatorDataGpu::Impl::getVxi()
 {
     return d_vxi_;
 }
@@ -634,10 +614,6 @@ void StatePropagatorDataGpu::Impl::copyForcesFromGpu(gmx::ArrayRef<gmx::RVec> h_
 // I need th and reft
 void StatePropagatorDataGpu::Impl::copyNHVectorsToGpu(
     const int              numTemperatureGroups, 
-    gmx::ArrayRef<float>   h_reft, 
-    gmx::ArrayRef<float>   h_th, 
-    gmx::ArrayRef<float>   h_massQInv, 
-    std::vector<double>    h_xi, // does it need to be double??
     std::vector<double>    h_vxi, 
     AtomLocality           atomLocality)
 {
@@ -647,31 +623,8 @@ void StatePropagatorDataGpu::Impl::copyNHVectorsToGpu(
     GMX_ASSERT(deviceStream != nullptr,
                "No stream is valid for copying forces with given atom locality.");
     
-    reallocateDeviceBuffer(&d_reft_,     numTemperatureGroups, &d_reftSize_, &d_reftCapacity_, deviceContext_ );
-    reallocateDeviceBuffer(&d_th_,       numTemperatureGroups, &d_thSize_,   &d_thCapacity_,   deviceContext_ );
-    reallocateDeviceBuffer(&d_xi_,       numTemperatureGroups, &d_xiSize_,   &d_xiCapacity_,   deviceContext_ );
     reallocateDeviceBuffer(&d_vxi_,      numTemperatureGroups, &d_vxiSize_,  &d_vxiCapacity_,  deviceContext_ );
-    reallocateDeviceBuffer(&d_massQInv_, numTemperatureGroups, &d_massQInvSize_,  &d_massQInvCapacity_,  deviceContext_ );
-    
-    // h_xi and h_vxi are doubles, we need to cast them to float first
-    // std::vector<float> f_xi(xi_size);
-    // std::vector<float> f_vxi(xi_size);
-    float* f_xi;
-    float* f_vxi;
-    pmalloc(reinterpret_cast<void**>(&f_xi),  sizeof(float)*xi_size);
-    pmalloc(reinterpret_cast<void**>(&f_vxi), sizeof(float)*xi_size);
-
-    std::copy(h_xi.begin(), h_xi.end(), f_xi);
-    std::copy(h_vxi.begin(), h_vxi.end(), f_vxi);
-
-    copyToDeviceBuffer(&d_xi_,  reinterpret_cast<const float*>(&f_xi[0]),  0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
-    copyToDeviceBuffer(&d_vxi_, reinterpret_cast<const float*>(&f_vxi[0]), 0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
-
-    copyToDeviceBuffer(&d_th_,   reinterpret_cast<const float*>(&(h_th[0])),       0, xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
-    copyToDeviceBuffer(&d_reft_, reinterpret_cast<const float*>(&(h_reft[0])),     0, xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
-    copyToDeviceBuffer(&d_massQInv_, reinterpret_cast<const float*>(&(h_massQInv[0])), 0, xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
-    pfree(reinterpret_cast<void*>(f_xi));
-    pfree(reinterpret_cast<void*>(f_vxi));
+    copyToDeviceBuffer(&d_vxi_, reinterpret_cast<const double*>(&h_vxi[0]), 0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
 }
 
 void StatePropagatorDataGpu::Impl::waitForcesReadyOnHost(AtomLocality atomLocality)
@@ -819,27 +772,7 @@ DeviceBuffer<RVec> StatePropagatorDataGpu::getForces()
     return impl_->getForces();
 }
 
-DeviceBuffer<float> StatePropagatorDataGpu::getReft()
-{
-    return impl_->getReft();
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::getTh()
-{
-    return impl_->getTh();
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::getMassQInv()
-{
-    return impl_->getMassQInv();
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::getXi()
-{
-    return impl_->getXi();
-}
-
-DeviceBuffer<float> StatePropagatorDataGpu::getVxi()
+DeviceBuffer<double> StatePropagatorDataGpu::getVxi()
 {
     return impl_->getVxi();
 }
@@ -886,14 +819,10 @@ void StatePropagatorDataGpu::waitForcesReadyOnHost(AtomLocality atomLocality)
 }
 
 void StatePropagatorDataGpu::copyNHVectorsToGpu(const int            numTemperatureGroups, 
-                                                gmx::ArrayRef<float> h_reft,
-                                                gmx::ArrayRef<float> h_th, 
-                                                gmx::ArrayRef<float> h_massQInv, 
-                                                std::vector<double>  h_xi,
                                                 std::vector<double>  h_vxi, 
                                                 AtomLocality         atomLocality)
 {
-    return impl_->copyNHVectorsToGpu(numTemperatureGroups, h_reft, h_th, h_massQInv, h_xi, h_vxi, atomLocality);
+    return impl_->copyNHVectorsToGpu(numTemperatureGroups, h_vxi, atomLocality);
 }
 
 const DeviceStream* StatePropagatorDataGpu::getUpdateStream()
