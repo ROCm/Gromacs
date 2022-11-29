@@ -320,31 +320,11 @@ public:
      *
      *  \returns GPU reference temperatures buffer.
      */
-    DeviceBuffer<float> getReft();
-
-     /*! \brief Get reference Ths on the GPU
-     *
-     *  \returns GPU reference Th buffer.
-     */
-    DeviceBuffer<float> getTh();
-
-    /*! \brief Get reference massQinvs on the GPU
-     *
-     *  \returns GPU reference Th buffer.
-     */
-    DeviceBuffer<float> getMassQInv();
-
-     /*! \brief Get xi buffer the GPU
-     *
-     *  \returns GPU reference xi buffer.
-     */
-    DeviceBuffer<float> getXi();
-
     /*! \brief Get vxi buffer the GPU
      *
      *  \returns GPU reference vxi buffer.
      */
-    DeviceBuffer<float> getVxi();
+    DeviceBuffer<double> getVxi();
 
     /*! \brief Copy forces to the GPU memory.
      *
@@ -411,10 +391,6 @@ public:
     /*! \brief Copies Nose-hoover auxiliary data to GPU
      */
     void copyNHVectorsToGpu(const int               numTemperatureGroups, 
-                            gmx::ArrayRef<float>    h_reft, 
-                            gmx::ArrayRef<float>    h_th, 
-                            gmx::ArrayRef<float>    h_massQInv, 
-                            std::vector<double>     h_xi, 
                             std::vector<double>     h_vxi, 
                             AtomLocality            atomLocality);
 

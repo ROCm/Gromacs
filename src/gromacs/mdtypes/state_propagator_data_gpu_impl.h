@@ -274,35 +274,11 @@ public:
      */
     DeviceBuffer<RVec> getForces();
 
-     /*! \brief Get reference temperatures on the GPU
-     *
-     *  \returns GPU reference temperatures buffer.
-     */
-    DeviceBuffer<float> getReft();
-
-     /*! \brief Get reference Ths on the GPU
-     *
-     *  \returns GPU reference Th buffer.
-     */
-    DeviceBuffer<float> getTh();
-
-     /*! \brief Get reference massQinv on the GPU
-     *
-     *  \returns GPU reference Th buffer.
-     */
-    DeviceBuffer<float> getMassQInv();
-
-     /*! \brief Get xi buffer the GPU
-     *
-     *  \returns GPU reference xi buffer.
-     */
-    DeviceBuffer<float> getXi();
-
-    /*! \brief Get vxi buffer the GPU
+     /*! \brief Get vxi buffer the GPU
      *
      *  \returns GPU reference vxi buffer.
      */
-    DeviceBuffer<float> getVxi();
+    DeviceBuffer<double> getVxi();
 
     /*! \brief Copy forces to the GPU memory.
      *
@@ -366,10 +342,6 @@ public:
      /*! \brief Copies Nose-hoover auxiliary data to GPU
      */
     void copyNHVectorsToGpu(const int               numTemperatureGroups, 
-                            gmx::ArrayRef<float>    h_reft, 
-                            gmx::ArrayRef<float>    h_th, 
-                            gmx::ArrayRef<float>    h_massQInv, 
-                            std::vector<double>     h_xi, 
                             std::vector<double>     h_vxi, 
                             AtomLocality            atomLocality);
 
@@ -478,36 +450,12 @@ private:
     //! Period of temperature coupling (can be > 1 for Nose-Hoover)
     int numTemperatureCouplingSteps_;
 
-    //! Device buffer to reference temperatures
-    DeviceBuffer<float> d_reft_;
-    //! Number of particles saved in the reft buffer
-    int d_reftSize_ = -1;
-    //! Allocation size for the reft buffer
-    int d_reftCapacity_ = -1;
-    //! TODO
-    DeviceBuffer<float> d_th_;
-    //! Number of particles saved in the th buffer
-    int d_thSize_ = -1;
-    //! Allocation size for the force buffer
-    int d_thCapacity_ = -1;
-    //! Device buffer to Nose-hoover ref xi values - todo better description here 
-    DeviceBuffer<float> d_xi_;
-    //! Number of particles saved in the xi buffer
-    int d_xiSize_ = -1;
-    //! Allocation size for the xi buffer
-    int d_xiCapacity_ = -1;
     //! Device buffer to Nose-hoover ref vxi values - todo better description here
-    DeviceBuffer<float> d_vxi_;
+    DeviceBuffer<double> d_vxi_;
     //! Number of particles saved in the xi buffer
     int d_vxiSize_ = -1;
     //! Allocation size for the xi buffer
     int d_vxiCapacity_ = -1;
-    //! Device buffer to Nose-hoover massQInv values - todo better description here
-    DeviceBuffer<float> d_massQInv_;
-    //! Number of particles saved in the xi buffer
-    int d_massQInvSize_ = -1;
-    //! Allocation size for the xi buffer
-    int d_massQInvCapacity_ = -1;
 
     /*! \brief Performs the copy of data from host to device buffer.
      *

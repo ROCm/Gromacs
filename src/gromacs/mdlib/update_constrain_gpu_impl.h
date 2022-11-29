@@ -157,11 +157,7 @@ public:
              const int                     realGridSize, 
              DeviceBuffer<real>*           d_grid, 
              DeviceBuffer<Float3>          d_f,
-             DeviceBuffer<float>           d_reft, 
-             DeviceBuffer<float>           d_th, 
-             DeviceBuffer<float>           d_massQInv, 
-             DeviceBuffer<float>           d_xi, 
-             DeviceBuffer<float>           d_vxi,
+             DeviceBuffer<double>          d_vxi,
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
 
@@ -245,16 +241,8 @@ private:
     //! Period of temperature coupling (can be > 1 for Nose-Hoover)
     int numTemperatureCouplingSteps_;
 
-    //! Local copy of the pointer to the reference temperatures
-    DeviceBuffer<float> d_reft_;
-    //! Local copy of the pointer to the TODO
-    DeviceBuffer<float> d_th_;
-    //! Local copy of the pointer to the TODO
-    DeviceBuffer<float> d_massQInv_;
-    //! Local copy of the pointer to the Nose-hoover ref xi
-    DeviceBuffer<float> d_xi_;
     //! Local copy of the pointer to the Nose_hoover ref vxi
-    DeviceBuffer<float> d_vxi_;
+    DeviceBuffer<double> d_vxi_;
 
 };
 

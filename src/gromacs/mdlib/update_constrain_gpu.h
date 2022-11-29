@@ -156,11 +156,7 @@ public:
              const int                     realGridSize, 
              DeviceBuffer<real>*           d_grid, 
              DeviceBuffer<RVec>            d_f,
-             DeviceBuffer<float>           d_reft, 
-             DeviceBuffer<float>           d_th, 
-             DeviceBuffer<float>           d_massQInv, 
-             DeviceBuffer<float>           d_xi, 
-             DeviceBuffer<float>           d_vxi,
+             DeviceBuffer<double>          d_vxi,
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
 
