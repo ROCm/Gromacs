@@ -67,18 +67,23 @@ set(MPI_ALREADY_SEARCHED TRUE CACHE BOOL "True if a search for MPI has already b
 mark_as_advanced(MPI_ALREADY_SEARCHED)
 
 if (GMX_LIB_MPI)
-    if (NOT MPI_CXX_FOUND)
+    if (NOT MPI_CXX_FOUND AND NOT GMX_ON_LUMI_EAP)
         message(FATAL_ERROR
                 "MPI support requested, but no suitable MPI compiler found. Either set the "
                 "MPI_CXX_COMPILER to the MPI compiler wrapper (often called mpicxx or mpic++), "
                 "set CMAKE_CXX_COMPILER to a default-MPI-enabled compiler, "
                 "or set the variables reported missing for MPI_CXX above.")
-    elseif (MPI_CXX_VERSION VERSION_LESS 2.0)
-        message(FATAL_ERROR "MPI version 2.0 or higher is required. Please update your MPI library.")
+    #elseif (MPI_CXX_VERSION VERSION_LESS 2.0)
+    #    message(FATAL_ERROR "MPI version 2.0 or higher is required. Please update your MPI library.")
     endif ()
     #TODO(#3672, #3776): These should be acquired through the MPI::MPI_CXX target.
-    include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
-    list(APPEND GMX_COMMON_LIBRARIES ${MPI_CXX_LIBRARIES})
+    include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH} $ENV{MPICH_DIR}/include)
+    list(APPEND GMX_COMMON_LIBRARIES ${MPI_CXX_LIBRARIES} -L${MPICH_DIR}/lib -lmpi -L${CRAY_MPICH_ROOTDIR}/gtl/lib -lmpi_gtl_hsa)
+    if (GMX_ON_LUMI_EAP)
+        include_directories(SYSTEM  $ENV{MPICH_DIR}/include)
+        list(APPEND GMX_COMMON_LIBRARIES -L$ENV{MPICH_DIR}/lib -lmpi -L$ENV{CRAY_MPICH_ROOTDIR}/gtl/lib -lmpi_gtl_hsa)
+    endif()
+
 endif ()
 
 # Identify particular MPI implementations of interest (for compatibility checks).
