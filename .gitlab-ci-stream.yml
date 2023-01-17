@@ -1,0 +1,301 @@
+# MIT License
+#
+# Copyright (c) 2017-2020 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+stages:
+  - build
+  - test
+  - validation
+
+variables:
+  SUDO_CMD: "" # Must be "sudo" on images which don't use root user
+  DEPS_DIR: "$CI_PROJECT_DIR/__dependencies"
+  CMAKE_URL: "https://cmake.org/files/v3.17/cmake-3.17.0-Linux-x86_64.tar.gz"
+  # General build flags
+  CXXFLAGS: ""
+  CMAKE_OPTIONS: ""
+  # Local build options
+  LOCAL_CXXFLAGS: ""
+  LOCAL_CMAKE_OPTIONS: ""
+
+# hipCUB with rocPRIM backend
+.rocm:
+  variables:
+    SUDO_CMD: "sudo -E"
+  image: rocm/rocm-terminal:latest
+  before_script:
+    # We need to duplicate before script
+    - $SUDO_CMD sh -c 'echo -e "gfx803\ngfx900\ngfx906\ngfx908\ngfx1030" >> /opt/rocm/bin/target.lst'
+    - $SUDO_CMD apt-get update -qq
+    - $SUDO_CMD sudo apt install -y -qq libidn11 wget tar xz-utils bzip2 libnuma-dev libunwind-dev git build-essential pkg-config ninja-build ca-certificates kmod hipfft rocfft libfftw3-dev mpich rocprim
+    - hipconfig
+    - rocm-smi -i
+    - export PATH=/opt/rocm/bin:$PATH
+    # cmake
+    - mkdir -p $DEPS_DIR/cmake
+    - wget --no-check-certificate --quiet -O - $CMAKE_URL | tar --strip-components=1 -xz -C $DEPS_DIR/cmake
+    - export PATH=$DEPS_DIR/cmake/bin:$PATH
+    # Combine global build options with local options
+    - export CXXFLAGS=$CXXFLAGS" "$LOCAL_CXXFLAGS
+    - export CMAKE_OPTIONS=$CXXFLAGS" "$LOCAL_CMAKE_OPTIONS
+    - python3 --version
+
+.rocm-python:
+  variables:
+    SUDO_CMD: "sudo -E"
+  image: rocm/rocm-terminal:latest
+  before_script:
+    # We need to duplicate before script
+    - $SUDO_CMD sh -c 'echo -e "gfx803\ngfx900\ngfx906\ngfx908\ngfx1030" >> /opt/rocm/bin/target.lst'
+    - $SUDO_CMD apt-get update -qq
+    - $SUDO_CMD sudo apt install -y software-properties-common
+    - $SUDO_CMD add-apt-repository ppa:deadsnakes/ppa
+    - $SUDO_CMD apt-get update -qq
+    - $SUDO_CMD sudo apt install -y -qq libidn11 wget tar xz-utils bzip2 libnuma-dev libunwind-dev git build-essential pkg-config ninja-build ca-certificates kmod hipfft rocfft libfftw3-dev mpich rocprim python3.9 python3.9-venv python3.9-dev
+    - $SUDO_CMD update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+    - $SUDO_CMD sudo apt install -y -qq python3-setuptools  libblas3 liblapack3 liblapack-dev libblas-dev gfortran libatlas-base-dev
+    - $SUDO_CMD pip3 --version
+    - $SUDO_CMD pip3 install setuptools
+    - $SUDO_CMD pip3 install --upgrade setuptools
+    - $SUDO_CMD pip3 install --upgrade pip
+    - $SUDO_CMD pip3 install --upgrade distlib
+    - $SUDO_CMD pip3 install cython
+    - $SUDO_CMD pip3 install numpy
+    - $SUDO_CMD pip3 install pybind11
+    - $SUDO_CMD pip3 install mkl
+    - $SUDO_CMD pip3 install pythran-openblas
+    - $SUDO_CMD pip3 install scipy
+    - $SUDO_CMD pip3 install pymbar
+    - $SUDO_CMD pip3 install six
+    - hipconfig
+    - rocm-smi -i
+    - export PATH=/opt/rocm/bin:$PATH
+    # cmake
+    - mkdir -p $DEPS_DIR/cmake
+    - wget --no-check-certificate --quiet -O - $CMAKE_URL | tar --strip-components=1 -xz -C $DEPS_DIR/cmake
+    - export PATH=$DEPS_DIR/cmake/bin:$PATH
+    # Combine global build options with local options
+    - export CXXFLAGS=$CXXFLAGS" "$LOCAL_CXXFLAGS
+    - export CMAKE_OPTIONS=$CXXFLAGS" "$LOCAL_CMAKE_OPTIONS
+    - python3 --version
+
+build:rocm-tmpi-mi100:
+  extends: .rocm
+  stage: build
+  when: manual
+  tags:
+    - rocm-build
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=off
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
+      -DGMX_SIMD=AVX2_256
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DGMX_PHYSICAL_VALIDATION=OFF
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 60
+  artifacts:
+    paths:
+      - build
+    expire_in: 2 weeks
+
+test:rocm-tmpi-mi100:
+  extends: .rocm
+  stage: test
+  needs:
+    - build:rocm-tmpi-mi100
+  tags:
+    - mi100
+  script:
+    - cd build
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 4 check
+
+build:rocm-mpi-mi100:
+  extends: .rocm
+  stage: build
+  when: manual
+  tags:
+    - rocm-build
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=on
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
+      -DGMX_SIMD=AVX2_256
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 60
+  artifacts:
+    paths:
+      - build
+    expire_in: 2 weeks
+
+test:rocm-mpi-mi100:
+  extends: .rocm
+  stage: test
+  needs:
+    - build:rocm-mpi-mi100
+  tags:
+    - mi100
+  script:
+    - cd build
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 4 check
+
+build:rocm-tmpi-navi:
+  extends: .rocm
+  stage: build
+  when: manual
+  tags:
+    - rocm-build
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=off
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
+      -DGMX_SIMD=AVX2_256
+      -DGMX_NAVI_BUILD=ON
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 60
+  artifacts:
+    paths:
+      - build
+    expire_in: 2 weeks
+
+test:rocm-tmpi-navi:
+  extends: .rocm
+  stage: test
+  needs:
+    - build:rocm-tmpi-navi
+  tags:
+    - rx6900
+  script:
+    - cd build
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 4 check
+
+build:rocm-mpi-navi:
+  extends: .rocm
+  stage: build
+  when: manual
+  tags:
+    - rocm-build
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=on
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
+      -DGMX_SIMD=AVX2_256
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DGMX_NAVI_BUILD=ON
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 60
+  artifacts:
+    paths:
+      - build
+    expire_in: 2 weeks
+
+test:rocm-mpi-navi:
+  extends: .rocm
+  stage: test
+  needs:
+    - build:rocm-mpi-navi
+  tags:
+    - rx6900
+  script:
+    - cd build
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make -j 4 check
+
+validation:rocm-tmpi-mi100:
+  extends: .rocm-python
+  timeout: 6h
+  stage: validation
+  when: manual
+  tags:
+    - mi100
+  script:
+    - mkdir build
+    - cd build
+    - cmake
+      -DBUILD_SHARED_LIBS=ON
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_C_COMPILER=gcc
+      -DCMAKE_CXX_COMPILER=g++
+      -DGMX_MPI=off
+      -DGMX_GPU=HIP
+      -DGMX_OPENMP=on
+      -DGMX_GPU_USE_VKFFT=on
+      -DGMX_BUILD_UNITTESTS=ON
+      -DBUILD_TESTING=ON
+      -DGMX_SIMD=AVX2_256
+      -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DGMX_PHYSICAL_VALIDATION=ON
+      -DCMAKE_PREFIX_PATH=/opt/rocm ..
+    - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
+    - make check-phys -j 4
+  artifacts:
+    paths:
+      - build
+    expire_in: 2 weeks

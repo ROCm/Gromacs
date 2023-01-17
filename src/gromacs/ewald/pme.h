@@ -524,4 +524,9 @@ GPU_FUNC_QUALIFIER DeviceBuffer<gmx::RVec> pme_gpu_get_device_f(const gmx_pme_t*
 GPU_FUNC_QUALIFIER GpuEventSynchronizer* pme_gpu_get_f_ready_synchronizer(const gmx_pme_t* GPU_FUNC_ARGUMENT(pme))
         GPU_FUNC_TERM_WITH_RETURN(nullptr);
 
+GPU_FUNC_QUALIFIER void pme_register_grid_and_size(
+        const gmx_pme_t*    GPU_FUNC_ARGUMENT(pme),
+        int*                GPU_FUNC_ARGUMENT(realGridSize),
+        DeviceBuffer<real>* GPU_FUNC_ARGUMENT(d_grid)) GPU_FUNC_TERM;
+
 #endif

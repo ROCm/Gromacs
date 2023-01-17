@@ -291,7 +291,7 @@ std::unique_ptr<nonbonded_verlet_t> createNbnxmCPU(const size_t              num
 
     PairlistParams pairlistParams(kernelSetup.kernelType, false, options.pairlistCutoff, false);
 
-    auto pairlistSets = std::make_unique<PairlistSets>(pairlistParams, false, 0);
+    auto pairlistSets = std::make_unique<PairlistSets>(pairlistParams, false, 0, INT_MAX);
     auto pairSearch   = std::make_unique<PairSearch>(
             PbcType::Xyz, false, nullptr, nullptr, pairlistParams.pairlistType, false, numThreads, pinPolicy);
 
@@ -345,7 +345,7 @@ std::unique_ptr<nonbonded_verlet_t> createNbnxmGPU(const size_t               nu
     // minimum iList count for GPU balancing
     int iListCount = Nbnxm::gpu_min_ci_balanced(nbnxmGpu);
 
-    auto pairlistSets = std::make_unique<PairlistSets>(pairlistParams, false, iListCount);
+    auto pairlistSets = std::make_unique<PairlistSets>(pairlistParams, false, iListCount, INT_MAX);
     auto pairSearch   = std::make_unique<PairSearch>(
             PbcType::Xyz, false, nullptr, nullptr, pairlistParams.pairlistType, false, options.numOpenMPThreads, pinPolicy);
 

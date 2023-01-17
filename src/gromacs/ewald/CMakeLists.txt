@@ -80,6 +80,29 @@ if (GMX_GPU_CUDA)
         pme_force_sender_gpu_impl_gpu.cpp
         pme_coordinate_receiver_gpu_impl_gpu.cpp
         )
+elseif (GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+        # HIP-specific sources
+        pme_gather.hip.cpp
+        pme_solve.hip.cpp
+        pme_spread.hip.cpp
+        pme_gpu_program_impl.hip.cpp
+        pme_pp_comm_gpu_impl_gpu.cpp
+        pme_pp_comm_gpu_impl_gpu.hip.cpp
+        pme_force_sender_gpu_impl_gpu.cpp
+        pme_force_sender_gpu_impl_gpu.hip.cpp
+        pme_coordinate_receiver_gpu_impl_gpu.cpp
+        pme_gpu_grid.hip.cpp
+        # GPU-specific sources
+        pme_gpu.cpp
+        pme_gpu_internal.cpp
+        pme_gpu_timings.cpp
+        )
+    _gmx_add_files_to_property(HIP_SOURCES
+        # Must add these files so they can include device_information.h
+        pme_gpu_internal.cpp
+        pme_gpu_timings.cpp
+        )
 elseif (GMX_GPU_OPENCL)
     gmx_add_libgromacs_sources(
         # OpenCL-specific sources
@@ -152,6 +175,13 @@ target_link_libraries(ewald INTERFACE
 #target_link_libraries(ewald PUBLIC legacy_api)
 #target_link_libraries(ewald PRIVATE common)
 
+# Module dependencies
+# This module convey transitive dependence on these modules.
+#target_link_libraries(ewald PUBLIC
+target_link_libraries(ewald INTERFACE
+                      timing
+                      #                      utility
+                      )
 # Source files have the following private module dependencies.
 #target_link_libraries(ewald PRIVATE tng_io)
 # TODO: Explicitly link specific modules.

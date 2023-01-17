@@ -90,6 +90,8 @@ const char* const g_specifyEverythingFormatString =
         "better to use mdrun -gpu_id. Otherwise, setting the "
 #    if GMX_GPU_CUDA
         "CUDA_VISIBLE_DEVICES"
+#    elif GMX_GPU_HIP
+        "HIP_VISIBLE_DEVICES"
 #    elif GMX_GPU_OPENCL
         // Technically there is no portable way to do this offered by the
         // OpenCL standard, but the only current relevant case for GROMACS
@@ -668,9 +670,9 @@ bool decideWhetherToUseGpuForUpdate(const bool           isDomainDecomposition,
     {
         errorMessage += "Compatible GPUs must have been found.\n";
     }
-    if (!(GMX_GPU_CUDA || GMX_GPU_SYCL))
+    if (!(GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_SYCL))
     {
-        errorMessage += "Only CUDA and SYCL builds are supported.\n";
+        errorMessage += "Only CUDA, HIP and SYCL builds are supported.\n";
     }
     if (inputrec.eI != IntegrationAlgorithm::MD)
     {
@@ -790,7 +792,7 @@ bool decideWhetherDirectGpuCommunicationCanBeUsed(const DevelopmentFeatureFlags&
                                                   bool                           haveSwapCoords,
                                                   const gmx::MDLogger&           mdlog)
 {
-    const bool buildSupportsDirectGpuComm = (GMX_GPU_CUDA || GMX_GPU_SYCL) && GMX_MPI;
+    const bool buildSupportsDirectGpuComm = (GMX_GPU_CUDA || GMX_GPU_SYCL || GMX_GPU_HIP) && GMX_MPI;
     if (!buildSupportsDirectGpuComm)
     {
         return false;

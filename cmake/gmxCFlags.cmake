@@ -264,6 +264,7 @@ macro (gmx_c_flags)
     endif()
     # g++
     if(CMAKE_COMPILER_IS_GNUCXX)
+        GMX_TEST_CXXFLAG(CXXFLAGS_GDB "-ggdb" GMXC_CXXFLAGS)
         if(NOT GMX_OPENMP)
             GMX_TEST_CXXFLAG(CXXFLAGS_PRAGMA "-Wno-unknown-pragmas" GMXC_CXXFLAGS)
         endif()

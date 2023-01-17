@@ -84,7 +84,7 @@ void PmeForceSenderGpu::Impl::setForceSendBuffer(DeviceBuffer<Float3> d_f)
 {
 
     // Need to send address to PP rank only for thread-MPI as PP rank pulls
-    // data using cudamemcpy
+    // data using cudamemcpy or hipmemcpy
     if (!GMX_THREAD_MPI)
     {
         return;
@@ -92,7 +92,7 @@ void PmeForceSenderGpu::Impl::setForceSendBuffer(DeviceBuffer<Float3> d_f)
     GMX_ASSERT(!GMX_GPU_SYCL,
                "PmeForceSenderGpu does not support SYCL with threadMPI; use libMPI instead.");
 
-#if GMX_MPI && GMX_GPU_CUDA
+#if GMX_MPI && GMX_GPU_CUDA && GMX_GPU_HIP
 
     int ind_start = 0;
     int ind_end   = 0;

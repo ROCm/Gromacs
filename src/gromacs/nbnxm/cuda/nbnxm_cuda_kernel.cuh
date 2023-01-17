@@ -321,6 +321,8 @@ __launch_bounds__(THREADS_PER_BLOCK)
     sci            = nb_sci.sci;           /* super-cluster */
     cijPackedBegin = nb_sci.cjPackedBegin; /* first ...*/
     cijPackedEnd   = nb_sci.cjPackedEnd;   /* and last index of j clusters */
+    // TODO 
+    //cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
 
     // We may need only a subset of threads active for preloading i-atoms
     // depending on the super-cluster and cluster / thread-block size.

@@ -87,7 +87,7 @@ static constexpr int c_gpuNumClusterPerCell =
  * On architectures with 64-wide execution however it is better to avoid splitting
  * (e.g. AMD GCN, CDNA and later).
  */
-#if GMX_GPU_NB_DISABLE_CLUSTER_PAIR_SPLIT
+#if GMX_GPU_NB_DISABLE_CLUSTER_PAIR_SPLIT || GMX_NAVI_BUILD
 static constexpr int c_nbnxnGpuClusterpairSplit = 1;
 #else
 static constexpr int c_nbnxnGpuClusterpairSplit = 2;

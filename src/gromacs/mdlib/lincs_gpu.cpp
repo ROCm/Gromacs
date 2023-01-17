@@ -125,8 +125,8 @@ LincsGpu::LincsGpu(int                  numIterations,
                    const DeviceStream&  deviceStream) :
     deviceContext_(deviceContext), deviceStream_(deviceStream)
 {
-    GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_SYCL),
-                       "LINCS GPU is only implemented in CUDA and SYCL.");
+    GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_HIP) || bool(GMX_GPU_SYCL),
+                       "LINCS GPU is only implemented in CUDA, HIP and SYCL.");
     kernelParams_.numIterations  = numIterations;
     kernelParams_.expansionOrder = expansionOrder;
 
@@ -221,8 +221,8 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     GMX_ASSERT(!(numAtoms == 0 && !idef.il[F_CONSTR].empty()),
                "The number of atoms needs to be > 0 if there are constraints in the domain.");
 
-    GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_SYCL),
-                       "LINCS GPU is only implemented in CUDA and SYCL.");
+    GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_HIP) || bool(GMX_GPU_SYCL),
+                       "LINCS GPU is only implemented in CUDA, HIP and SYCL.");
     // List of constrained atoms (CPU memory)
     std::vector<AtomPair> constraintsHost;
     // Equilibrium distances for the constraints (CPU)

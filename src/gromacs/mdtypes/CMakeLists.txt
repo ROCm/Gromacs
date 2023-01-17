@@ -61,6 +61,11 @@ if(GMX_GPU)
            state_propagator_data_gpu_impl_gpu.cpp
            )
    endif()
+   if(GMX_GPU_HIP)
+       _gmx_add_files_to_property(HIP_SOURCES
+           state_propagator_data_gpu_impl_gpu.cpp
+           )
+   endif()
    if(GMX_GPU_SYCL)
        _gmx_add_files_to_property(SYCL_SOURCES
            state_propagator_data_gpu_impl_gpu.cpp

@@ -80,6 +80,10 @@
 #    include "pme.cuh"
 #endif
 
+#if GMX_GPU_HIP
+#    include "pme.hpp"
+#endif
+
 #include "pme_gpu_calculate_splines.h"
 #include "pme_gpu_constants.h"
 #include "pme_gpu_grid.h"
@@ -300,7 +304,7 @@ void pme_gpu_realloc_and_copy_input_coefficients(const PmeGpu* pmeGpu,
         GMX_ASSERT(h_coefficients, "Bad host-side charge buffer in PME GPU");
         GMX_ASSERT(newCoefficientsSize > 0, "Bad number of atoms in PME GPU");
         copyToDeviceBuffer(&pmeGpu->kernelParams->atoms.d_coefficients[gridIndex],
-                           h_coefficients,
+                           const_cast<float*>(h_coefficients),
                            0,
                            pmeGpu->kernelParams->atoms.nAtoms,
                            pmeGpu->archSpecific->pmeStream_,
@@ -655,7 +659,7 @@ void pme_gpu_realloc_and_copy_fract_shifts(PmeGpu* pmeGpu)
 void pme_gpu_free_fract_shifts(const PmeGpu* pmeGpu)
 {
     auto* kernelParamsPtr = pmeGpu->kernelParams.get();
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     destroyParamLookupTable(&kernelParamsPtr->grid.d_fractShiftsTable,
                             &kernelParamsPtr->fractShiftsTableTexture);
     destroyParamLookupTable(&kernelParamsPtr->grid.d_gridlineIndicesTable,
@@ -779,14 +783,14 @@ static void pme_gpu_init_internal(PmeGpu* pmeGpu, const DeviceContext& deviceCon
 
     // Use in-place FFT with cuFFTMp or DBFFT.
     pmeGpu->archSpecific->performOutOfPlaceFFT =
-            !((pmeGpu->settings.useDecomposition && GMX_USE_cuFFTMp) || GMX_GPU_FFT_DBFFT);
+            true;//!((pmeGpu->settings.useDecomposition && GMX_USE_cuFFTMp) || GMX_GPU_FFT_DBFFT);
 
     /* This should give better performance, according to the cuFFT documentation.
      * The performance seems to be the same though.
      * TODO: PME could also try to pick up nice grid sizes (with factors of 2, 3, 5, 7).
      */
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     pmeGpu->kernelParams->usePipeline       = char(false);
     pmeGpu->kernelParams->pipelineAtomStart = 0;
     pmeGpu->kernelParams->pipelineAtomEnd   = 0;
@@ -848,6 +852,28 @@ static gmx::FftBackend getFftBackend(const PmeGpu* pmeGpu)
                         false,
                         "Gromacs must be built with cuFFTMp or Heffte to enable GPU-based "
                         "PME decomposition on CUDA-compatible GPUs");
+                return gmx::FftBackend::Count;
+            }
+        }
+    }
+    else if (GMX_GPU_HIP)
+    {
+        if (!pmeGpu->settings.useDecomposition)
+        {
+            return gmx::FftBackend::Hipfft;
+        }
+        else
+        {
+            if (GMX_USE_Heffte)
+            {
+                return gmx::FftBackend::HeFFTe_HIP;
+            }
+            else
+            {
+                GMX_RELEASE_ASSERT(
+                        false,
+                        "Gromacs must be built with cuFFTMp or Heffte to enable GPU-based "
+                        "PME decomposition on HIP-compatible GPUs");
                 return gmx::FftBackend::Count;
             }
         }
@@ -2088,7 +2114,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     const int warpSize  = pmeGpu->programHandle_->warpSize();
     const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
-    static_assert(!GMX_GPU_CUDA || c_solveMaxWarpsPerBlock / 2 >= 4,
+    static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
                   "The CUDA solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");
 
@@ -2426,4 +2452,10 @@ GpuEventSynchronizer* pme_gpu_get_forces_ready_synchronizer(const PmeGpu* pmeGpu
     {
         return nullptr;
     }
+}
+
+void pme_set_grid_and_size(const PmeGpu* pmeGpu, int* realGridSize, DeviceBuffer<real>* d_grid){
+    *realGridSize =  pmeGpu->archSpecific->realGridSize[0];
+    *d_grid        = pmeGpu->kernelParams->grid.d_realGrid[0];
+    // fprintf(stderr, "setting realGridSize to %d and d_grid to %p\n", *realGridSize, *d_grid);
 }

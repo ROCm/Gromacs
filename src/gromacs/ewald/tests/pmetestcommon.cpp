@@ -132,9 +132,9 @@ PmeSafePointer pmeInitWrapper(const t_inputrec*    inputRec,
                               const real           ewaldCoeff_lj)
 {
     const MDLogger dummyLogger;
-    const matrix   dummyBox = { { 0 } };
-    const auto     runMode  = (mode == CodePath::CPU) ? PmeRunMode::CPU : PmeRunMode::Mixed;
-    t_commrec      dummyCommrec;
+    const matrix   dummyBox      = { { 0 } };
+    const auto     runMode       = (mode == CodePath::CPU) ? PmeRunMode::CPU : PmeRunMode::Mixed;
+    t_commrec      dummyCommrec  = { 0 };
     NumPmeDomains  numPmeDomains = { 1, 1 };
     // TODO: Need to use proper value when GPU PME decomposition code path is tested
     const real     haloExtentForAtomDisplacement = 1.0;
@@ -605,7 +605,7 @@ static void pme_gpu_transform_spline_atom_data(const PmeGpu*      pmeGpu,
     const auto      atomCount    = atc->numAtoms();
     const auto      atomsPerWarp = pme_gpu_get_atoms_per_warp(pmeGpu);
     GMX_RELEASE_ASSERT(atomsPerWarp > 0, "Can not get GPU warp size");
-    const auto pmeOrder = pmeGpu->common->pme_order;
+    const auto      pmeOrder     = pmeGpu->common->pme_order;
     GMX_ASSERT(pmeOrder == c_pmeGpuOrder, "Only PME order 4 is implemented");
 
     real*  cpuSplineBuffer;

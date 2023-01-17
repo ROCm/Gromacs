@@ -138,4 +138,7 @@ bool decideGpuTimingsUsage();
 CUDA_FUNC_QUALIFIER
 void checkPendingDeviceErrorBetweenSteps() CUDA_FUNC_TERM;
 
+void hipRangePush(const char* msg);
+void hipRangePop();
+
 #endif

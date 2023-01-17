@@ -131,7 +131,7 @@ bool inputSupportsListedForcesGpu(const t_inputrec& ir, const gmx_mtop_t& mtop, 
     return errorReasons.isEmpty();
 }
 
-#if !GMX_GPU_CUDA && !GMX_GPU_SYCL
+#if !GMX_GPU_CUDA && !GMX_GPU_SYCL && !GMX_GPU_HIP
 
 class ListedForcesGpu::Impl
 {

@@ -70,7 +70,10 @@ public:
      *
      * \throws InternalError  If any of the required resources could not be initialized.
      */
-    Impl(const DeviceInformation& deviceInfo, SimulationWorkload simulationWork, bool useTiming);
+    Impl(const DeviceInformation& deviceInfo,
+         SimulationWorkload       simulationWork,
+         bool                     useTiming,
+	     bool hasPme, bool hasPP);
     ~Impl();
 
     //! Device context.
@@ -84,15 +87,18 @@ public:
 // DeviceStreamManager::Impl
 DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
                                 const SimulationWorkload simulationWork,
-                                const bool               useTiming) :
+                                const bool               useTiming,
+                                const bool               hasPme, 
+                                const bool               hasPP) :
     context_(deviceInfo), havePpDomainDecomposition_(simulationWork.havePpDomainDecomposition)
 {
     try
     {
+	if (hasPP)
         streams_[DeviceStreamType::NonBondedLocal] =
                 std::make_unique<DeviceStream>(context_, DeviceStreamPriority::Normal, useTiming);
 
-        if (simulationWork.useGpuPme)
+        if (simulationWork.useGpuPme && hasPme)
         {
             /* Creating a PME GPU stream:
              * - default high priority with CUDA
@@ -137,8 +143,10 @@ DeviceStreamManager::Impl::~Impl()
 // DeviceStreamManager
 DeviceStreamManager::DeviceStreamManager(const DeviceInformation& deviceInfo,
                                          const SimulationWorkload simulationWork,
-                                         const bool               useTiming) :
-    impl_(new Impl(deviceInfo, simulationWork, useTiming))
+                                         const bool               useTiming,
+					                     const bool               hasPme, 
+                                         const bool               hasPP) :
+    impl_(new Impl(deviceInfo, simulationWork, useTiming, hasPme, hasPP))
 {
 }
 

@@ -34,9 +34,14 @@
 add_library(utility INTERFACE)
 
 file(GLOB UTILITY_SOURCES *.cpp)
+list(FILTER UTILITY_SOURCES EXCLUDE REGEX "\\.hip.cpp$")
+
 if (GMX_GPU_CUDA)
     set_source_files_properties(cuda_version_information.cu PROPERTIES LANGUAGE CUDA)
     set_property(GLOBAL APPEND PROPERTY GMX_LIBGROMACS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cuda_version_information.cu)
+endif ()
+if (GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(hip_version_information.hip.cpp)
 endif ()
 if (GMX_GPU_SYCL)
     _gmx_add_files_to_property(SYCL_SOURCES

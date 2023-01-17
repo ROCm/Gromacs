@@ -35,6 +35,7 @@
 add_library(domdec INTERFACE)
 file(GLOB DOMDEC_SOURCES *.cpp)
 list(FILTER DOMDEC_SOURCES EXCLUDE REGEX ".*/gpuhaloexchange_impl_gpu[a-z_]*\.cpp$")
+list(FILTER DOMDEC_SOURCES EXCLUDE REGEX "\\.hip.cpp$")
 
 if(GMX_GPU_SYCL)
     file(GLOB DOMDEC_GPU_SOURCES gpuhaloexchange_impl_gpu.cpp gpuhaloexchange_impl_gpu_sycl.cpp)
@@ -43,6 +44,9 @@ endif()
 if(GMX_GPU_CUDA)
   file(GLOB DOMDEC_GPU_SOURCES gpuhaloexchange_impl_gpu.cpp gpuhaloexchange_impl_gpu.cu)
   _gmx_add_files_to_property(CUDA_SOURCES gpuhaloexchange_impl_gpu.cpp)
+elseif(GMX_GPU_HIP)
+  file(GLOB DOMDEC_GPU_SOURCES gpuhaloexchange_impl_gpu.cpp gpuhaloexchange_impl_gpu.hip.cpp)
+  _gmx_add_files_to_property(HIP_SOURCES gpuhaloexchange_impl_gpu.cpp)
 endif()
 
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${DOMDEC_SOURCES} ${DOMDEC_GPU_SOURCES} PARENT_SCOPE)

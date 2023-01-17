@@ -53,6 +53,11 @@ if(GMX_GPU_CUDA)
     _gmx_add_files_to_property(CUDA_SOURCES
       listed_forces_gpu_impl_gpu.cpp
       )
+elseif(GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+       listed_forces_gpu_impl.hip.cpp
+       listed_forces_gpu_internal.hip.cpp
+       )
 endif()
 
 if (GMX_GPU_SYCL)

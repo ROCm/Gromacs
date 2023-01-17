@@ -599,5 +599,8 @@ GPU_FUNC_QUALIFIER PmeOutput pme_gpu_wait_finish_task(gmx_pme_t* GPU_FUNC_ARGUME
                                                       real           GPU_FUNC_ARGUMENT(lambdaQ),
                                                       gmx_wallcycle* GPU_FUNC_ARGUMENT(wcycle))
         GPU_FUNC_TERM_WITH_RETURN(PmeOutput{});
+GPU_FUNC_QUALIFIER void pme_set_grid_and_size(const PmeGpu*       GPU_FUNC_ARGUMENT(pmeGpu),
+                                              int*                GPU_FUNC_ARGUMENT(realGridSize),
+                                              DeviceBuffer<real>* GPU_FUNC_ARGUMENT(d_grid)) GPU_FUNC_TERM;
 
 #endif

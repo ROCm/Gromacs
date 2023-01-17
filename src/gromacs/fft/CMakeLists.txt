@@ -77,7 +77,21 @@ if (GMX_GPU_CUDA)
         _gmx_add_files_to_property(CUDA_SOURCES
             # Must add this files as it requires path set in cuda_include_directories
             gpu_3dfft_cufftmp.cpp
+        
+elseif (GMX_GPU_HIP)
+    gmx_add_libgromacs_sources(
+        # HIP-specific sources
+        gpu_3dfft_hipfft.hip.cpp
         )
+    _gmx_add_files_to_property(HIP_SOURCES
+        # Must add these files so they can include hip_runtime.h
+        gpu_3dfft.cpp
+        )
+elseif (GMX_GPU_OPENCL)
+    gmx_add_libgromacs_sources(
+        # OpenCL-specific sources
+        gpu_3dfft_ocl.cpp
+
     endif()
 elseif (GMX_GPU_OPENCL)
     if (GMX_GPU_FFT_VKFFT)

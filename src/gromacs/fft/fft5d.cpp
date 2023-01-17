@@ -425,7 +425,7 @@ fft5d_plan fft5d_plan_3d(int                NG,
     if (!(flags & FFT5D_NOMALLOC))
     {
         // only needed for PME GPU mixed mode
-        if ((GMX_GPU_CUDA || GMX_GPU_SYCL)
+        if ((GMX_GPU_CUDA || GMX_GPU_SYCL || GMX_GPU_HIP)
             && realGridAllocationPinningPolicy == gmx::PinningPolicy::PinnedIfSupported)
         {
             const std::size_t numBytes = lsize * sizeof(t_complex);

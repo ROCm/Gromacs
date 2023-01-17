@@ -186,7 +186,7 @@ void
         /* x, f and fshift are assumed to be stored with stride 3 */
         const int ishf   = ish * DIM;
         const int cjind0 = ciEntry.cj_ind_start;
-        const int cjind1 = ciEntry.cj_ind_end;
+        const int cjind1 = ciEntry.cjIndEnd();
         /* Currently only works super-cells equal to sub-cells */
         const int ci    = ciEntry.ci;
         const int ci_sh = (ish == gmx::c_centralShiftIndex ? ci : -1);

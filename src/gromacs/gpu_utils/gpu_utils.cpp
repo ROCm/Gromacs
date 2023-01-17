@@ -60,7 +60,7 @@ const char* enumValueToString(GpuApiCallBehavior enumValue)
 
 bool decideGpuTimingsUsage()
 {
-    if (GMX_GPU_CUDA || GMX_GPU_SYCL)
+    if (GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_SYCL)
     {
         /* CUDA: timings are incorrect with multiple streams.
          * This is the main reason why they are disabled by default.
