@@ -58,6 +58,9 @@ elseif(GMX_GPU_HIP)
        listed_forces_gpu_impl.hip.cpp
        listed_forces_gpu_internal.hip.cpp
        )
+    _gmx_add_files_to_property(HIP_SOURCES
+       listed_forces_gpu_impl_gpu.cpp
+       )
 endif()
 
 if (GMX_GPU_SYCL)

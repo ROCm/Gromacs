@@ -89,16 +89,11 @@ if(GMX_GPU_HIP)
        update_constrain_gpu_internal.hip.cpp
        )
     _gmx_add_files_to_property(HIP_SOURCES
-        gpuforcereduction_impl.cpp
-        gpuforcereduction_impl_internal.hip.cpp
-        leapfrog_gpu.cpp
-        leapfrog_gpu_internal.hip.cpp
-        lincs_gpu.cpp
-        lincs_gpu_internal.hip.cpp
-        settle_gpu.cpp
-        settle_gpu_internal.hip.cpp
-        update_constrain_gpu_impl.cpp
-        update_constrain_gpu_internal.hip.cpp
+       gpuforcereduction_impl.cpp
+       leapfrog_gpu.cpp
+       lincs_gpu.cpp
+       settle_gpu.cpp
+       update_constrain_gpu_impl.cpp
        )
 endif()
 if(GMX_GPU_SYCL)

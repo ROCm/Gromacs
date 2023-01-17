@@ -169,7 +169,7 @@ static constexpr int c_solveMaxThreadsPerBlock = c_solveMaxWarpsPerBlock * warp_
 //! Gathering max block size in threads
 static constexpr int c_gatherMaxThreadsPerBlock = c_gatherMaxWarpsPerBlock * warp_size;
 
-#    if !GMX_GPU_HIP // GMX_GPU_CUDA
+#    if GMX_GPU_CUDA // GMX_GPU_CUDA
 //! Gathering min blocks per CUDA multiprocessor (determined empirically to give best performance)
 #        if GMX_PTX_ARCH >= 800
 static constexpr int c_gatherMinBlocksPerMP = 12;
@@ -180,4 +180,6 @@ static constexpr int c_gatherMinBlocksPerMP = GMX_CUDA_MAX_THREADS_PER_MP / c_ga
 static constexpr int c_gatherMinBlocksPerMP = GMX_HIP_MAX_THREADS_PER_MP / c_gatherMaxThreadsPerBlock;
 #    endif
 
-#endif
+#endif // GMX_GPU_CUDA || GMX_GPU_HIP
+
+#endif // GMX_EWALD_PME_GPU_CONSTANTS_H

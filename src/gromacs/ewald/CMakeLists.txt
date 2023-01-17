@@ -102,6 +102,9 @@ elseif (GMX_GPU_HIP)
         # Must add these files so they can include device_information.h
         pme_gpu_internal.cpp
         pme_gpu_timings.cpp
+        pme_pp_comm_gpu_impl_gpu.cpp
+        pme_force_sender_gpu_impl_gpu.cpp
+        pme_coordinate_receiver_gpu_impl_gpu.cpp
         )
 elseif (GMX_GPU_OPENCL)
     gmx_add_libgromacs_sources(
