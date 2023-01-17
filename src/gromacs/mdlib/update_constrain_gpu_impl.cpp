@@ -80,7 +80,6 @@ void UpdateConstrainGpu::Impl::integrate(GpuEventSynchronizer*             fRead
                                          gmx::ArrayRef<const t_grp_tcstat> tcstat,
                                          const bool                        doParrinelloRahman,
                                          const float                       dtPressureCouple,
-                                         const bool                        isPmeRank, 
                                          const Matrix3x3&                  prVelocityScalingMatrix)
 {
     wallcycle_start_nocount(wcycle_, WallCycleCounter::LaunchGpuPp);
@@ -98,7 +97,7 @@ void UpdateConstrainGpu::Impl::integrate(GpuEventSynchronizer*             fRead
         // The integrate should save a copy of the current coordinates in d_xp_ and write updated
         // once into d_x_. The d_xp_ is only needed by constraints.
         integrator_->integrate(
-                d_x_, d_xp_, d_v_, d_f_, dt, doTemperatureScaling, tcstat, doParrinelloRahman, dtPressureCouple, isPmeRank, prVelocityScalingMatrix);
+                d_x_, d_xp_, d_v_, d_f_, dt, doTemperatureScaling, tcstat, doParrinelloRahman, dtPressureCouple, prVelocityScalingMatrix);
         // Constraints need both coordinates before (d_x_) and after (d_xp_) update. However, after constraints
         // are applied, the d_x_ can be discarded. So we intentionally swap the d_x_ and d_xp_ here to avoid the
         // d_xp_ -> d_x_ copy after constraints. Note that the integrate saves them in the wrong order as well.
@@ -181,8 +180,6 @@ UpdateConstrainGpu::Impl::~Impl() {}
 
 void UpdateConstrainGpu::Impl::set(DeviceBuffer<Float3>          d_x,
                                    DeviceBuffer<Float3>          d_v,
-                                   const int                     realGridSize, 
-                                   DeviceBuffer<real>*           d_grid, 
                                    const DeviceBuffer<Float3>    d_f,
                                    const InteractionDefinitions& idef,
                                    const t_mdatoms&              md)
@@ -197,8 +194,6 @@ void UpdateConstrainGpu::Impl::set(DeviceBuffer<Float3>          d_x,
     d_x_ = d_x;
     d_v_ = d_v;
     d_f_ = d_f;
-    realGridSize_ = realGridSize;
-    d_grid_ = d_grid;
 
     numAtoms_ = md.homenr;
 
@@ -256,7 +251,6 @@ void UpdateConstrainGpu::integrate(GpuEventSynchronizer*             fReadyOnDev
                                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                                    const bool                        doParrinelloRahman,
                                    const float                       dtPressureCouple,
-                                   const bool                        isPmeRank, 
                                    const gmx::Matrix3x3&             prVelocityScalingMatrix)
 {
     impl_->integrate(fReadyOnDevice,
@@ -268,7 +262,6 @@ void UpdateConstrainGpu::integrate(GpuEventSynchronizer*             fReadyOnDev
                      tcstat,
                      doParrinelloRahman,
                      dtPressureCouple,
-                     isPmeRank, 
                      prVelocityScalingMatrix);
 }
 
@@ -284,13 +277,11 @@ void UpdateConstrainGpu::scaleVelocities(const gmx::Matrix3x3& scalingMatrix)
 
 void UpdateConstrainGpu::set(DeviceBuffer<Float3>          d_x,
                              DeviceBuffer<Float3>          d_v,
-                             const int                     realGridSize, 
-                             DeviceBuffer<real>*           d_grid,
                              const DeviceBuffer<Float3>    d_f,
                              const InteractionDefinitions& idef,
                              const t_mdatoms&              md)
 {
-    impl_->set(d_x, d_v, realGridSize, d_grid, d_f, idef, md);
+    impl_->set(d_x, d_v, d_f, idef, md);
 }
 
 void UpdateConstrainGpu::setPbc(const PbcType pbcType, const matrix box)
