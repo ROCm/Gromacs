@@ -2,10 +2,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2019- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -19,7 +18,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -28,10 +27,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 /*! \internal \file
  *
@@ -80,7 +79,7 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  *  \todo This kernel can also accumulate incidental temperatures for each atom.
  *
  * \tparam        numTempScaleValues               The number of different T-couple values.
- * \tparam        velocityScaling                  Type of the Parrinello-Rahman velocity rescaling.
+ * \tparam        parrinelloRahmanVelocityScaling  The properties of the Parrinello-Rahman velocity scaling matrix.
  * \param[in]     numAtoms                         Total number of atoms.
  * \param[in,out] gm_x                             Coordinates to update upon integration.
  * \param[out]    gm_xp                            A copy of the coordinates before the integration (for constraints).
@@ -92,7 +91,7 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  * \param[in]     gm_tempScaleGroups               Mapping of atoms into groups.
  * \param[in]     prVelocityScalingMatrixDiagonal  Diagonal elements of Parrinello-Rahman velocity scaling matrix
  */
-template<NumTempScaleValues numTempScaleValues, VelocityScalingType velocityScaling>
+template<NumTempScaleValues numTempScaleValues, ParrinelloRahmanVelocityScaling parrinelloRahmanVelocityScaling>
 __launch_bounds__(c_threadsPerBlock) __global__
         void leapfrog_kernel(const int numAtoms,
                              float3* __restrict__ gm_x,
@@ -120,7 +119,8 @@ __launch_bounds__(c_threadsPerBlock) __global__
         // TODO: Issue #3727
         gm_xp[threadIndex] = x;
 
-        if (numTempScaleValues != NumTempScaleValues::None || velocityScaling != VelocityScalingType::None)
+        if (numTempScaleValues != NumTempScaleValues::None
+            || parrinelloRahmanVelocityScaling != ParrinelloRahmanVelocityScaling::No)
         {
             float3 vp = v;
 
@@ -139,7 +139,7 @@ __launch_bounds__(c_threadsPerBlock) __global__
                 vp *= lambda;
             }
 
-            if (velocityScaling == VelocityScalingType::Diagonal)
+            if (parrinelloRahmanVelocityScaling == ParrinelloRahmanVelocityScaling::Diagonal)
             {
                 vp.x -= prVelocityScalingMatrixDiagonal.x * v.x;
                 vp.y -= prVelocityScalingMatrixDiagonal.y * v.y;
@@ -165,47 +165,47 @@ __launch_bounds__(c_threadsPerBlock) __global__
  * \param[in]  doTemperatureScaling   If the kernel with temperature coupling velocity scaling
  *                                    should be selected.
  * \param[in]  numTempScaleValues     Number of temperature coupling groups in the system.
- * \param[in]  prVelocityScalingType  Type of the Parrinello-Rahman velocity scaling.
+ * \param[in]  parrinelloRahmanVelocityScaling  Type of the Parrinello-Rahman velocity scaling.
  *
  * \retrun                         Pointer to HIP kernel
  */
-inline auto selectLeapFrogKernelPtr(bool                doTemperatureScaling,
-                                    int                 numTempScaleValues,
-                                    VelocityScalingType prVelocityScalingType)
+inline auto selectLeapFrogKernelPtr(bool                            doTemperatureScaling,
+                                    int                             numTempScaleValues,
+                                    ParrinelloRahmanVelocityScaling parrinelloRahmanVelocityScaling)
 {
     // Check input for consistency: if there is temperature coupling, at least one coupling group should be defined.
     GMX_ASSERT(!doTemperatureScaling || (numTempScaleValues > 0),
                "Temperature coupling was requested with no temperature coupling groups.");
-    auto kernelPtr = leapfrog_kernel<NumTempScaleValues::None, VelocityScalingType::None>;
+    auto kernelPtr = leapfrog_kernel<NumTempScaleValues::None, ParrinelloRahmanVelocityScaling::No>;
 
-    if (prVelocityScalingType == VelocityScalingType::None)
+    if (parrinelloRahmanVelocityScaling == ParrinelloRahmanVelocityScaling::No)
     {
         if (!doTemperatureScaling)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::None, VelocityScalingType::None>;
+            kernelPtr = leapfrog_kernel<NumTempScaleValues::None, ParrinelloRahmanVelocityScaling::No>;
         }
         else if (numTempScaleValues == 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::None>;
+            kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, ParrinelloRahmanVelocityScaling::No>;
         }
         else if (numTempScaleValues > 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::None>;
+            kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, ParrinelloRahmanVelocityScaling::No>;
         }
     }
-    else if (prVelocityScalingType == VelocityScalingType::Diagonal)
+    else if (parrinelloRahmanVelocityScaling == ParrinelloRahmanVelocityScaling::Diagonal)
     {
         if (!doTemperatureScaling)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::None, VelocityScalingType::Diagonal>;
+            kernelPtr = leapfrog_kernel<NumTempScaleValues::None, ParrinelloRahmanVelocityScaling::Diagonal>;
         }
         else if (numTempScaleValues == 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::Diagonal>;
+            kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, ParrinelloRahmanVelocityScaling::Diagonal>;
         }
         else if (numTempScaleValues > 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::Diagonal>;
+            kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, ParrinelloRahmanVelocityScaling::Diagonal>;
         }
     }
     else
@@ -217,20 +217,20 @@ inline auto selectLeapFrogKernelPtr(bool                doTemperatureScaling,
 }
 
 
-void launchLeapFrogKernel(const int                          numAtoms,
-                          DeviceBuffer<Float3>               d_x,
-                          DeviceBuffer<Float3>               d_xp,
-                          DeviceBuffer<Float3>               d_v,
-                          const DeviceBuffer<Float3>         d_f,
-                          const DeviceBuffer<float>          d_inverseMasses,
-                          const float                        dt,
-                          const bool                         doTemperatureScaling,
-                          const int                          numTempScaleValues,
-                          const DeviceBuffer<unsigned short> d_tempScaleGroups,
-                          const DeviceBuffer<float>          d_lambdas,
-                          const VelocityScalingType          prVelocityScalingType,
-                          const Float3                       prVelocityScalingMatrixDiagonal,
-                          const DeviceStream&                deviceStream)
+void launchLeapFrogKernel(const int                             numAtoms,
+                          DeviceBuffer<Float3>                  d_x,
+                          DeviceBuffer<Float3>                  d_xp,
+                          DeviceBuffer<Float3>                  d_v,
+                          const DeviceBuffer<Float3>            d_f,
+                          const DeviceBuffer<float>             d_inverseMasses,
+                          const float                           dt,
+                          const bool                            doTemperatureScaling,
+                          const int                             numTempScaleValues,
+                          const DeviceBuffer<unsigned short>    d_tempScaleGroups,
+                          const DeviceBuffer<float>             d_lambdas,
+                          const ParrinelloRahmanVelocityScaling parrinelloRahmanVelocityScaling,
+                          const Float3                          prVelocityScalingMatrixDiagonal,
+                          const DeviceStream&                   deviceStream)
 {
     // Checking the buffer types against the kernel argument types
     static_assert(sizeof(*d_inverseMasses) == sizeof(float), "Incompatible types");
@@ -243,8 +243,9 @@ void launchLeapFrogKernel(const int                          numAtoms,
     kernelLaunchConfig.blockSize[2]     = 1;
     kernelLaunchConfig.sharedMemorySize = 0;
 
-    auto kernelPtr =
-            selectLeapFrogKernelPtr(doTemperatureScaling, numTempScaleValues, prVelocityScalingType);
+    auto kernelPtr = selectLeapFrogKernelPtr(
+            doTemperatureScaling, numTempScaleValues, parrinelloRahmanVelocityScaling);
+
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr,
                                                       kernelLaunchConfig,
                                                       &numAtoms,

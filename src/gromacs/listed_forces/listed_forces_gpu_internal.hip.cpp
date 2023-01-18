@@ -2,10 +2,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2018,2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2018- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -19,7 +18,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -28,10 +27,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 /*! \internal \file
  *
@@ -49,9 +48,10 @@
 
 #include "gmxpre.h"
 
+#include "gromacs/math/math_constants.h"
+
 #include <cassert>
 
-#include "gromacs/math/math_constants.h"
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/typecasts.hpp"
 #include "gromacs/gpu_utils/vectype_ops.hpp"
@@ -820,7 +820,7 @@ namespace gmx
 {
 
 template<bool calcVir, bool calcEner>
-__global__ void exec_kernel_gpu(
+__global__ void bonded_kernel_gpu(
                  //! Periodic boundary data
                  PbcAiuc pbcAiuc,
                  //! Scale factor
@@ -851,7 +851,6 @@ __global__ void exec_kernel_gpu(
     assert(blockDim.y == 1 && blockDim.z == 1);
     const int tid          = blockIdx.x * blockDim.x + threadIdx.x;
     float     vtot_loc     = 0.0F;
-    float     vtotVdw_loc  = 0.0F;
     float     vtotElec_loc = 0.0F;
 
     extern __shared__ float3 sm_dynamicShmem[];
@@ -959,7 +958,7 @@ __global__ void exec_kernel_gpu(
                                                  sm_fShiftLoc,
                                                  pbcAiuc,
                                                  electrostaticsScaleFactor,
-                                                 &vtotVdw_loc,
+                                                 &vtot_loc,
                                                  &vtotElec_loc);
                     break;
             }
@@ -1032,7 +1031,7 @@ void ListedForcesGpu::Impl::launchKernel()
         return;
     }
 
-    auto kernelPtr = exec_kernel_gpu<calcVir, calcEner>;
+    auto kernelPtr = bonded_kernel_gpu<calcVir, calcEner>;
 
     fixed_array<int> fTypesOnGpu(kernelParams_.fTypesOnGpu);
     fixed_array<int> numFTypeIAtoms(kernelParams_.numFTypeIAtoms);
@@ -1061,11 +1060,11 @@ void ListedForcesGpu::Impl::launchKernel()
                     kernelLaunchConfig_,
                     deviceStream_,
                     nullptr,
-                    "exec_kernel_gpu<calcVir, calcEner>",
+                    "bonded_kernel_gpu<calcVir, calcEner>",
                     kernelArgs);
 
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchGpuBonded);
-    wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
+    wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpuPp);
 }
 
 void ListedForcesGpu::launchKernel(const gmx::StepWorkload& stepWork)
