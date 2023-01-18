@@ -68,7 +68,6 @@ elseif(GMX_GPU_HIP)
         device_context.cpp
         device_stream.hip.cpp
         gpu_utils.hip.cpp
-        pinning.hip.cpp
         pmalloc.hip.cpp
         )
     _gmx_add_files_to_property(HIP_SOURCES

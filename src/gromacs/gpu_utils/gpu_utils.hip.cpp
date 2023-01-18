@@ -1,11 +1,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014,2015,2016, The GROMACS development team.
- * Copyright (c) 2017,2018,2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2010- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -19,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -28,10 +26,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 /*! \file
  *  \brief Define functions for detection and initialization for HIP devices.
@@ -43,11 +41,13 @@
 
 #include "gpu_utils.h"
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "config.h"
 
 #include <hip/hip_profile.h>
+
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
 
 #include "gromacs/gpu_utils/hiputils.hpp"
 #include "gromacs/gpu_utils/device_context.h"
@@ -65,13 +65,16 @@
 #include "gromacs/utility/snprintf.h"
 #include "gromacs/utility/stringutil.h"
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static bool hipProfilerRun = ((getenv("NVPROF_ID") != nullptr));
+// Set profiler run flag true if nvprof, Nsight Systems, or Nsight Compute tools have been detected.
+static const bool hipProfilerRun =
+        ((std::getenv("NVPROF_ID") != nullptr) || (std::getenv("NSYS_PROFILING_SESSION_ID") != nullptr)
+         || (std::getenv("NV_NSIGHT_INJECTION_TRANSPORT_TYPE") != nullptr));
 
 bool isHostMemoryPinned(const void* h_ptr)
 {
     hipPointerAttribute_t memoryAttributes;
     hipError_t           stat = hipPointerGetAttributes(&memoryAttributes, h_ptr);
+    hipError_t     stat_reset = hipSuccess;
 
     bool isPinned = false;
     switch (stat)
@@ -95,7 +98,8 @@ bool isHostMemoryPinned(const void* h_ptr)
             // If the buffer was not pinned, then it will not be recognized by HIP at all
             isPinned = false;
             // Reset the last error status
-            hipGetLastError();
+            stat_reset = hipGetLastError();
+
             break;
 
         default: HIP_RET_ERR(stat, "Unexpected HIP error");
@@ -105,9 +109,9 @@ bool isHostMemoryPinned(const void* h_ptr)
 
 void startGpuProfiler()
 {
-    /* The NVPROF_ID environment variable is set by nvprof and indicates that
+    /* An environment variable set by the HIP tool in use indicates that
        mdrun is executed in the HIP profiler.
-       If nvprof was run is with "--profile-from-start off", the profiler will
+       With the profiler runtime flag "--profile-from-start off", the profiler will
        be started here. This way we can avoid tracing the HIP events from the
        first part of the run. Starting the profiler again does nothing.
      */
@@ -260,4 +264,11 @@ void setupGpuDevicePeerAccess(const std::vector<int>& gpuIdsToUse, const gmx::MD
     {
         GMX_LOG(mdlog.info).asParagraph().appendTextFormatted("%s", message.c_str());
     }
+}
+
+void checkPendingDeviceErrorBetweenSteps()
+{
+    std::string errorPrefix =
+            "An unhandled error from a HIP operation during the current MD step was detected:";
+    gmx::checkDeviceError(hipGetLastError(), errorPrefix);
 }

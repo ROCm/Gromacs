@@ -1,11 +1,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016 by the GROMACS development team.
- * Copyright (c) 2017,2018,2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2012- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -19,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -28,10 +26,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 /*! \file
  *  \brief Define HIP implementation of nbnxn_gpu.h
@@ -42,8 +40,8 @@
 
 #include "config.h"
 
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
 
 #include "gromacs/nbnxm/nbnxm_gpu.h"
 
@@ -663,7 +661,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
      *   and j-cluster concurrency, in x, y, and z, respectively.
      * - The 1D block-grid contains as many blocks as super-clusters.
      */
-    int num_threads_z = plist->haveFreshList ? c_pruneKernelJ4Concurrency / 2 : c_pruneKernelJ4Concurrency;
+    int num_threads_z = plist->haveFreshList ? c_pruneKernelJPackedConcurrency / 2 : c_pruneKernelJPackedConcurrency;
     int nblock        = calc_nb_kernel_nblock(numSciInPart, &nb->deviceContext_->deviceInfo());
     KernelLaunchConfig config;
     config.blockSize[0]     = c_clSize;
@@ -697,8 +695,8 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     auto*          timingEvent  = bDoTime ? timer->fetchNextEvent() : nullptr;
     constexpr char kernelName[] = "k_pruneonly";
     const auto     kernel =
-            plist->haveFreshList ? nbnxn_kernel_prune_hip<true, c_pruneKernelJ4Concurrency / 2> :
-                                   nbnxn_kernel_prune_hip<false, c_pruneKernelJ4Concurrency>;
+            plist->haveFreshList ? nbnxn_kernel_prune_hip<true, c_pruneKernelJPackedConcurrency / 2> :
+                                   nbnxn_kernel_prune_hip<false, c_pruneKernelJPackedConcurrency>;
     const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, kernelArgs);
 

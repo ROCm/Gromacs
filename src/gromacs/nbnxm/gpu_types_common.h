@@ -72,8 +72,8 @@ static constexpr int c_sciHistogramSize = 8192;
  *
  *  The GMX_NBNXN_PRUNE_KERNEL_JPACKED_CONCURRENCY macro allows compile-time override with the default value of 4.
  */
-#ifndef GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY
-#    define GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY 8
+#ifndef GMX_NBNXN_PRUNE_KERNEL_JPACKED_CONCURRENCY
+#    define GMX_NBNXN_PRUNE_KERNEL_JPACKED_CONCURRENCY 8
 #endif
 //! Default for the prune kernel's jPacked processing concurrency.
 static constexpr int c_pruneKernelJPackedConcurrency = GMX_NBNXN_PRUNE_KERNEL_JPACKED_CONCURRENCY;

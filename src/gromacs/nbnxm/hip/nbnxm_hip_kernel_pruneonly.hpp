@@ -2,10 +2,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016,2017,2018,2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2016- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -19,7 +18,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -28,10 +27,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 
 /*! \internal \file
@@ -83,7 +82,7 @@
  *     are not split (much), but the rolling chunks are small;
  *   - with large inputs NTHREAD_Z=1 is 2-3% faster (on CC>=5.0)
  */
-#define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_J4_CONCURRENCY)
+#define NTHREAD_Z (GMX_NBNXN_PRUNE_KERNEL_JPACKED_CONCURRENCY)
 #define THREADS_PER_BLOCK (c_clSize * c_clSize)
 
 // MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
@@ -132,10 +131,10 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
 
     /* convenience variables */
     //const nbnxn_sci_t* pl_sci    = plist.sci;
-    const nbnxn_sci_t* pl_sci    = haveFreshList ? plist.sci : plist.sci_sorted;
-    nbnxn_cj4_t*       pl_cj4    = plist.cj4;
-    FastBuffer<float4>   xq      = FastBuffer<float4>(atdat.xq);
-    const float3*      shift_vec = asFloat3(atdat.shiftVec);
+    const nbnxn_sci_t* pl_sci      = haveFreshList ? plist.sci : plist.sci_sorted;
+    nbnxn_cj_packed_t* pl_cjPacked = plist.cjPacked;
+    FastBuffer<float4>   xq        = FastBuffer<float4>(atdat.xq);
+    const float3*      shift_vec   = asFloat3(atdat.shiftVec);
 
     float rlistOuter_sq = nbparam.rlistOuter_sq;
     float rlistInner_sq = nbparam.rlistInner_sq;
@@ -172,9 +171,9 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
 
     nbnxn_sci_t nb_sci =
             pl_sci[bidx * numParts + part]; /* my i super-cluster's index = sciOffset + current bidx * numParts + part */
-    int sci        = nb_sci.sci;           /* super-cluster */
-    int cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-    int cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
+    int sci            = nb_sci.sci;           /* super-cluster */
+    int cijPackedBegin = nb_sci.cjPackedBegin; /* first ...*/
+    int cijPackedEnd   = nb_sci.cjPackedBegin + nb_sci.cjPackedLength;   /* and last index of j clusters */
 
     // We may need only a subset of threads active for preloading i-atoms
     // depending on the super-cluster and cluster / thread-block size.
@@ -198,14 +197,14 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
     __syncthreads();
 
     /* loop over the j clusters = seen by any of the atoms in the current super-cluster;
-     * The loop stride NTHREAD_Z ensures that consecutive sub-group are assigned
-     * consecutive j4's entries.
+     * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
+     * consecutive jPacked's entries.
      */
     int count = 0;
-    for (int j4 = cij4_start + tidxz; j4 < cij4_end; j4 += threadsZ)
+    for (int jPacked = cijPackedBegin + tidxz; jPacked < cijPackedEnd; jPacked += threadsZ)
     {
         unsigned int imaskFull, imaskCheck, imaskNew;
-        unsigned int imask = pl_cj4[j4].imei[widx].imask;
+        unsigned int imask = pl_cjPacked[jPacked].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
         // so imask is stored in a vector register, making it scalar simplifies the code.
         imask = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
@@ -221,7 +220,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
         else
         {
             /* Read the mask from the "warp-pruned" by rlistOuter mask array */
-            imaskFull = plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx];
+            imaskFull = plist.imask[jPacked * c_nbnxnGpuClusterpairSplit + widx];
             // "Scalarize" imaskFull when possible, the compiler always generates vector load here
             // so imaskFull is stored in a vector register, making it scalar simplifies the code.
             imaskFull = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imaskFull) : imaskFull;
@@ -240,7 +239,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                 {
                     unsigned int mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-                    int cj = pl_cj4[j4].cj[jm];
+                    int cj = pl_cjPacked[jPacked].cj[jm];
                     int aj = cj * c_clSize + tidxj;
 
                     /* load j atom data */
@@ -284,7 +283,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
             if (haveFreshList)
             {
                 /* copy the list pruned to rlistOuter to a separate buffer */
-                plist.imask[j4 * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
+                plist.imask[jPacked * c_nbnxnGpuClusterpairSplit + widx] = imaskFull;
 
                 #ifndef __gfx1030__
                     count += __popc(imaskNew);
@@ -293,7 +292,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
                 #endif
             }
             /* update the imask with only the pairs up to rlistInner */
-            plist.cj4[j4].imei[widx].imask = imaskNew;
+            plist.cjPacked[jPacked].imei[widx].imask = imaskNew;
 
         }
         // avoid shared memory WAR hazards between loop iterations

@@ -208,6 +208,9 @@ struct PmeGpu
 
     /*! \brief The pointer to GPU-framework specific host-side data, such as CUDA streams and events. */
     std::shared_ptr<PmeGpuSpecific> archSpecific; /* FIXME: make it an unique_ptr */
+
+    /*! \brief The pointer to PME halo-exchange specific host-side data */
+    std::unique_ptr<PmeGpuHaloExchange> haloExchange;
 };
 
 #endif

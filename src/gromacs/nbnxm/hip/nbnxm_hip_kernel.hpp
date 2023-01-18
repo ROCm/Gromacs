@@ -1,12 +1,9 @@
-#include "hip/hip_runtime.h"
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016 by the GROMACS development team.
- * Copyright (c) 2017,2018,2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2012- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -20,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -29,10 +26,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 
 /*! \internal \file
@@ -46,6 +43,8 @@
  *  \author Berk Hess <hess@kth.se>
  *  \ingroup module_nbnxm
  */
+
+#include "hip/hip_runtime.h"
 
 #include "gromacs/gpu_utils/hip_arch_utils.hpp"
 #include "gromacs/gpu_utils/hip_kernel_utils.hpp"
@@ -170,8 +169,8 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifndef PRUNE_NBL
     const
 #    endif
-            nbnxn_cj4_t* pl_cj4      = plist.cj4;
-    FastBuffer<nbnxn_excl_t> excl    = FastBuffer<nbnxn_excl_t>(plist.excl);
+          nbnxn_cj_packed_t* pl_cjPacked = plist.cjPacked;
+    FastBuffer<nbnxn_excl_t> excl        = FastBuffer<nbnxn_excl_t>(plist.excl);
 #    ifndef LJ_COMB
     FastBuffer<int>      atom_types  = FastBuffer<int>(atdat.atomTypes);
     int                  ntypes      = atdat.numTypes;
@@ -232,11 +231,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
     unsigned int widx  = (c_clSize * c_clSize) == warpSize ? 0 : tidx / c_subWarp; /* warp index */
 
-    int          sci, ci, cj, ai, aj, cij4_start, cij4_end;
+    int          sci, ci, cj, ai, aj, cijPackedBegin, cijPackedEnd;
 #    ifndef LJ_COMB
     int          typei, typej;
 #    endif
-    int          i, jm, j4, wexcl_idx;
+    int          i, jm, jPacked, wexcl_idx;
     float        qi, qj_f, r2, inv_r, inv_r2;
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
     float        inv_r6;
@@ -286,10 +285,10 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
     /*********************************************************************/
 
-    nb_sci     = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
-    sci        = nb_sci.sci;           /* super-cluster */
-    cij4_start = nb_sci.cj4_ind_start; /* first ...*/
-    cij4_end   = nb_sci.cj4_ind_start + nb_sci.cj4_length;   /* and last index of j clusters */
+    nb_sci         = pl_sci[bidx];                                 /* my i super-cluster's index = current bidx */
+    sci            = nb_sci.sci;                                   /* super-cluster */
+    cijPackedBegin = nb_sci.cjPackedBegin;                         /* first ...*/
+    cijPackedEnd   = nb_sci.cjPackedBegin + nb_sci.cjPackedLength; /* and last index of j clusters */
 
     // We may need only a subset of threads active for preloading i-atoms
     // depending on the super-cluster and cluster / thread-block size.
@@ -338,7 +337,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
 #        ifdef EXCLUSION_FORCES /* Ewald or RF */
     if (nb_sci.shift == gmx::c_centralShiftIndex
-        && pl_cj4[cij4_start].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
+        && pl_cjPacked[cijPackedBegin].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
     {
         /* we have the diagonal: add the charge and LJ self interaction energy term */
         for (i = 0; i < c_nbnxnGpuNumClusterPerSupercluster; i++)
@@ -388,11 +387,11 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
     /* loop over the j clusters = seen by any of the atoms in the current super-cluster;
      * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
-     * consecutive j4's entries.
+     * consecutive jPacked's entries.
      */
-    for (j4 = cij4_start; j4 < cij4_end; ++j4)
+    for (jPacked = cijPackedBegin; jPacked < cijPackedEnd; ++jPacked)
     {
-        imask     = pl_cj4[j4].imei[widx].imask;
+        imask     = pl_cjPacked[jPacked].imei[widx].imask;
         // "Scalarize" imask when possible, the compiler always generates vector load here
         // so imask is stored in a vector register, making it scalar simplifies the code.
         imask     = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
@@ -402,7 +401,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
             continue;
         }
 #    endif
-        wexcl_idx = pl_cj4[j4].imei[widx].excl_ind;
+        wexcl_idx = pl_cjPacked[jPacked].imei[widx].excl_ind;
         // "Scalarize" wexcl_idx when possible, gives a slight performance increase for Mi2** GPUs
         wexcl_idx = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(wexcl_idx) : wexcl_idx;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
@@ -418,7 +417,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
             mask_ji = (1U << (jm * c_nbnxnGpuNumClusterPerSupercluster));
 
-            cj = pl_cj4[j4].cj[jm];
+            cj = pl_cjPacked[jPacked].cj[jm];
             aj = cj * c_clSize + tidxj;
 
             /* load j atom data */
@@ -639,7 +638,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    ifdef PRUNE_NBL
         /* Update the imask with the new one which does not contain the
            out of range clusters anymore. */
-        pl_cj4[j4].imei[widx].imask = imask;
+        pl_cjPacked[jPacked].imei[widx].imask = imask;
 #    endif
     }
 

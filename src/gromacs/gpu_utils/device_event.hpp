@@ -60,7 +60,11 @@ public:
             GMX_THROW(gmx::InternalError("hipEventCreate failed: " + gmx::getDeviceErrorString(stat)));
         }
     }
-    ~DeviceEvent() { hipEventDestroy(event_); }
+    ~DeviceEvent()
+    {
+        hipError_t stat = hipEventDestroy(event_);
+        (void)stat;
+    }
     // Disable copy, move, and assignment. Move can be allowed, but not needed yet.
     DeviceEvent& operator=(const DeviceEvent&) = delete;
     DeviceEvent(const DeviceEvent&)            = delete;
