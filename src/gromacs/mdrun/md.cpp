@@ -52,6 +52,8 @@
 #include <memory>
 #include <numeric>
 
+#include "roctx.h"
+
 #include "gromacs/applied_forces/awh/awh.h"
 #include "gromacs/applied_forces/awh/read_params.h"
 #include "gromacs/commandline/filenm.h"
@@ -784,7 +786,7 @@ void gmx::LegacySimulator::do_md()
         }
         fprintf(fplog, "\n");
     }
-
+    roctxRangePush("FOM");
     walltime_accounting_start_time(walltime_accounting);
     wallcycle_start(wcycle, WallCycleCounter::Run);
     print_start(fplog, cr, walltime_accounting, "mdrun");
@@ -2046,6 +2048,7 @@ void gmx::LegacySimulator::do_md()
 
     /* Stop measuring walltime */
     walltime_accounting_end_time(walltime_accounting);
+    roctxRangePop();
 
     if (simulationWork.haveSeparatePmeRank)
     {
