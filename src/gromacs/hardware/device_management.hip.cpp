@@ -200,13 +200,13 @@ static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
         return DeviceStatus::NonFunctional;
     }
 
-    // Skip context teardown when using CUDA-aware MPI because this can lead to
+    // Skip context teardown when using HIP-aware MPI because this can lead to
     // corruption and a crash in MPI when when mdrunner is invoked multiple times
     // in the same process in gmxapi or mdrun integration tests. Ref #3952
-    const bool haveDetectedOrForcedCudaAwareMpi =
-            (gmx::checkMpiCudaAwareSupport() == gmx::GpuAwareMpiStatus::Supported
-             || gmx::checkMpiCudaAwareSupport() == gmx::GpuAwareMpiStatus::Forced);
-    if (!haveDetectedOrForcedCudaAwareMpi)
+    const bool haveDetectedOrForcedHipAwareMpi =
+            (gmx::checkMpiHipAwareSupport() == gmx::GpuAwareMpiStatus::Supported
+             || gmx::checkMpiHipAwareSupport() == gmx::GpuAwareMpiStatus::Forced);
+    if (!haveDetectedOrForcedHipAwareMpi)
     {
         hip_err = hipDeviceReset();
         HIP_RET_ERR(hip_err, "hipDeviceReset failed");
@@ -293,7 +293,15 @@ std::vector<std::unique_ptr<DeviceInformation>> findDevices()
         deviceInfoList[i]               = std::make_unique<DeviceInformation>();
         deviceInfoList[i]->id           = i;
         deviceInfoList[i]->prop         = prop;
-        deviceInfoList[i]->deviceVendor = DeviceVendor::Nvidia;
+        deviceInfoList[i]->deviceVendor = DeviceVendor::Amd;
+
+#if GMX_NAVI_BUILD
+        deviceInfoList[i]->supportedSubGroupSizesSize    = 1;
+        deviceInfoList[i]->supportedSubGroupSizesData[0] = 32;
+#else
+        deviceInfoList[i]->supportedSubGroupSizesSize    = 1;
+        deviceInfoList[i]->supportedSubGroupSizesData[0] = 64;
+#endif
 
         const DeviceStatus checkResult = (stat != hipSuccess) ? DeviceStatus::NonFunctional
                                                                : checkDeviceStatus(*deviceInfoList[i]);
@@ -362,7 +370,7 @@ void releaseDevice(DeviceInformation* deviceInfo)
             {
                 fprintf(stderr, "Cleaning up context on GPU ID #%d.\n", gpuid);
             }
-            
+
             // fprintf(stderr, "Cleaning up context on GPU ID #%d.\n", gpuid);
             stat = hipDeviceReset();
             if (stat != hipSuccess)

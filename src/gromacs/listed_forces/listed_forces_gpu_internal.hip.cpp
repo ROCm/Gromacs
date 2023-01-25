@@ -141,7 +141,7 @@ __device__ __forceinline__ void storeForce(float3 gm_f[], int i, float3 f)
     {
         const int prev_lane_i = __shfl_up(i, 1);
         const bool head = (threadIdx.x & (warpSize - 1)) == 0 || i != prev_lane_i;
-        
+
         f = hipHeadSegmentedSum(f, head);
         if (head)
         {
@@ -827,8 +827,6 @@ __global__ void bonded_kernel_gpu(
                  float electrostaticsScaleFactor,
                  //! The bonded types on GPU
                  const fixed_array<int> fTypesOnGpu,
-                 //! The number of interaction atom (iatom) elements for every function type
-                 const fixed_array<int> numFTypeIAtoms,
                  //! The number of bonds for every function type
                  const fixed_array<int> numFTypeBonds,
                  //! The start index in the range of each interaction type
@@ -851,6 +849,7 @@ __global__ void bonded_kernel_gpu(
     assert(blockDim.y == 1 && blockDim.z == 1);
     const int tid          = blockIdx.x * blockDim.x + threadIdx.x;
     float     vtot_loc     = 0.0F;
+    float     vtotVdw_loc  = 0.0F;
     float     vtotElec_loc = 0.0F;
 
     extern __shared__ float3 sm_dynamicShmem[];
@@ -958,7 +957,7 @@ __global__ void bonded_kernel_gpu(
                                                  sm_fShiftLoc,
                                                  pbcAiuc,
                                                  electrostaticsScaleFactor,
-                                                 &vtot_loc,
+                                                 &vtotVdw_loc,
                                                  &vtotElec_loc);
                     break;
             }
@@ -1023,7 +1022,7 @@ void ListedForcesGpu::Impl::launchKernel()
     GMX_ASSERT(haveInteractions_,
                "Cannot launch bonded GPU kernels unless bonded GPU work was scheduled");
 
-    wallcycle_start_nocount(wcycle_, WallCycleCounter::LaunchGpu);
+    wallcycle_start_nocount(wcycle_, WallCycleCounter::LaunchGpuPp);
     wallcycle_sub_start(wcycle_, WallCycleSubCounter::LaunchGpuBonded);
 
     if (kernelParams_.fTypeRangeEnd[numFTypesOnGpu - 1] < 0)
@@ -1034,26 +1033,24 @@ void ListedForcesGpu::Impl::launchKernel()
     auto kernelPtr = bonded_kernel_gpu<calcVir, calcEner>;
 
     fixed_array<int> fTypesOnGpu(kernelParams_.fTypesOnGpu);
-    fixed_array<int> numFTypeIAtoms(kernelParams_.numFTypeIAtoms);
     fixed_array<int> numFTypeBonds(kernelParams_.numFTypeBonds);
     fixed_array<int> fTypeRangeStart(kernelParams_.fTypeRangeStart);
     fixed_array<int> fTypeRangeEnd(kernelParams_.fTypeRangeEnd);
-    fixed_array<t_iatom*> d_iatoms(kernelParams_.d_iatoms);
+    fixed_array<t_iatom*> d_iatoms(kernelBuffers_.d_iatoms);
     const auto kernelArgs = prepareGpuKernelArguments(
            kernelPtr,
            kernelLaunchConfig_,
            &kernelParams_.pbcAiuc,
            &kernelParams_.electrostaticsScaleFactor,
            &fTypesOnGpu,
-           &numFTypeIAtoms,
            &numFTypeBonds,
            &fTypeRangeStart,
            &fTypeRangeEnd,
-           &kernelParams_.d_forceParams,
+           &kernelBuffers_.d_forceParams,
            &d_xq_,
            &d_f_,
            &d_fShift_,
-           &kernelParams_.d_vTot,
+           &kernelBuffers_.d_vTot,
            &d_iatoms);
 
     launchGpuKernel(kernelPtr,

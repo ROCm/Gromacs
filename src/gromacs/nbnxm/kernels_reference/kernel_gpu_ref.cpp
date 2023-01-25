@@ -112,11 +112,11 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*        nbl,
         const real shY           = shiftvec[ish][YY];
         const real shZ           = shiftvec[ish][ZZ];
         const int  cjPackedBegin = nbln.cjPackedBegin;
-        const int  cjPackedEnd   = nbln.cjPackedEnd;
+        const int  cjPackedEnd   = nbln.cjPackedBegin + nbln.cjPackedLength;
         const int  sci           = nbln.sci;
         real       vctot         = 0;
         real       Vvdwtot       = 0;
-        
+
         //const int  cj4_ind1 = nbln.cj4_ind_start + nbln.cj4_length;;
 
         if (nbln.shift == gmx::c_centralShiftIndex

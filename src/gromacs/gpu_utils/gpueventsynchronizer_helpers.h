@@ -46,6 +46,8 @@ namespace gmx::internal
 {
 //! Setter for \c g_useEventConsumptionCounting.
 void disableCudaEventConsumptionCounting();
+//! Setter for \c g_useEventConsumptionCounting.
+void disableHipEventConsumptionCounting();
 } // namespace gmx::internal
 
 #endif

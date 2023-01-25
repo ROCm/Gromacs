@@ -100,6 +100,12 @@ private:
 #if GMX_GPU_CUDA
     //! Raw stream for PME operations
     cudaStream_t pmeRawStream_;
+#elseif GMX_GPU_HIP
+    //! Raw stream for PME operations
+    hipStream_t pmeRawStream_;
+#endif
+
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     //! Local real grid
     heffte::gpu::vector<float> localRealGrid_;
     //! Local complex grid

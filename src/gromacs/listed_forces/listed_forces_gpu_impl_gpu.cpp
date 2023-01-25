@@ -65,6 +65,14 @@ namespace gmx
 
 static int chooseSubGroupSizeForDevice(const DeviceInformation& deviceInfo)
 {
+#if GMX_GPU_HIP
+#    if GMX_NAVI_BUILD
+        return 32;
+#    else
+        return 64;
+#    endif
+#endif
+
     if (deviceInfo.supportedSubGroupSizesSize == 1)
     {
         return deviceInfo.supportedSubGroupSizesData[0];
@@ -130,11 +138,12 @@ ListedForcesGpu::Impl::Impl(const gmx_ffparams_t&    ffparams,
     }
 
     deviceSubGroupSize_ = chooseSubGroupSizeForDevice(deviceInfo);
-    GMX_RELEASE_ASSERT(std::find(deviceInfo.supportedSubGroupSizes().begin(),
+    // TODO: Now we have a device list with supported gpu sizes.
+    /*GMX_RELEASE_ASSERT(std::find(deviceInfo.supportedSubGroupSizes().begin(),
                                  deviceInfo.supportedSubGroupSizes().end(),
                                  deviceSubGroupSize_)
                                != deviceInfo.supportedSubGroupSizes().end(),
-                       "Device does not support selected sub-group size");
+                       "Device does not support selected sub-group size");*/
 
     int fTypeRangeEnd = kernelParams_.fTypeRangeEnd[numFTypesOnGpu - 1];
 

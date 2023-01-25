@@ -96,6 +96,8 @@
 #include "pme_internal.h"
 #include "pme_solve.h"
 
+#include <iostream>
+
 /*! \brief
  * CUDA only
  * Atom limit above which it is advantageous to turn on the
@@ -783,14 +785,14 @@ static void pme_gpu_init_internal(PmeGpu* pmeGpu, const DeviceContext& deviceCon
 
     // Use in-place FFT with cuFFTMp or DBFFT.
     pmeGpu->archSpecific->performOutOfPlaceFFT =
-            true;//!((pmeGpu->settings.useDecomposition && GMX_USE_cuFFTMp) || GMX_GPU_FFT_DBFFT);
+            !((pmeGpu->settings.useDecomposition && GMX_USE_cuFFTMp) || GMX_GPU_FFT_DBFFT);
 
     /* This should give better performance, according to the cuFFT documentation.
      * The performance seems to be the same though.
      * TODO: PME could also try to pick up nice grid sizes (with factors of 2, 3, 5, 7).
      */
 
-#if GMX_GPU_CUDA || GMX_GPU_HIP
+#if GMX_GPU_CUDA
     pmeGpu->kernelParams->usePipeline       = char(false);
     pmeGpu->kernelParams->pipelineAtomStart = 0;
     pmeGpu->kernelParams->pipelineAtomEnd   = 0;
@@ -1152,11 +1154,23 @@ void pme_gpu_update_input_box(PmeGpu gmx_unused* pmeGpu, const matrix gmx_unused
 #else
     matrix scaledBox;
     pmeGpu->common->boxScaler->scaleBox(box, scaledBox);
+
+    std::cout << "pme_gpu_update_input_box::scaleBox" << std::endl;
+    std::cout.flush();
+
     auto* kernelParamsPtr              = pme_gpu_get_kernel_params_base_ptr(pmeGpu);
     kernelParamsPtr->current.boxVolume = scaledBox[XX][XX] * scaledBox[YY][YY] * scaledBox[ZZ][ZZ];
+
+    std::cout << "pme_gpu_update_input_box::current.boxVolume:" << kernelParamsPtr->current.boxVolume << std::endl;
+    std::cout << "pme_gpu_update_input_box::current.recipBox:" << kernelParamsPtr->current.recipBox << std::endl;
+    std::cout.flush();
+
     GMX_ASSERT(kernelParamsPtr->current.boxVolume != 0.0F, "Zero volume of the unit cell");
     matrix recipBox;
     gmx::invertBoxMatrix(scaledBox, recipBox);
+
+    std::cout << "pme_gpu_update_input_box::invertBoxMatrix" << std::endl;
+    std::cout.flush();
 
     /* The GPU recipBox is transposed as compared to the CPU recipBox.
      * Spread uses matrix columns (while solve and gather use rows).
@@ -1742,10 +1756,14 @@ static int manageSyncWithPpCoordinateSenderGpu(const PmeGpu*                  pm
                 pmeCoordinateReceiverGpu->receivePpCoordinateSendEvent(pipelineStage);
         if (usePipeline)
         {
+            std::cout << "ppCommStream" << std::endl;
+            std::cout.flush();
             event->enqueueWaitEvent(*(pmeCoordinateReceiverGpu->ppCommStream(senderRank)));
         }
         else
         {
+            std::cout << "pmeGpu->archSpecific->pmeStream_" << std::endl;
+            std::cout.flush();
             event->enqueueWaitEvent(pmeGpu->archSpecific->pmeStream_);
         }
     }
@@ -1807,10 +1825,16 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                        || pme_gpu_settings(pmeGpu).copyAllOutputs,
                "Need a valid coordinate synchronizer on PP+PME ranks with CUDA.");
 
+    std::cout << "xReadyOnDevice: " << xReadyOnDevice << std::endl;
+    std::cout.flush();
+
     if (xReadyOnDevice)
     {
         xReadyOnDevice->enqueueWaitEvent(pmeGpu->archSpecific->pmeStream_);
     }
+
+    std::cout << "HI " << std::endl;
+    std::cout.flush();
 
     // launch spread only if nAtoms > 0
     if (kernelParamsPtr->atoms.nAtoms > 0)
@@ -1833,6 +1857,9 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
         config.blockSize[2] = atomsPerBlock;
         config.gridSize[0]  = dimGrid.first;
         config.gridSize[1]  = dimGrid.second;
+
+        std::cout << "HI 2" << std::endl;
+        std::cout.flush();
 
         PmeStage                           timingId;
         PmeGpuProgramImpl::PmeKernelHandle kernelPtr = nullptr;
@@ -1865,6 +1892,8 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                                               pmeGpu->common->ngrids);
         }
 
+        std::cout << "HI 3" << std::endl;
+        std::cout.flush();
 
         pme_gpu_start_timing(pmeGpu, timingId);
         auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
@@ -1896,6 +1925,8 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                 config.gridSize[1]         = dimGrid.second;
                 DeviceStream* launchStream = pmeCoordinateReceiverGpu->ppCommStream(senderRank);
 
+                std::cout << "HI 4" << std::endl;
+                std::cout.flush();
 
 #if c_canEmbedBuffers
                 const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
@@ -2023,6 +2054,9 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
         pme_gpu_copy_output_spread_atom_data(pmeGpu);
     }
 
+    std::cout << "HI End" << std::endl;
+    std::cout.flush();
+
     wallcycle_stop(wcycle, WallCycleCounter::LaunchGpuPme);
 }
 
@@ -2114,7 +2148,7 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     const int warpSize  = pmeGpu->programHandle_->warpSize();
     const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
-    static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
+    static_assert((!GMX_GPU_CUDA) || c_solveMaxWarpsPerBlock / 2 >= 4,
                   "The CUDA solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");
 

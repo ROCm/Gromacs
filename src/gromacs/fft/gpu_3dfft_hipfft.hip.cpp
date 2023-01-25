@@ -1,10 +1,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016,2017,2018,2019,2020,2021, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
- * top-level source directory and at http://www.gromacs.org.
+ * Copyright 2016- The GROMACS Authors
+ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
+ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
  *
  * GROMACS is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -18,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with GROMACS; if not, see
- * http://www.gnu.org/licenses, or write to the Free Software Foundation,
+ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
  *
  * If you want to redistribute modifications to GROMACS, please
@@ -27,10 +26,10 @@
  * consider code for inclusion in the official distribution, but
  * derived work must not be called official GROMACS. Details are found
  * in the README & COPYING files - if they are missing, get the
- * official version at http://www.gromacs.org.
+ * official version at https://www.gromacs.org.
  *
  * To help us fund GROMACS development, we humbly ask that you cite
- * the research papers on the package. Check out http://www.gromacs.org.
+ * the research papers on the package. Check out https://www.gromacs.org.
  */
 
 /*! \internal \file
@@ -46,6 +45,7 @@
 #include "gpu_3dfft_hipfft.hpp"
 
 #include "gromacs/gpu_utils/device_stream.h"
+#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
@@ -60,25 +60,26 @@ static void handleHipfftError(hipfftResult_t status, const char* msg)
     }
 }
 
-Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
+Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateRealGrid,
                                  MPI_Comm /*comm*/,
                                  ArrayRef<const int> gridSizesInXForEachRank,
                                  ArrayRef<const int> gridSizesInYForEachRank,
                                  const int /*nz*/,
-                                 bool /*performOutOfPlaceFFT*/,
-                                 const DeviceContext& /*context*/,
+                                 bool performOutOfPlaceFFT,
+                                 const DeviceContext& context,
                                  const DeviceStream&  pmeStream,
                                  ivec                 realGridSize,
                                  ivec                 realGridSizePadded,
                                  ivec                 complexGridSizePadded,
                                  DeviceBuffer<float>* realGrid,
                                  DeviceBuffer<float>* complexGrid) :
-    realGrid_(reinterpret_cast<hipfftReal*>(*realGrid)),
-    complexGrid_(reinterpret_cast<hipfftComplex*>(*complexGrid))
+    Gpu3dFft::Impl::Impl(performOutOfPlaceFFT), realGrid_(reinterpret_cast<hipfftReal*>(*realGrid))
 {
-    GMX_RELEASE_ASSERT(allocateGrids == false, "Grids needs to be pre-allocated");
+    GMX_RELEASE_ASSERT(allocateRealGrid == false, "Grids needs to be pre-allocated");
     GMX_RELEASE_ASSERT(gridSizesInXForEachRank.size() == 1 && gridSizesInYForEachRank.size() == 1,
-                       "FFT decomposition not implemented with cuFFT backend");
+                       "FFT decomposition not implemented with hipFFT backend");
+
+   allocateComplexGrid(complexGridSizePadded, realGrid, complexGrid, context);
 
     const int complexGridSizePaddedTotal =
             complexGridSizePadded[XX] * complexGridSizePadded[YY] * complexGridSizePadded[ZZ];
@@ -162,7 +163,7 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
     handleHipfftError(result, "hipfftPlanMany C2R plan failure");
 
     hipStream_t stream = pmeStream.stream();
-    GMX_RELEASE_ASSERT(stream, "Can not use the default HIP stream for PME cuFFT");
+    GMX_RELEASE_ASSERT(stream, "Can not use the default HIP stream for PME hipFFT");
 
     result = hipfftSetStream(planR2C_, stream);
     handleHipfftError(result, "hipfftSetStream R2C failure");
@@ -174,6 +175,8 @@ Gpu3dFft::ImplHipFft::ImplHipFft(bool allocateGrids,
 
 Gpu3dFft::ImplHipFft::~ImplHipFft()
 {
+    deallocateComplexGrid();
+
 #ifdef GMX_GPU_USE_VKFFT
     deleteVkFFT(&appR2C);
     free(configuration.device);
@@ -199,7 +202,7 @@ void Gpu3dFft::ImplHipFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*t
         resFFT = VkFFTAppend(&appR2C, -1, NULL);
         if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
-        result = hipfftExecR2C(planR2C_, realGrid_, complexGrid_);
+        result = hipfftExecR2C(planR2C_, realGrid_,  (hipfftComplex*)complexGrid_);
         handleHipfftError(result, "hipFFT R2C execution failure");
 #endif
     }
@@ -209,7 +212,7 @@ void Gpu3dFft::ImplHipFft::perform3dFft(gmx_fft_direction dir, CommandEvent* /*t
         resFFT = VkFFTAppend(&appR2C, 1, NULL);
         if (resFFT!=VKFFT_SUCCESS) printf ("VkFFT error: %d\n", resFFT);
 #else
-        result = hipfftExecC2R(planC2R_, complexGrid_, realGrid_);
+        result = hipfftExecC2R(planC2R_,  (hipfftComplex*)complexGrid_, realGrid_);
         handleHipfftError(result, "hipFFT C2R execution failure");
 #endif
     }

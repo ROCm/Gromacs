@@ -193,7 +193,7 @@ TEST(NbnxmSetupTest, CanCreateNbnxmCPU)
     EXPECT_NO_THROW(createNbnxmCPU(numParticles, nbKernelOptions, numEnergyGroups, nonbondedParameters));
 }
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 TEST(NbnxmSetupTest, canCreateKernelSetupGPU)
 {
     NBKernelOptions    nbKernelOptions;

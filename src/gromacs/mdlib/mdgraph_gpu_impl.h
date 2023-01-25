@@ -146,10 +146,17 @@ private:
      */
     void enqueueRank0EventToAllPpStreams(GpuEventSynchronizer* event, const DeviceStream& stream);
 
+#if GMX_GPU_CUDA
     //! Captured graph object
     cudaGraph_t graph_;
     //! Instantiated graph object
     cudaGraphExec_t instance_;
+#else
+    //! Captured graph object
+    hipGraph_t graph_;
+    //! Instantiated graph object
+    hipGraphExec_t instance_;
+#endif
     //! Whether graph has already been created
     bool graphCreated_ = false;
     //! Whether graph is capturing in this step
@@ -178,8 +185,13 @@ private:
     int ppRank_ = 0;
     //! Number of PP ranks in use
     int ppSize_ = 1;
+#if GMX_GPU_CUDA
     //! CUDA status object
     cudaError_t stat_;
+#else
+    //! HIP status object
+    hipError_t stat_;
+#endif
     //! Temporary event used for forking and joining streams in graph
     std::unique_ptr<GpuEventSynchronizer> helperEvent_;
     //! Whether step is even or odd, where different graphs are used for each

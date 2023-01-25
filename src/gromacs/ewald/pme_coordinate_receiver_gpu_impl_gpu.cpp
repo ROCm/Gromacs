@@ -98,8 +98,8 @@ void PmeCoordinateReceiverGpu::Impl::reinitCoordinateReceiver(DeviceBuffer<RVec>
         if (GMX_THREAD_MPI && (ppCommManager.ppRank.numAtoms > 0))
         {
             GMX_RELEASE_ASSERT(
-                    GMX_GPU_CUDA,
-                    "Direct PME-PP communication with threadMPI is only supported with CUDA.");
+                    GMX_GPU_CUDA || GMX_GPU_HIP,
+                    "Direct PME-PP communication with threadMPI is only supported with CUDA/HIP.");
             // Data will be transferred directly from GPU.
             void* sendBuf = reinterpret_cast<void*>(asMpiPointer(d_x) + indStart);
             MPI_Send(&sendBuf, sizeof(void**), MPI_BYTE, ppCommManager.ppRank.rankId, 0, comm_);

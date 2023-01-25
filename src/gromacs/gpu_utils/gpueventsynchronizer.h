@@ -50,6 +50,8 @@
 
 #include "device_event.h"
 
+#include <iostream>
+
 #ifdef __clang__
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wmissing-noreturn"
@@ -94,10 +96,10 @@
  * this requirement can be relaxed as needed.
  */
 
-/* With CUDA, we only want to use event counting in known "good" configurations. With OpenCL
- * and SYCL, we want it to be enabled always. So, we have a global flag in CUDA build, and
+/* With CUDA/HIP, we only want to use event counting in known "good" configurations. With OpenCL
+ * and SYCL, we want it to be enabled always. So, we have a global flag in CUDA/HIP build, and
  * a constexpr in others. See #3988 */
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern bool g_useEventConsumptionCounting; // Defined in gpueventsynchronizer_helpers.h
 #else
@@ -147,12 +149,12 @@ public:
     //NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     inline void markExternalEventWhileCapturingGraph(const DeviceStream& deviceStream)
     {
-#if GMX_HAVE_CUDA_GRAPH_SUPPORT
+#if GMX_HAVE_CUDA_GRAPH_SUPPORT || GMX_HAVE_HIP_GRAPH_SUPPORT
         event_.markExternalEventWhileCapturingGraph(deviceStream);
 #else
         GMX_UNUSED_VALUE(deviceStream);
         GMX_THROW(gmx::InternalError(
-                "markExternalEventWhileCapturingGraph called without CUDA graph support"));
+                "markExternalEventWhileCapturingGraph called without CUDA/HIP graph support"));
 #endif
         consumptionCount_ = 0;
     }
@@ -163,6 +165,9 @@ public:
      */
     inline void waitForEvent()
     {
+        std::cout << "waitForEvent()" << std::endl;
+        std::cout.flush();
+
         consume();
         event_.wait();
         resetIfFullyConsumed();
@@ -173,6 +178,9 @@ public:
         bool isReady = event_.isReady();
         if (isReady)
         {
+            std::cout << "isReady()" << std::endl;
+            std::cout.flush();
+
             consume();
             resetIfFullyConsumed();
         }
@@ -207,6 +215,9 @@ public:
      */
     inline void enqueueWaitEvent(const DeviceStream& deviceStream)
     {
+        std::cout << "enqueueWaitEvent()" << std::endl;
+        std::cout.flush();
+
         consume();
         event_.enqueueWait(deviceStream);
         resetIfFullyConsumed();
@@ -219,12 +230,12 @@ public:
     //NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     inline void enqueueExternalWaitEventWhileCapturingGraph(const DeviceStream& deviceStream)
     {
-#if GMX_HAVE_CUDA_GRAPH_SUPPORT
+#if GMX_HAVE_CUDA_GRAPH_SUPPORT || GMX_HAVE_HIP_GRAPH_SUPPORT
         event_.enqueueExternalWaitEventWhileCapturingGraph(deviceStream);
 #else
         GMX_UNUSED_VALUE(deviceStream);
         GMX_THROW(gmx::InternalError(
-                "enqueueExternalWaitEventWhileCapturingGraph called without CUDA graph support"));
+                "enqueueExternalWaitEventWhileCapturingGraph called without CUDA/HIP graph support"));
 #endif
         resetIfFullyConsumed();
     }

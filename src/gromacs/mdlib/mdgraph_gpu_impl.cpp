@@ -54,7 +54,7 @@
 #include "gromacs/utility/classhelpers.h"
 #include "gromacs/utility/gmxmpi.h"
 
-#if !GMX_GPU_CUDA
+#if !GMX_GPU_CUDA && !GMX_GPU_HIP
 
 namespace gmx
 {
@@ -142,4 +142,4 @@ GpuEventSynchronizer* MdGpuGraph::getPpTaskCompletionEvent()
 
 } // namespace gmx
 
-#endif // !GMX_GPU_CUDA
+#endif // !GMX_GPU_CUDA && !GMX_GPU_HIP

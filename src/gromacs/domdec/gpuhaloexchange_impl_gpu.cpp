@@ -61,9 +61,9 @@
 
 // NOLINTNEXTLINE(misc-redundant-expression)
 constexpr bool supportedLibMpiBuild =
-        ((GMX_LIB_MPI != 0) && ((GMX_GPU_CUDA != 0) || (GMX_GPU_SYCL != 0)));
+        ((GMX_LIB_MPI != 0) && ((GMX_GPU_CUDA != 0 || GMX_GPU_HIP != 0) || (GMX_GPU_SYCL != 0)));
 // NOLINTNEXTLINE(misc-redundant-expression)
-constexpr bool supportedThreadMpiBuild = ((GMX_THREAD_MPI != 0) && (GMX_GPU_CUDA != 0));
+constexpr bool supportedThreadMpiBuild = ((GMX_THREAD_MPI != 0) && (GMX_GPU_CUDA != 0 || GMX_GPU_HIP != 0));
 
 namespace gmx
 {
@@ -154,7 +154,7 @@ void GpuHaloExchange::Impl::reinitHalo(DeviceBuffer<Float3> d_coordinatesBuffer,
     }
 
 #if GMX_MPI && GMX_THREAD_MPI
-    // Exchange of remote addresses from neighboring ranks is needed only with peer-to-peer copies as cudaMemcpy needs both src/dst pointer
+    // Exchange of remote addresses from neighboring ranks is needed only with peer-to-peer copies as cudaMemcpy/hipMemcpy needs both src/dst pointer
     // MPI calls such as MPI_send doesn't worry about receiving address, that is taken care by MPI_recv call in neighboring rank
     if (supportedThreadMpiBuild)
     {
@@ -473,7 +473,8 @@ void GpuHaloExchange::Impl::communicateHaloDataPeerToPeer(Float3* sendPtr,
 {
     GMX_RELEASE_ASSERT(supportedThreadMpiBuild, "Build does not support peer-to-peer communication");
     // The code below can be made backend-agnostic once we add device-to-device copy functionality to DeviceBuffer
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
+#    if GMX_GPU_CUDA
     cudaError_t stat;
 
     // We asynchronously push data to remote rank. The remote
@@ -493,6 +494,27 @@ void GpuHaloExchange::Impl::communicateHaloDataPeerToPeer(Float3* sendPtr,
 
         CU_RET_ERR(stat, "cudaMemcpyAsync on GPU Domdec CUDA direct data transfer failed");
     }
+#    else
+    hipError_t stat;
+
+    // We asynchronously push data to remote rank. The remote
+    // destination pointer has already been set in the init fn.  We
+    // don't need to worry about overwriting data the remote ranks
+    // still needs since the halo exchange is just done once per
+    // timestep, for each of X and F.
+
+    // send data to neighbor, if any data exists to send
+    if (sendSize > 0)
+    {
+        stat = hipMemcpyAsync(remotePtr,
+                               sendPtr,
+                               sendSize * DIM * sizeof(float),
+                               hipMemcpyDeviceToDevice,
+                               haloStream_->stream());
+
+        HIP_RET_ERR(stat, "hipMemcpyAsync on GPU Domdec HIP direct data transfer failed");
+    }
+#    endif
 
 #    if GMX_THREAD_MPI
     // ensure pushed data has arrived before remote rank progresses

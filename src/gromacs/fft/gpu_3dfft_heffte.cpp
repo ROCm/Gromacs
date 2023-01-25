@@ -218,7 +218,7 @@ Gpu3dFft::ImplHeFfte<backend_tag>::ImplHeFfte(bool                 allocateRealG
 #endif
 
     // allocate grid and return handles to it
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     localRealGrid_    = heffte::gpu::vector<float>(fftPlan_->size_inbox());
     localComplexGrid_ = heffte::gpu::vector<std::complex<float>>(fftPlan_->size_outbox());
     *realGrid         = localRealGrid_.data();
@@ -230,7 +230,7 @@ Gpu3dFft::ImplHeFfte<backend_tag>::ImplHeFfte(bool                 allocateRealG
     *realGrid                     = localRealGrid_;
     *complexGrid                  = localComplexGrid_;
 #else
-#    error "HeFFTe build only supports CUDA and SYCL"
+#    error "HeFFTe build only supports CUDA, HIP and SYCL"
 #endif
 
     realGridSize[XX] = gridSizesInXForEachRank[procX];
@@ -252,7 +252,7 @@ Gpu3dFft::ImplHeFfte<backend_tag>::~ImplHeFfte<backend_tag>() = default;
 template<typename backend_tag>
 void Gpu3dFft::ImplHeFfte<backend_tag>::perform3dFft(gmx_fft_direction dir, CommandEvent* /*timingEvent*/)
 {
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     float*               realGrid    = localRealGrid_.data();
     std::complex<float>* complexGrid = localComplexGrid_.data();
 #elif GMX_GPU_SYCL
@@ -296,7 +296,7 @@ template class Gpu3dFft::ImplHeFfte<heffte::backend::cufft>;
 #if GMX_GPU_FFT_MKL
 template class Gpu3dFft::ImplHeFfte<heffte::backend::onemkl>;
 #endif
-#if GMX_GPU_FFT_ROCFFT
+#if GMX_GPU_FFT_ROCFFT || GMX_GPU_FFT_HIPFFT
 template class Gpu3dFft::ImplHeFfte<heffte::backend::rocfft>;
 #endif
 

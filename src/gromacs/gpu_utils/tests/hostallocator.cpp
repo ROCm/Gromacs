@@ -316,7 +316,7 @@ TYPED_TEST(HostAllocatorTestCopyable, TransfersWithPinningWorkWithDevice)
 
 #endif
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
 
 // While we can allocate pinned memory with SYCL, we don't support isHostMemoryPinned yet. See #4522
 

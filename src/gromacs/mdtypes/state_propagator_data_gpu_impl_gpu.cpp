@@ -385,7 +385,7 @@ void StatePropagatorDataGpu::Impl::waitCoordinatesCopiedToDevice(AtomLocality at
 }
 
 void StatePropagatorDataGpu::Impl::consumeCoordinatesCopiedToDeviceEvent(AtomLocality atomLocality)
-{
+{    
     GMX_ASSERT(atomLocality < AtomLocality::Count, "Wrong atom locality.");
     xReadyOnDevice_[atomLocality].consume();
 }

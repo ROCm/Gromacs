@@ -66,6 +66,8 @@
 
 /* Use cuFFT library for FFT on GPUs */
 #cmakedefine01 GMX_GPU_FFT_CUFFT
+/* Use hipFFT library for FFT on GPUs */
+#cmakedefine01 GMX_GPU_FFT_HIPFFT
 /* Use clFFT library for FFT on GPUs */
 #cmakedefine01 GMX_GPU_FFT_CLFFT
 /* Use VkFFT library for FFT on GPUs */

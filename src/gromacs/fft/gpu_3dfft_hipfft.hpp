@@ -67,13 +67,13 @@ namespace gmx
 {
 
 /*! \internal \brief
- * A 3D FFT wrapper class for performing R2C/C2R transforms using cuFFT
+ * A 3D FFT wrapper class for performing R2C/C2R transforms using hipFFT
  */
 class Gpu3dFft::ImplHipFft : public Gpu3dFft::Impl
 {
 public:
     //! \copydoc Gpu3dFft::Impl::Impl
-    ImplHipFft(bool                 allocateGrids,
+    ImplHipFft(bool                 allocateRealGrid,
                MPI_Comm             comm,
                ArrayRef<const int>  gridSizesInXForEachRank,
                ArrayRef<const int>  gridSizesInYForEachRank,
@@ -97,7 +97,7 @@ private:
     hipfftHandle   planR2C_;
     hipfftHandle   planC2R_;
     hipfftReal*    realGrid_;
-    hipfftComplex* complexGrid_;
+
 #ifdef GMX_GPU_USE_VKFFT
     VkFFTConfiguration configuration;
     VkFFTApplication appR2C;

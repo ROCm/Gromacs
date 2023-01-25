@@ -784,7 +784,7 @@ static void print_nblist_statistics(FILE*                   fp,
         cs[ciEntry.shift & NBNXN_CI_SHIFT] += ciEntry.cj_length;
 
         int j = ciEntry.cj_ind_start;
-        while (j < ciEntry.cjIndEnd() && nbl.cj[j].excl != NBNXN_INTERACTION_MASK_ALL)
+        while (j < ciEntry.cjIndEnd() && nbl.cj.excl(j) != NBNXN_INTERACTION_MASK_ALL)
         {
             npexcl++;
             j++;
@@ -1264,7 +1264,7 @@ static void make_cluster_list_supersub(const Grid&       iGrid,
             /* Increase the closing index in i super-cell list */
             nbl->sci.back().cjPackedLength =
                 ((nbl->work->cj_ind + c_nbnxnGpuJgroupSize - 1) / c_nbnxnGpuJgroupSize) -
-                nbl->sci.back().cjPackedStart;
+                nbl->sci.back().cjPackedBegin;
         }
     }
 
@@ -2208,6 +2208,7 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
 
         for (int cjPacked = cjPackedBegin; cjPacked < cjPackedEnd; cjPacked++)
         {
+#if !GMX_GPU_HIP
             int nsp_cjPacked_p = nsp_cjPacked;
             /* Count the number of cluster pairs in this cjPacked group */
             nsp_cjPacked = 0;
@@ -2220,10 +2221,10 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             /* If adding the current cjPacked with nsp_cjPacked pairs get us further
              * away from our target nsp_max, split the list before this cjPacked.
              */
-            if (nsp > 0 && (cj4 - nbl->sci.back().cjPackedStart) >= cjPackedLenMax)
+            if (nsp > 0 && (cjPacked - nbl->sci.back().cjPackedBegin) >= cjPackedLenMax)
             {
-                /* Split the list at cj4 */
-                 nbl->sci.back().cjPackedLength = cj4 - nbl->sci.back().cj4_ind_start;
+                /* Split the list at cjPacked */
+                 nbl->sci.back().cjPackedLength = cjPacked - nbl->sci.back().cjPackedBegin;
                 /* Create a new sci entry */
                 nbnxn_sci_t sciNew;
                 sciNew.sci           = nbl->sci.back().sci;
@@ -2237,16 +2238,16 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
                 nsp       = 0;
             }
 #if GMX_GPU_HIP
-            nsp += nbl->cj4[cj4].imei[0].imask > 0 ? 1 : 0;
+            nsp += nbl->cjPacked.list_[cjPacked].imei[0].imask > 0 ? 1 : 0;
 #else
            nsp += nsp_cjPacked;
 #endif
- 
+
         }
 
         /* Put the remaining cjPacked's in the last sci entry */
-        nbl->sci.back().cjPackedLength = cjPackedEnd - nbl->sci.back().cjPackedStart;
-        
+        nbl->sci.back().cjPackedLength = cjPackedEnd - nbl->sci.back().cjPackedBegin;
+
 #if !GMX_GPU_HIP
 
         /* Possibly balance out the last two sci's
@@ -3950,15 +3951,15 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
     for (const nbnxn_sci_t& sci : nbl->sci)
     {
 #ifdef nsp_based_sort
-        for (int cj4 = sci.cj4_ind_start; cj4 < sci.cj4IndEnd(); cj4++)
+        for (int cjPacked = sci.cjPackedBegin; cjPacked < sci.cjPackedEnd(); cjPacked++)
         {
-            unsigned int mask = nbl->cj4[cj4].imei[0].imask;
+            unsigned int mask = nbl->cjPacked.list_[cjPacked].imei[0].imask;
             for (int part = 1; part < c_nbnxnGpuClusterpairSplit; part++)
             {
                 #if GMX_NAVI_BUILD
-                    nsp[index] += __builtin_popcount(nbl->cj4[cj4].imei[part].imask);
+                    nsp[index] += __builtin_popcount(nbl->cjPacked.list_[cjPacked].imei[part].imask);
                 #else
-                    mask = mask | nbl->cj4[cj4].imei[part].imask;
+                    mask = mask | nbl->cjPacked.list_[cjPacked].imei[part].imask;
                 #endif
 
             }

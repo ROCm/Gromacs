@@ -258,7 +258,7 @@ gmx_dependent_option(
     GMX_USE_HEFFTE
     "Use HeFFTe for distributed FFT support. Used with CUDA backend"
     OFF
-    "GMX_GPU STREQUAL CUDA OR GMX_GPU STREQUAL SYCL;GMX_MPI")
+    "GMX_GPU STREQUAL CUDA OR GMX_GPU STREQUAL HIP OR GMX_GPU STREQUAL SYCL;GMX_MPI")
 gmx_dependent_option(
     GMX_USE_CUFFTMP
     "Use cuFFTMp for distributed FFT support. Used with CUDA backend"
@@ -273,6 +273,7 @@ gmx_dependent_option(
 # Configuration    |  Default GPU FFT library
 # =================+======================================
 # CUDA             | cuFFT
+# HIP              | VkFFT or hipFFT according to toolchain
 # OpenCL           | VkFFT or clFFT according to toolchain
 # SYCL via hipSYCL | VkFFT
 # SYCL via DPCPP   | MKL
@@ -280,6 +281,8 @@ gmx_dependent_option(
 if (GMX_GPU)
     if (GMX_GPU STREQUAL CUDA)
         set(GMX_GPU_FFT_LIBRARY_DEFAULT "cuFFT")
+    elseif(GMX_GPU STREQUAL HIP)
+        set(GMX_GPU_FFT_LIBRARY_DEFAULT "hipFFT")
     elseif(GMX_GPU STREQUAL OPENCL)
         if (APPLE OR MSVC)
             set(GMX_GPU_FFT_LIBRARY_DEFAULT "VkFFT")
@@ -298,10 +301,10 @@ if (GMX_GPU)
         GMX_GPU_FFT_LIBRARY
         "GPU FFT library"
         "${GMX_GPU_FFT_LIBRARY_DEFAULT}"
-        cuFFT clFFT VkFFT MKL rocFFT dbFFT none)
+        cuFFT hipFFT clFFT VkFFT MKL rocFFT dbFFT none)
     # The validity of chosen option is later verified by the selected backend
 
-    foreach (_gpu_fft_library cuFFT clFFT VkFFT MKL rocFFT dbFFT)
+    foreach (_gpu_fft_library cuFFT hipFFT clFFT VkFFT MKL rocFFT dbFFT)
         string(TOUPPER "${_gpu_fft_library}" _gpu_fft_library_upper)
         if (GMX_GPU_FFT_LIBRARY STREQUAL ${_gpu_fft_library_upper})
             if (NOT GMX_GPU_FFT_QUIET_AFTER_FIRST_RUN)
@@ -552,7 +555,7 @@ if (GMX_HWLOC)
     if (HWLOC_FIND_QUIETLY_AFTER_FIRST_RUN)
         set(HWLOC_FIND_QUIETLY TRUE)
     endif()
-    find_package(HWLOC 1.5) 
+    find_package(HWLOC 1.5)
 
     if (HWLOC_FOUND)
         if (HWLOC_LIBRARIES MATCHES ".a$")
@@ -650,7 +653,7 @@ if(GMX_GPU)
     elseif(${_gmx_gpu_uppercase} STREQUAL "HIP")
         include(gmxManageHIP)
     elseif(${_gmx_gpu_uppercase} STREQUAL "OPENCL")
-        message(STATUS "GPU support with OpenCL is deprecated. It is still fully supported (and " 
+        message(STATUS "GPU support with OpenCL is deprecated. It is still fully supported (and "
             "recommended for AMD, Intel, and Apple GPUs). It may be replaced by different "
             "approaches in future releases of GROMACS.")
         include(gmxManageOpenCL)
@@ -670,7 +673,7 @@ if(GMX_GPU)
         endif()
     endif()
     # Only OpenCL and SYCL support changing the default cluster size
-    if (${_gmx_gpu_uppercase} STREQUAL "CUDA")
+    if (${_gmx_gpu_uppercase} STREQUAL "CUDA" OR ${_gmx_gpu_uppercase} STREQUAL "HIP")
         if (GMX_GPU_NB_CLUSTER_SIZE AND NOT "${GMX_GPU_NB_CLUSTER_SIZE}" EQUAL 8)
             message(FATAL_ERROR "Changing GMX_GPU_NB_CLUSTER_SIZE is not supported in CUDA (the default GMX_GPU_NB_CLUSTER_SIZE=8 is used)")
         endif()
@@ -721,9 +724,9 @@ mark_as_advanced(GMX_GPU_NB_NUM_CLUSTER_PER_CELL_X)
 mark_as_advanced(GMX_GPU_NB_NUM_CLUSTER_PER_CELL_Y)
 mark_as_advanced(GMX_GPU_NB_NUM_CLUSTER_PER_CELL_Z)
 
-# For build with CUDA/SYCL and Lib-MPI, check if underlying MPI implementation is GPU-aware
+# For build with CUDA/HIP/SYCL and Lib-MPI, check if underlying MPI implementation is GPU-aware
 # GPU-aware MPI allows direct GPU communication without staging data through host
-if((GMX_GPU_CUDA OR GMX_GPU_SYCL) AND GMX_LIB_MPI)
+if((GMX_GPU_CUDA OR GMX_GPU_HIP OR GMX_GPU_SYCL) AND GMX_LIB_MPI)
     include(gmxManageGpuAwareMpi)
 else()
     set(HAVE_MPI_EXT 0)
@@ -749,6 +752,8 @@ if(GMX_USE_HEFFTE)
     endif()
     if(GMX_GPU_CUDA)
         find_package(Heffte 2.2.0 REQUIRED CUDA)
+    elseif(GMX_GPU_HIP)
+        find_package(Heffte 2.2.0 REQUIRED ROCM)
     elseif(GMX_GPU_SYCL)
         if(GMX_GPU_FFT_ROCFFT)
             find_package(Heffte 2.2.0 REQUIRED ROCM)

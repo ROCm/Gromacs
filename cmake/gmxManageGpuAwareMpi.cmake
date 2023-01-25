@@ -52,12 +52,12 @@ function(GMX_TEST_GPU_AWARE_MPI BACKEND)
   if (NOT DEFINED HAVE_MPI_EXT)
     MESSAGE(STATUS "Checking for mpi-ext.h header")
     # cannot use check_include_file here as mpi.h needs to be included
-    # before mpi-ext.h for compilation, check_include_file doesn't support 
+    # before mpi-ext.h for compilation, check_include_file doesn't support
     # this use-case
     check_cxx_source_compiles(
       "#include <mpi.h>
       #include <mpi-ext.h>
-      int main(void) 
+      int main(void)
       {
         return 0;
       }" HAVE_MPI_EXT)
@@ -75,7 +75,7 @@ function(GMX_TEST_GPU_AWARE_MPI BACKEND)
     #if HAVE_MPI_EXT
     #include <mpi-ext.h>
     #endif
-    int main(void) 
+    int main(void)
     {
       return MPIX_Query_${BACKEND_LOWER}_support();
     }" ${OUTPUT_VAR})
@@ -86,7 +86,7 @@ function(GMX_TEST_GPU_AWARE_MPI BACKEND)
     else()
       MESSAGE(STATUS "Checking for ${OUTPUT_VAR} - no")
       if (GMX_GPU_CUDA AND ("${BACKEND_UPPER}" STREQUAL "CUDA"))
-        MESSAGE(WARNING "GROMACS cannot determine if underlying MPI is ${BACKEND_UPPER}-aware, " 
+        MESSAGE(WARNING "GROMACS cannot determine if underlying MPI is ${BACKEND_UPPER}-aware, "
         "for better multi-GPU performance consider using a more recent CUDA-aware MPI.")
       endif()
     endif()
@@ -100,10 +100,15 @@ if (GMX_GPU_CUDA)
   set(MPI_SUPPORTS_ROCM_AWARE_DETECTION FALSE)
   set(MPI_SUPPORTS_ZE_AWARE_DETECTION FALSE)
 endif()
+if (GMX_GPU_HIP)
+  set(MPI_SUPPORTS_CUDA_AWARE_DETECTION FALSE)
+  gmx_test_gpu_aware_mpi(hip) # MPICH has MPIX_Query_hip_support
+  gmx_test_gpu_aware_mpi(rocm) # OpenMPI has MPIX_Query_rocm_support
+  set(MPI_SUPPORTS_ZE_AWARE_DETECTION FALSE)
+endif()
 if(GMX_GPU_SYCL)
   gmx_test_gpu_aware_mpi(cuda)
   gmx_test_gpu_aware_mpi(hip) # MPICH has MPIX_Query_hip_support
   gmx_test_gpu_aware_mpi(rocm) # OpenMPI has MPIX_Query_rocm_support
   gmx_test_gpu_aware_mpi(ze)
 endif()
-

@@ -159,17 +159,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_hip)
 #    endif /* CALC_ENERGIES */
 #endif     /* PRUNE_NBL */
-                (NBAtomDataGpu atdat, NBParamGpu nbparam, Nbnxm::gpu_plist plist, bool bCalcFshift)
+                (NBAtomDataGpu atdat, NBParamGpu nbparam, Nbnxm::gpu_plist plist, bool bCalcFshift, nbnxn_cj_packed_t* __restrict__ pl_cjPacked)
 #ifdef FUNCTION_DECLARATION_ONLY
                         ; /* Only do function declaration, omit the function body. */
 #else
 {
     /* convenience variables */
     const nbnxn_sci_t* pl_sci = plist.sci_sorted == nullptr ? plist.sci : plist.sci_sorted;
-#    ifndef PRUNE_NBL
-    const
-#    endif
-          nbnxn_cj_packed_t* pl_cjPacked = plist.cjPacked;
     FastBuffer<nbnxn_excl_t> excl        = FastBuffer<nbnxn_excl_t>(plist.excl);
 #    ifndef LJ_COMB
     FastBuffer<int>      atom_types  = FastBuffer<int>(atdat.atomTypes);
@@ -391,9 +387,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
      */
     for (jPacked = cijPackedBegin; jPacked < cijPackedEnd; ++jPacked)
     {
-        imask     = pl_cjPacked[jPacked].imei[widx].imask;
-        // "Scalarize" imask when possible, the compiler always generates vector load here
-        // so imask is stored in a vector register, making it scalar simplifies the code.
+        /* When c_nbnxnGpuClusterpairSplit = 1, i.e. on CDNA, ROCm 5.2's compiler correctly
+         * generates scalar loads for __restrict__ pl_cj4 (but not for plist.cj4),
+         * ROCm 5.0.2's compiler generates vector loads, imask is a vector register.
+         * If this happens, "scalarize" imask so it goes to a scalar register and
+         * all imask-related checks become simpler scalar instructions.
+         * (__builtin_amdgcn_readfirstlane is no-op if it's already a scalar register).
+         */
         imask     = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(imask) : imask;
 #    ifndef PRUNE_NBL
         if (!imask)
@@ -402,8 +402,6 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
         }
 #    endif
         wexcl_idx = pl_cjPacked[jPacked].imei[widx].excl_ind;
-        // "Scalarize" wexcl_idx when possible, gives a slight performance increase for Mi2** GPUs
-        wexcl_idx = (c_clSize * c_clSize) == warpSize ? __builtin_amdgcn_readfirstlane(wexcl_idx) : wexcl_idx;
         wexcl     = excl[wexcl_idx].pair[tidx & (c_subWarp - 1)];
 
 #       pragma unroll

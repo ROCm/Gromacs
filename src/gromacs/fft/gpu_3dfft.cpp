@@ -80,6 +80,8 @@
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
 
+#include <iostream>
+
 namespace gmx
 {
 
@@ -104,6 +106,9 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                    DeviceBuffer<float>* realGrid,
                    DeviceBuffer<float>* complexGrid)
 {
+    std::cout << " backend: " << (int)backend << " performOutOfPlaceFFT: " << performOutOfPlaceFFT << " heffte: " << GMX_USE_Heffte << std::endl;
+    std::cout.flush();
+
 #if GMX_GPU_CUDA
     switch (backend)
     {
@@ -147,7 +152,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
     switch (backend)
     {
         case FftBackend::Hipfft:
-            impl_ = std::make_unique<Gpu3dFft::ImplHipFft>(allocateGrids,
+            impl_ = std::make_unique<Gpu3dFft::ImplHipFft>(allocateRealGrid,
                                                            comm,
                                                            gridSizesInXForEachRank,
                                                            gridSizesInYForEachRank,
@@ -320,6 +325,30 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                     "HeFFTe_CUDA FFT backend is supported only with GROMACS compiled with CUDA");
 #    endif
             break;
+        case FftBackend::HeFFTe_HIP:
+#    if GMX_GPU_HIP
+            GMX_RELEASE_ASSERT(heffte::backend::is_enabled<heffte::backend::rocfft>::value,
+                               "HeFFTe not compiled with HIP support");
+            impl_ = std::make_unique<Gpu3dFft::ImplHeFfte<heffte::backend::rocfft>>(
+                    allocateRealGrid,
+                    comm,
+                    gridSizesInXForEachRank,
+                    gridSizesInYForEachRank,
+                    nz,
+                    performOutOfPlaceFFT,
+                    context,
+                    pmeStream,
+                    realGridSize,
+                    realGridSizePadded,
+                    complexGridSizePadded,
+                    realGrid,
+                    complexGrid);
+#    else
+            GMX_RELEASE_ASSERT(
+                    false,
+                    "HeFFTe_HIP FFT backend is supported only with GROMACS compiled with HIP");
+#    endif
+            break;
         case FftBackend::HeFFTe_Sycl_OneMkl:
 #    if GMX_GPU_SYCL && GMX_GPU_FFT_MKL
             GMX_RELEASE_ASSERT(heffte::backend::is_enabled<heffte::backend::onemkl>::value,
@@ -402,6 +431,9 @@ Gpu3dFft::~Gpu3dFft() = default;
 
 void Gpu3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent)
 {
+    std::cout << typeid(impl_.get()).name() << std::endl;
+    std::cout.flush();
+
     GMX_RELEASE_ASSERT(impl_ != nullptr, "Cannot run GPU routines in a CPU-only configuration");
     impl_->perform3dFft(dir, timingEvent);
 }

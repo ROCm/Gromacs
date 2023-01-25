@@ -248,7 +248,7 @@ std::string getGpuFftDescriptionString()
         {
             return "cuFFT";
         }
-        else if (GMX_GPU_FFT_HIP)
+        else if (GMX_GPU_FFT_HIPFFT)
         {
         	return "hipFFT";
         }
@@ -298,6 +298,10 @@ std::string getMultiGpuFftDescriptionString()
             // This could be either in a CUDA or SYCL build, but the
             // distinction does not matter here.
             return gmx::formatString("HeFFTe %s with cuFFT backend", Heffte_VERSION);
+        }
+        else if (GMX_GPU_HIP && GMX_GPU_FFT_HIPFFT)
+        {
+            return gmx::formatString("HeFFTe %s with rocFFT backend", Heffte_VERSION);
         }
         else if (GMX_GPU_SYCL && GMX_GPU_FFT_MKL)
         {

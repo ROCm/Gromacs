@@ -239,6 +239,9 @@ std::vector<FftBackend> const           inputBackends
 #    if GMX_GPU_CUDA
     FftBackend::HeFFTe_CUDA,
 #    endif
+#    if GMX_GPU_HIP
+    FftBackend::HeFFTe_HIP,
+#    endif
 #    if GMX_GPU_SYCL && GMX_GPU_FFT_MKL
             FftBackend::HeFFTe_OneApi,
 #    endif
