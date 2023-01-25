@@ -64,7 +64,6 @@ variables:
   image: rocm/rocm-terminal:latest
   before_script:
     # We need to duplicate before script
-    - $SUDO_CMD sh -c 'echo -e "gfx803\ngfx900\ngfx906\ngfx908\ngfx1030" >> /opt/rocm/bin/target.lst'
     - $SUDO_CMD apt-get update -qq
     - $SUDO_CMD sudo apt install -y software-properties-common
     - $SUDO_CMD add-apt-repository ppa:deadsnakes/ppa
@@ -120,6 +119,8 @@ build:rocm-tmpi-mi100:
       -DGMX_SIMD=AVX2_256
       -DREGRESSIONTEST_DOWNLOAD=OFF
       -DGMX_PHYSICAL_VALIDATION=OFF
+      -DCMAKE_HIP_ARCHITECTURES=gfx908
+      -DGMX_GIT_VERSION_INFO=OFF 
       -DCMAKE_PREFIX_PATH=/opt/rocm ..
     - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
     - make -j 60
@@ -162,6 +163,8 @@ build:rocm-mpi-mi100:
       -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
       -DREGRESSIONTEST_DOWNLOAD=OFF
+      -DCMAKE_HIP_ARCHITECTURES=gfx908
+      -DGMX_GIT_VERSION_INFO=OFF
       -DCMAKE_PREFIX_PATH=/opt/rocm ..
     - export LD_LIBRARY_PATH=$CI_PROJECT_DIR/build/lib:$LD_LIBRARY_PATH
     - make -j 60
