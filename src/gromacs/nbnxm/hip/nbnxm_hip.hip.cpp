@@ -72,7 +72,7 @@
 #include "nbnxm_hip_types.h"
 
 #ifdef dump_arrays
-#include <fstream>
+    #include <fstream>
 #endif
 
 #include <rocprim/rocprim.hpp>
@@ -873,6 +873,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             kernelSciSortArgs
         );
 
+#ifdef dump_arrays
         {
             std::vector<int> host_sci_histogram(plist->nsci_histogram);
 
@@ -908,6 +909,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             scioffsetfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
             scioffsetfile.close();
         }
+#endif
 
     }
 
