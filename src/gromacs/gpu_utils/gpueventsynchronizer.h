@@ -50,8 +50,6 @@
 
 #include "device_event.h"
 
-#include <iostream>
-
 #ifdef __clang__
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wmissing-noreturn"
@@ -165,9 +163,6 @@ public:
      */
     inline void waitForEvent()
     {
-        std::cout << "waitForEvent()" << std::endl;
-        std::cout.flush();
-
         consume();
         event_.wait();
         resetIfFullyConsumed();
@@ -178,9 +173,6 @@ public:
         bool isReady = event_.isReady();
         if (isReady)
         {
-            std::cout << "isReady()" << std::endl;
-            std::cout.flush();
-
             consume();
             resetIfFullyConsumed();
         }
@@ -215,9 +207,6 @@ public:
      */
     inline void enqueueWaitEvent(const DeviceStream& deviceStream)
     {
-        std::cout << "enqueueWaitEvent()" << std::endl;
-        std::cout.flush();
-
         consume();
         event_.enqueueWait(deviceStream);
         resetIfFullyConsumed();

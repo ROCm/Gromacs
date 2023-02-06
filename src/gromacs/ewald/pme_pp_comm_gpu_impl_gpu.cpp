@@ -64,8 +64,6 @@
 #endif
 #include "gromacs/utility/gmxmpi.h"
 
-#include <iostream>
-
 namespace gmx
 {
 
@@ -138,9 +136,6 @@ void PmePpCommGpu::Impl::receiveForceFromPmePeerToPeer(bool receivePmeForceToGpu
     }
     else
     {
-        std::cout << "pmePpCommStream_.synchronize(); 139" << std::endl;
-        std::cout.flush();
-
         // Ensure CPU waits for PME forces to be copied before reducing
         // them with other forces on the CPU
         pmePpCommStream_.synchronize();

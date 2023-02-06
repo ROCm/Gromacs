@@ -46,8 +46,6 @@
 #include "gromacs/gpu_utils/typecasts.hpp"
 #include "gromacs/gpu_utils/vectype_ops.hpp"
 
-#include <iostream>
-
 namespace gmx
 {
 
@@ -100,8 +98,6 @@ void launchScaleCoordinatesKernel(const int            numAtoms,
                     "scaleCoordinates_kernel",
                     kernelArgs);
 
-    std::cout << "launchScaleCoordinatesKernel" << std::endl;
-    std::cout.flush();
     // TODO: Although this only happens on the pressure coupling steps, this synchronization
     //       can affect the performance if nstpcouple is small. See Issue #4018
     deviceStream.synchronize();

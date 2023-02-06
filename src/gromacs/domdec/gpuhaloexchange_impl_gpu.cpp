@@ -59,8 +59,6 @@
 
 #include "domdec_internal.h"
 
-#include <iostream>
-
 // NOLINTNEXTLINE(misc-redundant-expression)
 constexpr bool supportedLibMpiBuild =
         ((GMX_LIB_MPI != 0) && ((GMX_GPU_CUDA != 0 || GMX_GPU_HIP != 0) || (GMX_GPU_SYCL != 0)));
@@ -359,10 +357,6 @@ void GpuHaloExchange::Impl::communicateHaloDataGpuAwareMpi(Float3* sendPtr,
         // wait for halo stream to complete all outstanding
         // activities, to ensure that buffer is up-to-date in GPU memory
         // before transferring to remote rank
-
-        std::cout << "haloStream_->synchronize(); 363" << std::endl;
-        std::cout.flush();
-
         // TODO: Replace stream synchronize with event synchronize
         haloStream_->synchronize();
     }
@@ -405,9 +399,6 @@ void GpuHaloExchange::Impl::communicateHaloCoordinatesOutOfPlace(DeviceBuffer<Fl
     copyFromDeviceBuffer(
             h_outOfPlaceSendBuffer_.data(), &d_sendPtr, 0, sendSize, *haloStream_, GpuApiCallBehavior::Async, nullptr);
 
-    std::cout << "haloStream_->synchronize(); 408" << std::endl;
-    std::cout.flush();
-
     haloStream_->synchronize();
     // exchange host staging buffers with MPI
     MPI_Irecv(h_outOfPlaceRecvBuffer_.data(), recvSize * DIM, MPI_FLOAT, recvRank, 0, mpi_comm_mysim_, &request);
@@ -427,9 +418,6 @@ void GpuHaloExchange::Impl::communicateHaloCoordinatesOutOfPlace(DeviceBuffer<Fl
                            nullptr);
         stageBufIndex += numElements;
     }
-
-    std::cout << "haloStream_->synchronize(); 431" << std::endl;
-    std::cout.flush();
 
     haloStream_->synchronize();
 #else
@@ -462,9 +450,6 @@ void GpuHaloExchange::Impl::communicateHaloForcesOutOfPlace(DeviceBuffer<Float3>
                              nullptr);
         stageBufIndex += numElements;
     }
-
-    std::cout << "haloStream_->synchronize(); 466" << std::endl;
-    std::cout.flush();
 
     haloStream_->synchronize();
     // exchange host staging buffers with MPI

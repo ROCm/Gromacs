@@ -96,8 +96,6 @@
 #include "pme_internal.h"
 #include "pme_solve.h"
 
-#include <iostream>
-
 /*! \brief
  * CUDA only
  * Atom limit above which it is advantageous to turn on the
@@ -148,9 +146,6 @@ int pme_gpu_get_atoms_per_warp(const PmeGpu* pmeGpu)
 
 void pme_gpu_synchronize(const PmeGpu* pmeGpu)
 {
-    std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize(); 151" << std::endl;
-    std::cout.flush();
-
     pmeGpu->archSpecific->pmeStream_.synchronize();
 }
 
@@ -1158,25 +1153,13 @@ void pme_gpu_update_input_box(PmeGpu gmx_unused* pmeGpu, const matrix gmx_unused
     matrix scaledBox;
     pmeGpu->common->boxScaler->scaleBox(box, scaledBox);
 
-    std::cout << "pme_gpu_update_input_box::scaleBox" << std::endl;
-    std::cout.flush();
-
     auto* kernelParamsPtr              = pme_gpu_get_kernel_params_base_ptr(pmeGpu);
     kernelParamsPtr->current.boxVolume = scaledBox[XX][XX] * scaledBox[YY][YY] * scaledBox[ZZ][ZZ];
-
-    std::cout << "pme_gpu_update_input_box::current.boxVolume:" << kernelParamsPtr->current.boxVolume << std::endl;
-    std::cout << "pme_gpu_update_input_box::current.recipBox:" << kernelParamsPtr->current.recipBox << std::endl;
-    std::cout.flush();
 
     GMX_ASSERT(kernelParamsPtr->current.boxVolume != 0.0F, "Zero volume of the unit cell");
     matrix recipBox;
 
-    std::cout << "pme_gpu_update_input_box::current.boxVolume:" << kernelParamsPtr->current.boxVolume << std::endl;
-    std::cout.flush();
     gmx::invertBoxMatrix(scaledBox, recipBox);
-
-    std::cout << "pme_gpu_update_input_box::invertBoxMatrix" << std::endl;
-    std::cout.flush();
 
     /* The GPU recipBox is transposed as compared to the CPU recipBox.
      * Spread uses matrix columns (while solve and gather use rows).
@@ -1432,9 +1415,6 @@ void pme_gpu_reinit(gmx_pme_t*           pme,
 
 void pme_gpu_destroy(PmeGpu* pmeGpu)
 {
-    std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize(); 1432" << std::endl;
-    std::cout.flush();
-
     // Wait for all the tasks to complete before freeing the memory. See #4519.
     pmeGpu->archSpecific->pmeStream_.synchronize();
 
@@ -1765,14 +1745,10 @@ static int manageSyncWithPpCoordinateSenderGpu(const PmeGpu*                  pm
                 pmeCoordinateReceiverGpu->receivePpCoordinateSendEvent(pipelineStage);
         if (usePipeline)
         {
-            std::cout << "ppCommStream" << std::endl;
-            std::cout.flush();
             event->enqueueWaitEvent(*(pmeCoordinateReceiverGpu->ppCommStream(senderRank)));
         }
         else
         {
-            std::cout << "pmeGpu->archSpecific->pmeStream_" << std::endl;
-            std::cout.flush();
             event->enqueueWaitEvent(pmeGpu->archSpecific->pmeStream_);
         }
     }
@@ -1834,16 +1810,10 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                        || pme_gpu_settings(pmeGpu).copyAllOutputs,
                "Need a valid coordinate synchronizer on PP+PME ranks with CUDA.");
 
-    std::cout << "xReadyOnDevice: " << xReadyOnDevice << std::endl;
-    std::cout.flush();
-
     if (xReadyOnDevice)
     {
         xReadyOnDevice->enqueueWaitEvent(pmeGpu->archSpecific->pmeStream_);
     }
-
-    std::cout << "HI " << std::endl;
-    std::cout.flush();
 
     // launch spread only if nAtoms > 0
     if (kernelParamsPtr->atoms.nAtoms > 0)
@@ -1866,9 +1836,6 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
         config.blockSize[2] = atomsPerBlock;
         config.gridSize[0]  = dimGrid.first;
         config.gridSize[1]  = dimGrid.second;
-
-        std::cout << "HI 2" << std::endl;
-        std::cout.flush();
 
         PmeStage                           timingId;
         PmeGpuProgramImpl::PmeKernelHandle kernelPtr = nullptr;
@@ -1901,9 +1868,6 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                                               pmeGpu->common->ngrids);
         }
 
-        std::cout << "HI 3" << std::endl;
-        std::cout.flush();
-
         pme_gpu_start_timing(pmeGpu, timingId);
         auto* timingEvent = pme_gpu_fetch_timing_event(pmeGpu, timingId);
 
@@ -1933,9 +1897,6 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                 config.gridSize[0]         = dimGrid.first;
                 config.gridSize[1]         = dimGrid.second;
                 DeviceStream* launchStream = pmeCoordinateReceiverGpu->ppCommStream(senderRank);
-
-                std::cout << "HI 4" << std::endl;
-                std::cout.flush();
 
 #if c_canEmbedBuffers
                 const auto kernelArgs = prepareGpuKernelArguments(kernelPtr, config, kernelParamsPtr);
@@ -2062,9 +2023,6 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
     {
         pme_gpu_copy_output_spread_atom_data(pmeGpu);
     }
-
-    std::cout << "HI End" << std::endl;
-    std::cout.flush();
 
     wallcycle_stop(wcycle, WallCycleCounter::LaunchGpuPme);
 }

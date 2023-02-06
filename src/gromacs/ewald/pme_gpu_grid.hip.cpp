@@ -60,8 +60,6 @@
 #include "pme_gpu_types_host.h"
 #include "pme_gpu_types_host_impl.h"
 
-#include <iostream>
-
 /*! \brief Sub-group size for conversion kernels
  *
  * Chosen to match relevant hardware widths on supported hardware.
@@ -902,9 +900,6 @@ void pmeGpuGridHaloExchange(const PmeGpu* pmeGpu, gmx_wallcycle* wcycle)
 
         wallcycle_start(wcycle, WallCycleCounter::WaitGpuPmeSpread);
 
-        std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize();" << std::endl;
-        std::cout.flush();
-
         // Make sure data is ready on GPU before MPI communication.
         // Wait for spread to finish in case of slab decomposition along X-dimension and
         // wait for packing to finish otherwise.
@@ -1186,9 +1181,6 @@ void pmeGpuGridHaloExchangeReverse(const PmeGpu* pmeGpu, gmx_wallcycle* wcycle)
         }
 
         wallcycle_start(wcycle, WallCycleCounter::WaitGpuFftToPmeGrid);
-
-        std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize(); 1174" << std::endl;
-        std::cout.flush();
 
         // Make sure data is ready on GPU before MPI communication.
         // Wait for FFT to PME grid conversion to finish in case of slab decomposition along X-dimension and

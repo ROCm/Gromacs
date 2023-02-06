@@ -84,8 +84,6 @@
 #include "nbnxm_gpu_data_mgmt.h"
 #include "pairlistsets.h"
 
-#include <iostream>
-
 namespace Nbnxm
 {
 
@@ -495,15 +493,7 @@ NbnxmGpu* gpu_init(const gmx::DeviceStreamManager& deviceStreamManager,
     GMX_RELEASE_ASSERT(deviceStreamManager.streamIsValid(gmx::DeviceStreamType::NonBondedLocal),
                        "Local non-bonded stream should be initialized to use GPU for non-bonded.");
     const DeviceStream& localStream = deviceStreamManager.stream(gmx::DeviceStreamType::NonBondedLocal);
-    std::cout << "gpu_init" << std::endl;
-    std::cout.flush();
-
     nb->deviceStreams[InteractionLocality::Local] = &localStream;
-
-    //std::cout << "gpu_init " << localStream.stream_pointer() << std::endl;
-    //std::cout << "gpu_init " << nb->deviceStreams[InteractionLocality::Local]->stream_pointer()  << std::endl;
-    std::cout.flush();
-
 
     // In general, it's not strictly necessary to use 2 streams for SYCL, since they are
     // out-of-order. But for the time being, it will be less disruptive to keep them.
@@ -991,10 +981,6 @@ void gpu_launch_cpyback(NbnxmGpu*                nb,
     {
         timers->xf[atomLocality].nb_d2h.closeTimingRegion(deviceStream);
     }
-
-    std::cout << "gpu_launch_cpyback();" << std::endl;
-    std::cout.flush();
-    nb->deviceStreams[InteractionLocality::Local]->isValid();
 }
 
 void nbnxnInsertNonlocalGpuDependency(NbnxmGpu* nb, const InteractionLocality interactionLocality)
@@ -1019,10 +1005,6 @@ void nbnxnInsertNonlocalGpuDependency(NbnxmGpu* nb, const InteractionLocality in
             nb->misc_ops_and_local_H2D_done.enqueueWaitEvent(deviceStream);
         }
     }
-
-    std::cout << "nbnxnInsertNonlocalGpuDependency();" << std::endl;
-    std::cout.flush();
-    nb->deviceStreams[InteractionLocality::Local]->isValid();
 }
 
 /*! \brief Launch asynchronously the xq buffer host to device copy. */
@@ -1092,20 +1074,12 @@ void gpu_copy_xq_to_gpu(NbnxmGpu* nb, const nbnxn_atomdata_t* nbatom, const Atom
        compute on interactions between local and nonlocal atoms.
      */
     nbnxnInsertNonlocalGpuDependency(nb, iloc);
-
-    std::cout << "gpu_copy_xq_to_gpu();" << std::endl;
-    std::cout.flush();
-    nb->deviceStreams[InteractionLocality::Local]->isValid();
 }
 
 
 /* Initialization for X buffer operations on GPU. */
 void nbnxn_gpu_init_x_to_nbat_x(const Nbnxm::GridSet& gridSet, NbnxmGpu* gpu_nbv)
 {
-    std::cout << "nbnxn_gpu_init_x_to_nbat_x();" << std::endl;
-    std::cout.flush();
-    gpu_nbv->deviceStreams[InteractionLocality::Local]->isValid();
-
     const DeviceStream& localStream   = *gpu_nbv->deviceStreams[InteractionLocality::Local];
     const bool          bDoTime       = gpu_nbv->bDoTime;
     const int           maxNumColumns = gridSet.numColumnsMax();
@@ -1220,14 +1194,7 @@ void gpu_free(NbnxmGpu* nb)
         return;
     }
 
-    std::cout << "gpu_free();" << std::endl;
-    std::cout.flush();
-
-    //std::cout << hipGetLastError() << std::endl;
-    //std::cout.flush();
-
     nb->deviceStreams[InteractionLocality::Local]->isValid();
-
 
     /* Synchronize to make sure there are no leftover operations in the streams.
      * Ideally, there should not be any, but just in case we synchronize there
@@ -1237,17 +1204,11 @@ void gpu_free(NbnxmGpu* nb)
      * But explicitly waiting for tasks to complete before freeing the memory they use is logically
      * sound and should not have any performance impact.
      */
-    std::cout << "nb->deviceStreams[Nbnxm::InteractionLocality::Local]->synchronize();" << std::endl;
-    std::cout.flush();
-    if (nb->deviceStreams[Nbnxm::InteractionLocality::Local] &&
-        nb->deviceStreams[Nbnxm::InteractionLocality::Local]->isValid())
-        nb->deviceStreams[Nbnxm::InteractionLocality::Local]->synchronize();
+     nb->deviceStreams[Nbnxm::InteractionLocality::Local]->synchronize();
 
     if (nb->deviceStreams[Nbnxm::InteractionLocality::NonLocal] &&
         nb->deviceStreams[Nbnxm::InteractionLocality::NonLocal]->isValid())
     {
-        std::cout << "nb->deviceStreams[Nbnxm::InteractionLocality::NonLocal]->synchronize();" << std::endl;
-        std::cout.flush();
         nb->deviceStreams[Nbnxm::InteractionLocality::NonLocal]->synchronize();
     }
 

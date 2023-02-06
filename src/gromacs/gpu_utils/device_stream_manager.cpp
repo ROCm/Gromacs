@@ -52,8 +52,6 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
-#include <iostream>
-
 namespace gmx
 {
 
@@ -126,8 +124,6 @@ DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
 
 DeviceStreamManager::Impl::~Impl()
 {
-    std::cout << "DeviceStreamManager::Impl::~Impl()" << std::endl;
-    std::cout.flush();
     // Wait for all the tasks to complete before destroying the streams. See #4519.
     for (const auto& stream : streams_)
     {

@@ -76,8 +76,6 @@
 #include "gpu_common_utils.h"
 #include "nbnxm_gpu.h"
 
-#include <iostream>
-
 namespace gmx
 {
 class ListedForcesGpu;
@@ -308,8 +306,6 @@ bool gpu_try_finish_task(NbnxmGpu*                nb,
         }
         else if (haveResultToWaitFor)
         {
-            std::cout << "nb->deviceStreams[iLocality]->synchronize();" << std::endl;
-            std::cout.flush();
             nb->deviceStreams[iLocality]->synchronize();
         }
 

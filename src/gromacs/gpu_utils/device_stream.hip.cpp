@@ -48,15 +48,10 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
-#include <iostream>
-
 DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
                            DeviceStreamPriority priority,
                            const bool /* useTiming */)
 {
-    std::cout << "DeviceStream() constructor" << std::endl;
-    std::cout.flush();
-
     hipError_t stat;
 
     if (priority == DeviceStreamPriority::Normal)
@@ -78,26 +73,18 @@ DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
         stat = hipStreamCreateWithPriority(stream_pointer_, hipStreamDefault, highestPriority);
         gmx::checkDeviceError(stat, "Could not create HIP stream with high priority.");
     }
-
-    std::cout << "DeviceStream() constructor" << stream_pointer_ << " ; " << *stream_pointer_ <<  std::endl;
-    std::cout.flush();
 }
 
 DeviceStream::~DeviceStream()
 {
     if (isValid())
     {
-        std::cout << "~DeviceStream() " << *stream_pointer_ << ", " << stream_pointer_ << std::endl;
-        std::cout.flush();
-
         hipError_t stat = hipStreamDestroy(*stream_pointer_);
         GMX_RELEASE_ASSERT(stat == hipSuccess,
                            ("Failed to release HIP stream. " + gmx::getDeviceErrorString(stat)).c_str());
 
         delete stream_pointer_;
         stream_pointer_ = nullptr;
-
-        std::cout << "~DeviceStream() " << stream_pointer_ << std::endl;
     }
 }
 
@@ -113,9 +100,6 @@ hipStream_t* DeviceStream::stream_pointer() const
 
 bool DeviceStream::isValid() const
 {
-    std::cout << "isValid() " << *stream_pointer_ << ", " << stream_pointer_ << std::endl;
-    std::cout.flush();
-
     return (stream_pointer_ != nullptr && *stream_pointer_ != nullptr);
 }
 

@@ -80,8 +80,6 @@
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
 
-#include <iostream>
-
 namespace gmx
 {
 
@@ -106,9 +104,6 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                    DeviceBuffer<float>* realGrid,
                    DeviceBuffer<float>* complexGrid)
 {
-    std::cout << " backend: " << (int)backend << " performOutOfPlaceFFT: " << performOutOfPlaceFFT << " heffte: " << GMX_USE_Heffte << std::endl;
-    std::cout.flush();
-
 #if GMX_GPU_CUDA
     switch (backend)
     {
@@ -431,9 +426,6 @@ Gpu3dFft::~Gpu3dFft() = default;
 
 void Gpu3dFft::perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent)
 {
-    std::cout << typeid(impl_.get()).name() << std::endl;
-    std::cout.flush();
-
     GMX_RELEASE_ASSERT(impl_ != nullptr, "Cannot run GPU routines in a CPU-only configuration");
     impl_->perform3dFft(dir, timingEvent);
 }
