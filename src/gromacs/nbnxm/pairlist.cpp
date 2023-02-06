@@ -2164,9 +2164,41 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
     (void)nsp_tot_est;
     (void)thread;
     (void)nthread;
+
     int cjPackedLenMax = length_limit;
+
+    const int cjPackedBegin = nbl->sci.back().cjPackedBegin;
+    const int cjPackedEnd   = nbl->sci.back().cjPackedEnd();
+    const int jPackedLen    = nbl->sci.back().cjPackedLength;
+
+    if (jPackedLen > cjPackedLenMax)
+    {
+        /* Modify the last ci entry and process the cjPacked's again */
+        int nsp            = 0;
+        for (int cjPacked = cjPackedBegin; cjPacked < cjPackedEnd; cjPacked++)
+        {
+            /* Limit the maximum size of the sci array */
+            if (nsp > 0 && (cjPacked - nbl->sci.back().cjPackedBegin) >= cjPackedLenMax)
+            {
+                /* Split the list at cjPacked */
+                 nbl->sci.back().cjPackedLength = cjPacked - nbl->sci.back().cjPackedBegin;
+                /* Create a new sci entry */
+                nbnxn_sci_t sciNew;
+                sciNew.sci           = nbl->sci.back().sci;
+                sciNew.shift         = nbl->sci.back().shift;
+                sciNew.cjPackedBegin = cjPacked;
+                nbl->sci.push_back(sciNew);
+                nsp       = 0;
+            }
+            nsp += nbl->cjPacked.list_[cjPacked].imei[0].imask > 0 ? 1 : 0;
+        }
+
+        /* Put the remaining cjPacked's in the last sci entry */
+        nbl->sci.back().cjPackedLength = cjPackedEnd - nbl->sci.back().cjPackedBegin;
+    }
 #else
-    int nsp_max;
+    int nsp_max = nsp_target_av;
+
     if (progBal)
     {
         /* Estimate the total numbers of ci's of the nblist combined
@@ -2182,33 +2214,21 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
          */
         nsp_max = static_cast<int>(nsp_target_av * (nsp_tot_est * 1.5 / (nsp_est + nsp_tot_est)));
     }
-    else
-    {
-        nsp_max = nsp_target_av;
-    }
-#endif
 
     const int cjPackedBegin = nbl->sci.back().cjPackedBegin;
     const int cjPackedEnd   = nbl->sci.back().cjPackedEnd();
-    const int jPackedLen    = nbl->sci.back().cjPackedLength;
-#if GMX_GPU_HIP
-    if (jPackedLen > cjPackedLenMax)
-#else
+    const int jPackedLen    = cjPackedEnd - cjPackedBegin;
+
     if (jPackedLen > 1 && jPackedLen * c_gpuNumClusterPerCell * c_nbnxnGpuJgroupSize > nsp_max)
-#endif
     {
         /* Modify the last ci entry and process the cjPacked's again */
 
         int nsp            = 0;
-#if !GMX_GPU_HIP
         int nsp_sci        = 0;
         int nsp_cjPacked_e = 0;
         int nsp_cjPacked   = 0;
-#endif
-
         for (int cjPacked = cjPackedBegin; cjPacked < cjPackedEnd; cjPacked++)
         {
-#if !GMX_GPU_HIP
             int nsp_cjPacked_p = nsp_cjPacked;
             /* Count the number of cluster pairs in this cjPacked group */
             nsp_cjPacked = 0;
@@ -2216,12 +2236,11 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             {
                 nsp_cjPacked += (nbl->cjPacked.list_[cjPacked].imei[0].imask >> p) & 1;
             }
-#endif
 
             /* If adding the current cjPacked with nsp_cjPacked pairs get us further
              * away from our target nsp_max, split the list before this cjPacked.
              */
-            if (nsp > 0 && (cjPacked - nbl->sci.back().cjPackedBegin) >= cjPackedLenMax)
+            if (nsp > 0 && nsp_max - nsp < nsp + nsp_cjPacked - nsp_max)
             {
                 /* Split the list at cjPacked */
                  nbl->sci.back().cjPackedLength = cjPacked - nbl->sci.back().cjPackedBegin;
@@ -2231,24 +2250,16 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
                 sciNew.shift         = nbl->sci.back().shift;
                 sciNew.cjPackedBegin = cjPacked;
                 nbl->sci.push_back(sciNew);
-#if !GMX_GPU_HIP
+
                 nsp_sci        = nsp;
                 nsp_cjPacked_e = nsp_cjPacked_p;
-#endif
                 nsp       = 0;
             }
-#if GMX_GPU_HIP
-            nsp += nbl->cjPacked.list_[cjPacked].imei[0].imask > 0 ? 1 : 0;
-#else
            nsp += nsp_cjPacked;
-#endif
-
         }
 
         /* Put the remaining cjPacked's in the last sci entry */
         nbl->sci.back().cjPackedLength = cjPackedEnd - nbl->sci.back().cjPackedBegin;
-
-#if !GMX_GPU_HIP
 
         /* Possibly balance out the last two sci's
          * by moving the last cjPacked of the second last sci.
@@ -2259,8 +2270,8 @@ static void split_sci_entry(NbnxnPairlistGpu* nbl,
             nbl->sci[nbl->sci.size() - 2].cjPackedLength--;
             nbl->sci[nbl->sci.size() - 1].cjPackedBegin--;
         }
-#endif
     }
+#endif
 }
 
 /* Close the current (ie. the last) super/sub list i entry */
@@ -2270,7 +2281,7 @@ static void closeIEntry(NbnxnPairlistGpu* nbl,
                         float nsp_tot_est,
                         int thread,
                         int nthread,
-                        int length_limit = INT_MAX)
+                        int length_limit = SHRT_MAX)
 {
     /* All content of the current sci entry have already been filled
      * correctly, we only need to, potentially, split or remove the
@@ -3908,6 +3919,10 @@ static bool checkRebalanceSimpleLists(gmx::ArrayRef<const NbnxnPairlistCpu> list
     return real(numLists * ncjMax) > real(ncjTotal) * rebalanceTolerance;
 }
 
+#if GMX_GPU_HIP
+#    define nsp_based_sort
+#endif
+
 /* Perform a count (linear) sort to sort the smaller lists to the end.
  * This avoids load imbalance on the GPU, as large lists will be
  * scheduled and executed first and the smaller lists later.
@@ -3920,20 +3935,20 @@ static bool checkRebalanceSimpleLists(gmx::ArrayRef<const NbnxnPairlistCpu> list
  */
 static void sort_sci(NbnxnPairlistGpu* nbl)
 {
+#if GMX_GPU_HIP
+    return;
+#endif
+
     if (nbl->cjPacked.size() <= gmx::index(nbl->sci.size()))
     {
         /* nsci = 0 or all sci have size 1, sorting won't change the order */
         return;
     }
 
-#if GMX_GPU_HIP
-#define nsp_based_sort
-#endif
-
     NbnxnPairlistGpuWork& work = *nbl->work;
 
     /* We will distinguish differences up to double the average */
-#if GMX_GPU_HIP
+#ifdef nsp_based_sort
     const int m = std::max(1024, static_cast<int>(( 8192 * ssize(nbl->cjPacked)) / ssize(nbl->sci)));
 #else
     const int m = static_cast<int>(( 2 * ssize(nbl->cjPacked)) / ssize(nbl->sci));
@@ -3945,9 +3960,13 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
     /* Set up m + 1 entries in sort, initialized at 0 */
     sort.clear();
     sort.resize(m + 1, 0);
-    /* Count the entries of each size */
-    unsigned int index = 0;
+
+#ifdef nsp_based_sort
+    unsigned int nsp_i = 0;
     std::vector<int> nsp(nbl->sci.size(), 0);
+#endif
+
+    /* Count the entries of each size */
     for (const nbnxn_sci_t& sci : nbl->sci)
     {
 #ifdef nsp_based_sort
@@ -3957,20 +3976,19 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
             for (int part = 1; part < c_nbnxnGpuClusterpairSplit; part++)
             {
                 #if GMX_NAVI_BUILD
-                    nsp[index] += __builtin_popcount(nbl->cjPacked.list_[cjPacked].imei[part].imask);
+                    nsp[nsp_i] += __builtin_popcount(nbl->cjPacked.list_[cjPacked].imei[part].imask);
                 #else
                     mask = mask | nbl->cjPacked.list_[cjPacked].imei[part].imask;
                 #endif
 
             }
-            nsp[index] += __builtin_popcount(mask);
+            nsp[nsp_i] += __builtin_popcount(mask);
         }
-        int i = std::min(m, nsp[index]);
+        int i = std::min(m, nsp[nsp_i++]);
 #else
         int i = std::min(m, sci.numJClusterGroups());
 #endif
         sort[i]++;
-        index++;
     }
     /* Calculate the offset for each count */
     int s0  = sort[m];
@@ -3984,16 +4002,19 @@ static void sort_sci(NbnxnPairlistGpu* nbl)
 
     /* Sort entries directly into place */
     gmx::ArrayRef<nbnxn_sci_t> sci_sort = work.sci_sort;
-    index = 0;
+
+#ifdef nsp_based_sort
+    nsp_i = 0;
+#endif
+
     for (const nbnxn_sci_t& sci : nbl->sci)
     {
 #ifdef nsp_based_sort
-        int i               = std::min(m, nsp[index]);
+        int i               = std::min(m, nsp[nsp_i++]);
 #else
         int i               = std::min(m, sci.numJClusterGroups());
 #endif
         sci_sort[sort[i]++] = sci;
-        index++;
     }
 
     /* Swap the sci pointers so we use the new, sorted list */
@@ -4084,7 +4105,7 @@ void PairlistSet::constructPairlists(gmx::InteractionLocality      locality,
         get_nsubpair_target(
                 gridSet, locality, rlist, minimumIlistCountForGpuBalancing, &nsubpair_target, &nsubpair_tot_est);
         // The max cluster length in a block
-        if( length_limit == INT_MAX)
+        if( length_limit == SHRT_MAX)
         {
             if(nsubpair_tot_est < 50000.0f)
             {

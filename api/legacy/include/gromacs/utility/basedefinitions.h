@@ -153,7 +153,9 @@ index ssize(const T& t)
 #endif
 
 #ifdef __clang__
-#    define DO_PRAGMA(x) _Pragma(#    x)
+#    ifndef DO_PRAGMA
+#        define DO_PRAGMA(x) _Pragma(#    x)
+#    endif
 #    define CLANG_DIAGNOSTIC_IGNORE(warning) \
         _Pragma("clang diagnostic push") DO_PRAGMA(clang diagnostic ignored #warning)
 #    define CLANG_DIAGNOSTIC_RESET _Pragma("clang diagnostic pop")

@@ -151,7 +151,7 @@ private:
     cudaGraph_t graph_;
     //! Instantiated graph object
     cudaGraphExec_t instance_;
-#else
+#elif GMX_GPU_HIP
     //! Captured graph object
     hipGraph_t graph_;
     //! Instantiated graph object
@@ -188,7 +188,7 @@ private:
 #if GMX_GPU_CUDA
     //! CUDA status object
     cudaError_t stat_;
-#else
+#elif GMX_GPU_HIP
     //! HIP status object
     hipError_t stat_;
 #endif

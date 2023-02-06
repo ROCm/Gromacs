@@ -43,7 +43,6 @@
 
 #include <cassert>
 
-// #include <math_constants.h>
 #include "gromacs/math/math_constants.h"
 #include "gromacs/gpu_utils/hip_arch_utils.hpp"
 #include "gromacs/gpu_utils/hip_kernel_utils.hpp"
@@ -109,7 +108,8 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
     const float* __restrict__ gm_splineValueMinor = kernelParams.grid.d_splineModuli[gridIndex]
                                                     + kernelParams.grid.splineValuesOffset[minorDim];
     float* __restrict__ gm_virialAndEnergy = kernelParams.constants.d_virialAndEnergy[gridIndex];
-    float2* __restrict__ gm_grid = reinterpret_cast<float2*>(kernelParams.grid.d_fftComplexGrid[gridIndex]);
+    float2* __restrict__ gm_grid = 
+            reinterpret_cast<float2*>(kernelParams.grid.d_fftComplexGrid[gridIndex]);
 
     /* Various grid sizes and indices */
     const int localOffsetMinor  = kernelParams.grid.kOffsets[minorDim];
@@ -315,25 +315,25 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
 
         /* We only need to reduce virxx now */
 #pragma unroll
-        for (int delta = 8; delta < warp_size; delta <<= 1)
+        for (int delta = 8; delta < warpSize; delta <<= 1)
         {
-            virxx += __shfl_down(virxx, delta, warp_size);
+            virxx += __shfl_down(virxx, delta, warpSize);
         }
 
         /* Now first 7 threads of each warp have the full output contributions in virxx */
 
-        const int  componentIndex      = threadLocalId & (warp_size - 1);
+        const int  componentIndex      = threadLocalId & (warpSize - 1);
         const bool validComponentIndex = (componentIndex < c_virialAndEnergyCount);
         /* Reduce 7 outputs per warp in the shared memory */
         const int stride =
                 8; // this is c_virialAndEnergyCount==7 rounded up to power of 2 for convenience, hence the assert
         static_assert(c_virialAndEnergyCount == 7);
-        const int        reductionBufferSize = (c_solveMaxThreadsPerBlock / warp_size) * stride;
+        const int        reductionBufferSize = (c_solveMaxThreadsPerBlock / warpSize) * stride;
         __shared__ float sm_virialAndEnergy[reductionBufferSize];
 
         if (validComponentIndex)
         {
-            const int warpIndex                                     = threadLocalId / warp_size;
+            const int warpIndex                                     = threadLocalId / warpSize;
             sm_virialAndEnergy[warpIndex * stride + componentIndex] = virxx;
         }
         __syncthreads();
@@ -341,7 +341,7 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
         /* Reduce to the single warp size */
         const int targetIndex = threadLocalId;
 #pragma unroll
-        for (int reductionStride = reductionBufferSize >> 1; reductionStride >= warp_size;
+        for (int reductionStride = reductionBufferSize >> 1; reductionStride >= warpSize;
              reductionStride >>= 1)
         {
             const int sourceIndex = targetIndex + reductionStride;
@@ -358,14 +358,14 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
          *       To use fewer warps, add to the conditional:
          *       && threadLocalId < activeWarps * stride
          */
-        assert(activeWarps * stride >= warp_size);
-        if (threadLocalId < warp_size)
+        assert(activeWarps * stride >= warpSize);
+        if (threadLocalId < warpSize)
         {
             float output = sm_virialAndEnergy[threadLocalId];
 #pragma unroll
-            for (int delta = stride; delta < warp_size; delta <<= 1)
+            for (int delta = stride; delta < warpSize; delta <<= 1)
             {
-                output += __shfl_down(output, delta, warp_size);
+                output += __shfl_down(output, delta, warpSize);
             }
             /* Final output */
             if (validComponentIndex)

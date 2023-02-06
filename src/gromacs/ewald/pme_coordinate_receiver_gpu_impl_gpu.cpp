@@ -33,7 +33,7 @@
  */
 /*! \internal \file
  *
- * \brief Implements class which receives coordinates to GPU memory on PME task using CUDA/SYCL.
+ * \brief Implements class which receives coordinates to GPU memory on PME task using CUDA/HIP/SYCL.
  *
  *
  * \author Alan Gray <alang@nvidia.com>
@@ -93,7 +93,7 @@ void PmeCoordinateReceiverGpu::Impl::reinitCoordinateReceiver(DeviceBuffer<RVec>
 
         ppCommManager.atomRange = std::make_tuple(indStart, indEnd);
 
-        // Need to send address to PP rank only for thread-MPI as PP rank pushes data using cudamemcpy
+        // Need to send address to PP rank only for thread-MPI as PP rank pushes data using cudamemcpy/hipmemcpy
         // Skip receiving x buffer pointer when the PP domain is empty (the matching call in `pmePpCommGpu->reinit(n)` is also conditional)
         if (GMX_THREAD_MPI && (ppCommManager.ppRank.numAtoms > 0))
         {
@@ -170,7 +170,7 @@ std::tuple<int, GpuEventSynchronizer*> PmeCoordinateReceiverGpu::Impl::receivePp
     int senderRank = -1; // Rank of PP task that is associated with this invocation.
     // MPI_Waitany is not available in thread-MPI. However, the
     // MPI_Wait here is not associated with data but is host-side
-    // scheduling code to receive a CUDA event, and will be executed
+    // scheduling code to receive a CUDA/HIP event, and will be executed
     // in advance of the actual data transfer. Therefore we can
     // receive in order of pipeline stage, still allowing the
     // scheduled GPU-direct comms to initiate out-of-order in their

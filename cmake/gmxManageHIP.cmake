@@ -153,3 +153,7 @@ option(GMX_HIP_NB_SINGLE_COMPILATION_UNIT "Whether to compile the HIP non-bonded
 mark_as_advanced(GMX_HIP_NB_SINGLE_COMPILATION_UNIT)
 
 option(GMX_NAVI_BUILD "Navi build with Warp Size 32 and Pairsplit 2" OFF)
+
+option(GMX_GPU_NB_DISABLE_CLUSTER_PAIR_SPLIT
+       "Disable NBNXM GPU cluster pair splitting. Only supported with HIP and SYCL and 64-wide GPU architectures (like AMD GCN/CDNA)."
+       ON)

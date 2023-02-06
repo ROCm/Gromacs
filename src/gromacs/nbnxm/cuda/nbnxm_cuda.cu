@@ -71,6 +71,10 @@
 #include "nbnxm_cuda.h"
 #include "nbnxm_cuda_types.h"
 
+#ifdef dump_arrays
+    #include <fstream>
+#endif
+
 /***** The kernel declarations/definitions come here *****/
 
 /* Top-level kernel declaration generation: will generate through multiple
@@ -530,6 +534,27 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
             prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &stepWork.computeVirial);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, "k_calc_nb", kernelArgs);
 
+    std::vector<float3> host_force(adat->numAtoms);
+
+    deviceStream.synchronize();
+
+    cudaError_t  stat = cudaMemcpy(host_force.data(),
+                                 *reinterpret_cast<float3**>(&(adat->f)),
+                                 adat->numAtoms * sizeof(float3),
+                                 cudaMemcpyDeviceToHost);
+
+#ifdef dump_arrays
+    std::ofstream forcefile;
+    forcefile.open("host_force.out", std::ios::app);
+    forcefile << "---------------------START-------------------- " << stat << std::endl;
+    for(unsigned int index = 0; index < adat->numAtoms ; index++)
+    {
+        forcefile << index << " ; " << host_force[index].x << " ; " << host_force[index].y << " ; " << host_force[index].z << std::endl;
+    }
+    forcefile << "---------------------END-------------------- " << stat << std::endl;
+    forcefile.close();
+#endif
+
     if (bDoTime)
     {
         timers->interaction[iloc].nb_k.closeTimingRegion(deviceStream);
@@ -645,12 +670,124 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
                 config.sharedMemorySize);
     }
 
+#ifdef dump_arrays
+    {
+        std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+        cudaError_t  stat = cudaMemcpy(host_sci.data(),
+                                     *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci)),
+                                     plist->nsci * sizeof(nbnxn_sci_t),
+                                     cudaMemcpyDeviceToHost);
+
+        std::ofstream scifile;
+        scifile.open("sci.out", std::ios::app);
+        scifile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cjPackedBegin << " ; ";
+            scifile << host_sci[index_sci].shift << " ; " << host_sci[index_sci].cjPackedLength << std::endl;
+        }
+        scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        scifile.close();
+
+        std::vector<nbnxn_cj_packed_t> host_cj_packed(plist->ncjPacked);
+        stat = cudaMemcpy(host_cj_packed.data(),
+                         *reinterpret_cast<nbnxn_cj_packed_t**>(&(plist->cjPacked)),
+                         plist->ncjPacked * sizeof(nbnxn_cj_packed_t),
+                         cudaMemcpyDeviceToHost);
+
+        std::ofstream cj_packed_file;
+        cj_packed_file.open("cj_packed_before_prune.out", std::ios::app);
+        cj_packed_file << "---------------------START-------------------- " << stat << std::endl;
+
+        std::ofstream countfile;
+        countfile.open("countfile_before_prune.out", std::ios::app);
+        countfile << "---------------------START-------------------- " << std::endl;
+
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            unsigned int count = 0;
+            for (int j4 = host_sci[index_sci].cjPackedBegin; j4 < host_sci[index_sci].cjPackedEnd(); j4++)
+            {
+                cj_packed_file << host_cj_packed[j4].cj[0] << " ; " << host_cj_packed[j4].cj[1] << " ; ";
+                cj_packed_file << host_cj_packed[j4].cj[2] << " ; " << host_cj_packed[j4].cj[3] << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].imask << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].excl_ind << " ; ";
+                cj_packed_file << std::endl;
+
+                count += __builtin_popcount(host_cj_packed[j4].imei[0].imask);
+            }
+            countfile << index_sci << " , " << count << std::endl;
+            cj_packed_file << std::endl;
+        }
+        cj_packed_file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cj_packed_file.close();
+        countfile.close();
+    }
+#endif
+
     auto*          timingEvent  = bDoTime ? timer->fetchNextEvent() : nullptr;
     constexpr char kernelName[] = "k_pruneonly";
     const auto     kernel =
             plist->haveFreshList ? nbnxn_kernel_prune_cuda<true> : nbnxn_kernel_prune_cuda<false>;
     const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, kernelArgs);
+
+#ifdef dump_arrays
+    {
+        std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+        cudaError_t  stat = cudaMemcpy(host_sci.data(),
+                                     *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci)),
+                                     plist->nsci * sizeof(nbnxn_sci_t),
+                                     cudaMemcpyDeviceToHost);
+
+        std::ofstream scifile;
+        scifile.open("sci_after.out", std::ios::app);
+        scifile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cjPackedBegin << " ; ";
+            scifile << host_sci[index_sci].shift << " ; " << host_sci[index_sci].cjPackedLength << std::endl;
+        }
+        scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        scifile.close();
+
+        std::vector<nbnxn_cj_packed_t> host_cj_packed(plist->ncjPacked);
+        stat = cudaMemcpy(host_cj_packed.data(),
+                         *reinterpret_cast<nbnxn_cj_packed_t**>(&(plist->cjPacked)),
+                         plist->ncjPacked * sizeof(nbnxn_cj_packed_t),
+                         cudaMemcpyDeviceToHost);
+
+        std::ofstream cj_packed_file;
+        cj_packed_file.open("cj_packed_after_prune.out", std::ios::app);
+        cj_packed_file << "---------------------START-------------------- " << stat << std::endl;
+
+        std::ofstream countfile;
+        countfile.open("countfile_after_prune.out", std::ios::app);
+        countfile << "---------------------START-------------------- " << std::endl;
+
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            unsigned int count = 0;
+            for (int j4 = host_sci[index_sci].cjPackedBegin; j4 < host_sci[index_sci].cjPackedEnd(); j4++)
+            {
+                cj_packed_file << host_cj_packed[j4].cj[0] << " ; " << host_cj_packed[j4].cj[1] << " ; ";
+                cj_packed_file << host_cj_packed[j4].cj[2] << " ; " << host_cj_packed[j4].cj[3] << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].imask << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].excl_ind << " ; ";
+                cj_packed_file << std::endl;
+
+                count += __builtin_popcount(host_cj_packed[j4].imei[0].imask);
+            }
+            countfile << index_sci << " , " << count << std::endl;
+            cj_packed_file << std::endl;
+        }
+        cj_packed_file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cj_packed_file.close();
+        countfile.close();
+    }
+#endif
 
     /* TODO: consider a more elegant way to track which kernel has been called
        (combined or separate 1st pass prune, rolling prune). */

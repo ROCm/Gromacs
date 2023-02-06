@@ -179,6 +179,6 @@ void ListedForcesGpu::waitAccumulateEnergyTerms(gmx_enerdata_t* /* enerd */) {}
 
 void ListedForcesGpu::clearEnergies() {}
 
-#endif // !GMX_GPU_CUDA
+#endif // !GMX_GPU_CUDA && !GMX_GPU_SYCL && !GMX_GPU_HIP
 
 } // namespace gmx

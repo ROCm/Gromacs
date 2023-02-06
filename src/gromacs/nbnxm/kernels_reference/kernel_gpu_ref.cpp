@@ -117,8 +117,6 @@ void nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu*        nbl,
         real       vctot         = 0;
         real       Vvdwtot       = 0;
 
-        //const int  cj4_ind1 = nbln.cj4_ind_start + nbln.cj4_length;;
-
         if (nbln.shift == gmx::c_centralShiftIndex
             && nbl->cjPacked.list_[cjPackedBegin].cj[0] == sci * c_nbnxnGpuNumClusterPerSupercluster)
         {

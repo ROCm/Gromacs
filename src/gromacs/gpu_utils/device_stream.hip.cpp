@@ -48,21 +48,26 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
+#include <iostream>
+
 DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
                            DeviceStreamPriority priority,
                            const bool /* useTiming */)
 {
-    hipError_t stat;
+    std::cout << "DeviceStream() constructor" << std::endl;
+    std::cout.flush();
 
-    stream_pointer_ = new hipStream_t[1];
+    hipError_t stat;
 
     if (priority == DeviceStreamPriority::Normal)
     {
-        stat = hipStreamCreate(&stream_);
+        stream_pointer_ = new hipStream_t;
+        stat = hipStreamCreate(stream_pointer_);
         gmx::checkDeviceError(stat, "Could not create HIP stream.");
     }
     else if (priority == DeviceStreamPriority::High)
     {
+        stream_pointer_ = new hipStream_t;
         // Note that the device we're running on does not have to
         // support priorities, because we are querying the priority
         // range, which in that case will be a single value.
@@ -70,29 +75,35 @@ DeviceStream::DeviceStream(const DeviceContext& /* deviceContext */,
         stat = hipDeviceGetStreamPriorityRange(nullptr, &highestPriority);
         gmx::checkDeviceError(stat, "Could not query HIP stream priority range.");
 
-        stat = hipStreamCreateWithPriority(&stream_, hipStreamDefault, highestPriority);
+        stat = hipStreamCreateWithPriority(stream_pointer_, hipStreamDefault, highestPriority);
         gmx::checkDeviceError(stat, "Could not create HIP stream with high priority.");
     }
-    stream_pointer_[0] = stream_;
+
+    std::cout << "DeviceStream() constructor" << stream_pointer_ << " ; " << *stream_pointer_ <<  std::endl;
+    std::cout.flush();
 }
 
 DeviceStream::~DeviceStream()
 {
     if (isValid())
     {
-        hipError_t stat = hipStreamDestroy(stream_);
+        std::cout << "~DeviceStream() " << *stream_pointer_ << ", " << stream_pointer_ << std::endl;
+        std::cout.flush();
+
+        hipError_t stat = hipStreamDestroy(*stream_pointer_);
         GMX_RELEASE_ASSERT(stat == hipSuccess,
                            ("Failed to release HIP stream. " + gmx::getDeviceErrorString(stat)).c_str());
-        stream_ = nullptr;
 
         delete stream_pointer_;
         stream_pointer_ = nullptr;
+
+        std::cout << "~DeviceStream() " << stream_pointer_ << std::endl;
     }
 }
 
 hipStream_t DeviceStream::stream() const
 {
-    return stream_;
+    return *stream_pointer_;
 }
 
 hipStream_t* DeviceStream::stream_pointer() const
@@ -102,12 +113,15 @@ hipStream_t* DeviceStream::stream_pointer() const
 
 bool DeviceStream::isValid() const
 {
-    return (stream_ != nullptr);
+    std::cout << "isValid() " << *stream_pointer_ << ", " << stream_pointer_ << std::endl;
+    std::cout.flush();
+
+    return (stream_pointer_ != nullptr && *stream_pointer_ != nullptr);
 }
 
 void DeviceStream::synchronize() const
 {
-    hipError_t stat = hipStreamSynchronize(stream_);
+    hipError_t stat = hipStreamSynchronize(*stream_pointer_);
     GMX_RELEASE_ASSERT(stat == hipSuccess,
                        ("hipStreamSynchronize failed. " + gmx::getDeviceErrorString(stat)).c_str());
 }

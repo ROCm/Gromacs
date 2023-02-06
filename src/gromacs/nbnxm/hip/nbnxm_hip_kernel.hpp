@@ -387,8 +387,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
      */
     for (jPacked = cijPackedBegin; jPacked < cijPackedEnd; ++jPacked)
     {
+        imask     = pl_cjPacked[jPacked].imei[widx].imask;
         /* When c_nbnxnGpuClusterpairSplit = 1, i.e. on CDNA, ROCm 5.2's compiler correctly
-         * generates scalar loads for __restrict__ pl_cj4 (but not for plist.cj4),
+         * generates scalar loads for __restrict__ pl_cjPacked (but not for plist.cj4),
          * ROCm 5.0.2's compiler generates vector loads, imask is a vector register.
          * If this happens, "scalarize" imask so it goes to a scalar register and
          * all imask-related checks become simpler scalar instructions.

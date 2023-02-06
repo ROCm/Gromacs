@@ -84,4 +84,4 @@ TEST(GpuDataTypesCompatibilityTest, RVecAndFloat3Device)
 } // namespace test
 } // namespace gmx
 
-#endif // GMX_GPU_CUDA
+#endif // (GMX_GPU_CUDA || GMX_GPU_HIP)

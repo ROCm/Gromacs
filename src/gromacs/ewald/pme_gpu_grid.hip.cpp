@@ -60,6 +60,22 @@
 #include "pme_gpu_types_host.h"
 #include "pme_gpu_types_host_impl.h"
 
+#include <iostream>
+
+/*! \brief Sub-group size for conversion kernels
+ *
+ * Chosen to match relevant hardware widths on supported hardware.
+ */
+//#if GMX_NAVI_BUILD
+    static constexpr int sc_subGroupSizeX = 32;
+    static constexpr int sc_subGroupSizeY = 4;
+    static constexpr int sc_subGroupSizeZ = 1;
+/*#else
+    static constexpr int sc_subGroupSizeX = 64;
+    static constexpr int sc_subGroupSizeY = 2;
+    static constexpr int sc_subGroupSizeZ = 1;
+#endif*/
+
 /*! \brief
  * A HIP kernel which packs non-contiguous overlap data in all 8 neighboring directions
  *
@@ -87,9 +103,9 @@ static __global__ void pmeGpuPackHaloExternal(const float* __restrict__ gm_realG
                                               int  myGridY,
                                               int3 pmeSize)
 {
-    int iz = threadIdx.x + blockIdx.x * blockDim.x;
-    int iy = threadIdx.y + blockIdx.y * blockDim.y;
-    int ix = threadIdx.z + blockIdx.z * blockDim.z;
+    int iz = threadIdx.x + blockIdx.x * sc_subGroupSizeX;
+    int iy = threadIdx.y + blockIdx.y * sc_subGroupSizeY;
+    int ix = threadIdx.z + blockIdx.z * sc_subGroupSizeZ;
 
     // we might get iz greather than pmeSize.z when pmeSize.z is not multiple of
     // threadsAlongZDim(see below), same for iy when it's not multiple of threadsAlongYDim
@@ -197,9 +213,9 @@ static __global__ void pmeGpuUnpackHaloExternal(float* __restrict__ gm_realGrid,
                                                 int  myGridY,
                                                 int3 pmeSize)
 {
-    int iz = threadIdx.x + blockIdx.x * blockDim.x;
-    int iy = threadIdx.y + blockIdx.y * blockDim.y;
-    int ix = threadIdx.z + blockIdx.z * blockDim.z;
+    int iz = threadIdx.x + blockIdx.x * sc_subGroupSizeX;
+    int iy = threadIdx.y + blockIdx.y * sc_subGroupSizeY;
+    int ix = threadIdx.z + blockIdx.z * sc_subGroupSizeZ;
 
     // we might get iz greather than pmeSize.z when pmeSize.z is not multiple of
     // threadsAlongZDim(see below), same for iy when it's not multiple of threadsAlongYDim
@@ -308,9 +324,9 @@ static __global__ void pmeGpuUnpackAndAddHaloInternal(float* __restrict__ gm_rea
                                                       int  myGridY,
                                                       int3 pmeSize)
 {
-    int iz = threadIdx.x + blockIdx.x * blockDim.x;
-    int iy = threadIdx.y + blockIdx.y * blockDim.y;
-    int ix = threadIdx.z + blockIdx.z * blockDim.z;
+    int iz = threadIdx.x + blockIdx.x * sc_subGroupSizeX;
+    int iy = threadIdx.y + blockIdx.y * sc_subGroupSizeY;
+    int ix = threadIdx.z + blockIdx.z * sc_subGroupSizeZ;
 
     // we might get iz greather than pmeSize.z when pmeSize.z is not multiple of
     // threadsAlongZDim(see below), same for iy when it's not multiple of threadsAlongYDim
@@ -409,9 +425,9 @@ static __global__ void pmeGpuPackHaloInternal(const float* __restrict__ gm_realG
                                               int  myGridY,
                                               int3 pmeSize)
 {
-    int iz = threadIdx.x + blockIdx.x * blockDim.x;
-    int iy = threadIdx.y + blockIdx.y * blockDim.y;
-    int ix = threadIdx.z + blockIdx.z * blockDim.z;
+    int iz = threadIdx.x + blockIdx.x * sc_subGroupSizeX;
+    int iy = threadIdx.y + blockIdx.y * sc_subGroupSizeY;
+    int ix = threadIdx.z + blockIdx.z * sc_subGroupSizeZ;
 
     // we might get iz greather than pmeSize.z when pmeSize.z is not multiple of
     // threadsAlongZDim(see below), same for iy when it's not multiple of threadsAlongYDim
@@ -500,9 +516,9 @@ static __global__ void pmegrid_to_fftgrid(float* __restrict__ gm_realGrid,
                                           int3 fftSize,
                                           int3 pmeSize)
 {
-    int iz = threadIdx.x + blockIdx.x * blockDim.x;
-    int iy = threadIdx.y + blockIdx.y * blockDim.y;
-    int ix = threadIdx.z + blockIdx.z * blockDim.z;
+    int iz = threadIdx.x + blockIdx.x * sc_subGroupSizeX;
+    int iy = threadIdx.y + blockIdx.y * sc_subGroupSizeY;
+    int ix = threadIdx.z + blockIdx.z * sc_subGroupSizeZ;
 
     if (ix >= fftNData.x || iy >= fftNData.y || iz >= fftNData.z)
     {
@@ -546,8 +562,8 @@ static void packHaloDataExternal(const PmeGpu*       pmeGpu,
     // Keeping threadsAlongZDim same as warp size for better coalescing.
     // Not keeping to higher value such as 64 to avoid high masked out
     // inactive threads as FFT grid sizes tend to be quite small
-    const int threadsAlongZDim = 32;
-    const int threadsAlongYDim = 4;
+    const int threadsAlongZDim = sc_subGroupSizeX;
+    const int threadsAlongYDim = sc_subGroupSizeY;
 
     // right grid
     KernelLaunchConfig config;
@@ -611,8 +627,8 @@ static void packHaloDataInternal(const PmeGpu*       pmeGpu,
     // Keeping threadsAlongZDim same as warp size for better coalescing,
     // Not keeping to higher value such as 64 to avoid high masked out
     // inactive threads as FFT grid sizes tend to be quite small
-    const int threadsAlongZDim = 32;
-    const int threadsAlongYDim = 4;
+    const int threadsAlongZDim = sc_subGroupSizeX;
+    const int threadsAlongYDim = sc_subGroupSizeY;
 
     // right grid
     KernelLaunchConfig config;
@@ -677,8 +693,8 @@ static void unpackAndAddHaloDataInternal(const PmeGpu*       pmeGpu,
     // Keeping threadsAlongZDim same as warp size for better coalescing,
     // Not keeping to higher value such as 64 to avoid high masked out
     // inactive threads as FFT grid sizes tend to be quite small
-    const int threadsAlongZDim = 32;
-    const int threadsAlongYDim = 4;
+    const int threadsAlongZDim = sc_subGroupSizeX;
+    const int threadsAlongYDim = sc_subGroupSizeY;
 
     // right grid
     KernelLaunchConfig config;
@@ -744,8 +760,8 @@ static void unpackHaloDataExternal(const PmeGpu*       pmeGpu,
     // Keeping threadsAlongZDim same as warp size for better coalescing,
     // Not keeping to higher value such as 64 to avoid high masked out
     // inactive threads as FFT grid sizes tend to be quite small
-    const int threadsAlongZDim = 32;
-    const int threadsAlongYDim = 4;
+    const int threadsAlongZDim = sc_subGroupSizeX;
+    const int threadsAlongYDim = sc_subGroupSizeY;
 
     // right grid
     KernelLaunchConfig config;
@@ -885,6 +901,9 @@ void pmeGpuGridHaloExchange(const PmeGpu* pmeGpu, gmx_wallcycle* wcycle)
         }
 
         wallcycle_start(wcycle, WallCycleCounter::WaitGpuPmeSpread);
+
+        std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize();" << std::endl;
+        std::cout.flush();
 
         // Make sure data is ready on GPU before MPI communication.
         // Wait for spread to finish in case of slab decomposition along X-dimension and
@@ -1168,6 +1187,9 @@ void pmeGpuGridHaloExchangeReverse(const PmeGpu* pmeGpu, gmx_wallcycle* wcycle)
 
         wallcycle_start(wcycle, WallCycleCounter::WaitGpuFftToPmeGrid);
 
+        std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize(); 1174" << std::endl;
+        std::cout.flush();
+
         // Make sure data is ready on GPU before MPI communication.
         // Wait for FFT to PME grid conversion to finish in case of slab decomposition along X-dimension and
         // wait for packing to finish otherwise.
@@ -1410,12 +1432,12 @@ void convertPmeGridToFftGrid(const PmeGpu*         pmeGpu,
         // Keeping threadsAlongZDim same as warp size for better coalescing,
         // Not keeping to higher value such as 64 to avoid high masked out
         // inactive threads as FFT grid sizes tend to be quite small
-        const int threadsAlongZDim = 32;
+        const int threadsAlongZDim = sc_subGroupSizeX;
 
         KernelLaunchConfig config;
         config.blockSize[0] = threadsAlongZDim;
-        config.blockSize[1] = 4;
-        config.blockSize[2] = 1;
+        config.blockSize[1] = sc_subGroupSizeY;
+        config.blockSize[2] = sc_subGroupSizeZ;
         config.gridSize[0]  = (localFftNData[ZZ] + config.blockSize[0] - 1) / config.blockSize[0];
         config.gridSize[1]  = (localFftNData[YY] + config.blockSize[1] - 1) / config.blockSize[1];
         config.gridSize[2]  = localFftNData[XX];
@@ -1494,12 +1516,12 @@ void convertPmeGridToFftGrid(const PmeGpu* pmeGpu, DeviceBuffer<float>* d_fftRea
         // keeping same as warp size for better coalescing
         // Not keeping to higher value such as 64 to avoid high masked out
         // inactive threads as FFT grid sizes tend to be quite small
-        const int threadsAlongZDim = 32;
+        const int threadsAlongZDim = sc_subGroupSizeX;
 
         KernelLaunchConfig config;
         config.blockSize[0] = threadsAlongZDim;
-        config.blockSize[1] = 4;
-        config.blockSize[2] = 1;
+        config.blockSize[1] = sc_subGroupSizeY;
+        config.blockSize[2] = sc_subGroupSizeZ;
         config.gridSize[0]  = (localFftNData[ZZ] + config.blockSize[0] - 1) / config.blockSize[0];
         config.gridSize[1]  = (localFftNData[YY] + config.blockSize[1] - 1) / config.blockSize[1];
         config.gridSize[2]  = localFftNData[XX];

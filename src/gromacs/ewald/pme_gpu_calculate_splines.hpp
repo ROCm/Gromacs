@@ -213,7 +213,7 @@ static __device__ __forceinline__ void calculate_splines(const PmeGpuCudaKernelP
     const int threadLocalId =
             (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
     /* Warp index w.r.t. block - could probably be obtained easier? */
-    const int warpIndex = threadLocalId / warp_size;
+    const int warpIndex = threadLocalId / warpSize;
     /* Atom index w.r.t. warp - alternating 0 1 0 1 .. */
     const int atomWarpIndex = threadIdx.z % atomsPerWarp;
     /* Atom index w.r.t. block/shared memory */

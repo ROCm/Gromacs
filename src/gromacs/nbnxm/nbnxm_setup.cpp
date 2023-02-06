@@ -373,7 +373,7 @@ static int getMaximumIlistCountForGpuBalancing()
     }
     else
     {
-        maximumIlistCount = INT_MAX;
+        maximumIlistCount = SHRT_MAX;
         if (debug)
         {
             fprintf(debug,
@@ -489,7 +489,7 @@ std::unique_ptr<nonbonded_verlet_t> init_nb_verlet(const gmx::MDLogger& mdlog,
 
     NbnxmGpu* gpu_nbv                          = nullptr;
     int       minimumIlistCountForGpuBalancing = 0;
-    int       maximumIlistCountForGpuBalancing = INT_MAX;
+    int       maximumIlistCountForGpuBalancing = SHRT_MAX;
     if (useGpuForNonbonded)
     {
         /* init the NxN GPU data; the last argument tells whether we'll have

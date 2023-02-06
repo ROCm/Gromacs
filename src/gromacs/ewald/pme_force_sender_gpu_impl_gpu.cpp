@@ -92,7 +92,7 @@ void PmeForceSenderGpu::Impl::setForceSendBuffer(DeviceBuffer<Float3> d_f)
     GMX_ASSERT(!GMX_GPU_SYCL,
                "PmeForceSenderGpu does not support SYCL with threadMPI; use libMPI instead.");
 
-#if GMX_MPI && GMX_GPU_CUDA && GMX_GPU_HIP
+#if GMX_MPI && (GMX_GPU_CUDA || GMX_GPU_HIP)
 
     int ind_start = 0;
     int ind_end   = 0;
@@ -146,7 +146,7 @@ void PmeForceSenderGpu::Impl::sendFToPpGpuAwareMpi(DeviceBuffer<RVec> sendbuf,
                                                    int                ppRank,
                                                    MPI_Request*       request)
 {
-    GMX_ASSERT(GMX_LIB_MPI, "sendFToPpCudaMpi is expected to be called only for Lib-MPI");
+    GMX_ASSERT(GMX_LIB_MPI, "sendFToPpCudaMpi or sendFToPpHipMpi is expected to be called only for Lib-MPI");
 
 #if GMX_MPI
     // if using GPU direct comm with GPU-aware MPI, make sure forces are ready on device

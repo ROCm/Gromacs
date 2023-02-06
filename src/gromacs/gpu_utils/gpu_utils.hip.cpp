@@ -178,7 +178,8 @@ static void peerAccessCheckStat(const hipError_t    stat,
     {
         // Since peer access has already been enabled, this error can safely be ignored.
         // Now clear the error internally within HIP:
-        hipGetLastError();
+        hipError_t temp = hipGetLastError();
+        (void)temp;
         return;
     }
     if ((stat == hipErrorInvalidDevice) || (stat == hipErrorInvalidValue))
@@ -199,7 +200,8 @@ static void peerAccessCheckStat(const hipError_t    stat,
                         hipCallName,
                         gmx::getDeviceErrorString(stat).c_str());
         // Clear the error internally within HIP
-        hipGetLastError();
+        hipError_t temp = hipGetLastError();
+        (void)temp;
     }
 }
 

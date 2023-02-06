@@ -89,10 +89,10 @@ void PmeCoordinateReceiverGpu::receiveCoordinatesSynchronizerFromPpPeerToPeer(in
 }
 
 void PmeCoordinateReceiverGpu::launchReceiveCoordinatesFromPpGpuAwareMpi(DeviceBuffer<RVec> /* recvbuf */,
-                                                                     int /* numAtoms */,
-                                                                     int /* numBytes */,
-                                                                     int /* ppRank */,
-                                                                     int /* senderIndex */)
+                                                                         int /* numAtoms */,
+                                                                         int /* numBytes */,
+                                                                         int /* ppRank */,
+                                                                         int /* senderIndex */)
 {
     GMX_ASSERT(!impl_,
                "A CPU stub for PME-PP GPU communication was called instead of the correct "

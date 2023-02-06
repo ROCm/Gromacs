@@ -286,7 +286,7 @@ TYPED_TEST(DeviceBufferTest, CanCopyBetweenDeviceBuffersOnSameDevice)
     }
 }
 
-#    endif // GMX_GPU_CUDA
+#    endif // GMX_GPU_CUDA || GMX_GPU_SYCL || GMX_GPU_HIP
 
 
 } // namespace

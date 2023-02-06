@@ -245,6 +245,9 @@
 /* Define if HIP GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU_HIP
 
+/* Define if CUDA Graphs support is available */
+#cmakedefine01 GMX_HAVE_HIP_GRAPH_SUPPORT
+
 /* Define if OpenCL GPU acceleration is compiled */
 #cmakedefine01 GMX_GPU_OPENCL
 

@@ -148,6 +148,9 @@ int pme_gpu_get_atoms_per_warp(const PmeGpu* pmeGpu)
 
 void pme_gpu_synchronize(const PmeGpu* pmeGpu)
 {
+    std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize(); 151" << std::endl;
+    std::cout.flush();
+
     pmeGpu->archSpecific->pmeStream_.synchronize();
 }
 
@@ -306,7 +309,7 @@ void pme_gpu_realloc_and_copy_input_coefficients(const PmeGpu* pmeGpu,
         GMX_ASSERT(h_coefficients, "Bad host-side charge buffer in PME GPU");
         GMX_ASSERT(newCoefficientsSize > 0, "Bad number of atoms in PME GPU");
         copyToDeviceBuffer(&pmeGpu->kernelParams->atoms.d_coefficients[gridIndex],
-                           const_cast<float*>(h_coefficients),
+                           h_coefficients,
                            0,
                            pmeGpu->kernelParams->atoms.nAtoms,
                            pmeGpu->archSpecific->pmeStream_,
@@ -792,7 +795,7 @@ static void pme_gpu_init_internal(PmeGpu* pmeGpu, const DeviceContext& deviceCon
      * TODO: PME could also try to pick up nice grid sizes (with factors of 2, 3, 5, 7).
      */
 
-#if GMX_GPU_CUDA
+#if GMX_GPU_CUDA || GMX_GPU_HIP
     pmeGpu->kernelParams->usePipeline       = char(false);
     pmeGpu->kernelParams->pipelineAtomStart = 0;
     pmeGpu->kernelParams->pipelineAtomEnd   = 0;
@@ -1167,6 +1170,9 @@ void pme_gpu_update_input_box(PmeGpu gmx_unused* pmeGpu, const matrix gmx_unused
 
     GMX_ASSERT(kernelParamsPtr->current.boxVolume != 0.0F, "Zero volume of the unit cell");
     matrix recipBox;
+
+    std::cout << "pme_gpu_update_input_box::current.boxVolume:" << kernelParamsPtr->current.boxVolume << std::endl;
+    std::cout.flush();
     gmx::invertBoxMatrix(scaledBox, recipBox);
 
     std::cout << "pme_gpu_update_input_box::invertBoxMatrix" << std::endl;
@@ -1313,7 +1319,7 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t* pme)
  */
 static void pme_gpu_select_best_performing_pme_spreadgather_kernels(PmeGpu* pmeGpu)
 {
-    if (((GMX_GPU_CUDA != 0) || (GMX_GPU_SYCL != 0))
+    if (((GMX_GPU_CUDA != 0) || (GMX_GPU_HIP != 0) || (GMX_GPU_SYCL != 0))
         && pmeGpu->kernelParams->atoms.nAtoms > c_pmeGpuPerformanceAtomLimit)
     {
         pmeGpu->settings.threadsPerAtom     = ThreadsPerAtom::Order;
@@ -1426,6 +1432,9 @@ void pme_gpu_reinit(gmx_pme_t*           pme,
 
 void pme_gpu_destroy(PmeGpu* pmeGpu)
 {
+    std::cout << "pmeGpu->archSpecific->pmeStream_.synchronize(); 1432" << std::endl;
+    std::cout.flush();
+
     // Wait for all the tasks to complete before freeing the memory. See #4519.
     pmeGpu->archSpecific->pmeStream_.synchronize();
 
@@ -2148,8 +2157,8 @@ void pme_gpu_solve(const PmeGpu* pmeGpu,
     const int warpSize  = pmeGpu->programHandle_->warpSize();
     const int blockSize = (cellsPerBlock + warpSize - 1) / warpSize * warpSize;
 
-    static_assert((!GMX_GPU_CUDA) || c_solveMaxWarpsPerBlock / 2 >= 4,
-                  "The CUDA solve energy kernels needs at least 4 warps. "
+    static_assert((!GMX_GPU_CUDA && !GMX_GPU_HIP) || c_solveMaxWarpsPerBlock / 2 >= 4,
+                  "The CUDA/HIP solve energy kernels needs at least 4 warps. "
                   "Here we launch at least half of the max warps.");
 
     KernelLaunchConfig config;

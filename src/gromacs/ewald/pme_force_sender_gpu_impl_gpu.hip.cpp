@@ -57,7 +57,7 @@ namespace gmx
 void PmeForceSenderGpu::Impl::sendFToPpPeerToPeer(int ppRank, int numAtoms, bool sendForcesDirectToPpGpu)
 {
 
-    GMX_ASSERT(GMX_THREAD_MPI, "sendFToPpCudaDirect is expected to be called only for Thread-MPI");
+    GMX_ASSERT(GMX_THREAD_MPI, "sendFToPpHipDirect is expected to be called only for Thread-MPI");
 
 
 #if GMX_MPI

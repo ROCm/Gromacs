@@ -120,4 +120,4 @@ GpuEventSynchronizer* GpuHaloExchange::getForcesReadyOnDeviceEvent()
 
 } // namespace gmx
 
-#endif // !GMX_GPU_CUDA && !GMX_GPU_SYCL
+#endif // !GMX_GPU_CUDA && !GMX_GPU_SYCL && !GMX_GPU_HIP

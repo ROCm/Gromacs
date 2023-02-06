@@ -154,7 +154,7 @@ static DeviceStatus checkDeviceStatus(const DeviceInformation& deviceInfo)
     if (hip_err == hipErrorInvalidDeviceFunction)
     {
         // Clear the error from attempting to compile the kernel
-        hipGetLastError();
+        hip_err = hipGetLastError();
         return DeviceStatus::DeviceNotTargeted;
     }
 
@@ -259,7 +259,7 @@ bool isDeviceDetectionFunctional(std::string* errorMessage)
         // (undocumented) hipErrorNoDevice, but this should not be a
         // problem as there should be no future HIP API calls.
         // NVIDIA bug report #2038718 has been filed.
-        hipGetLastError();
+        stat = hipGetLastError();
         // Can't detect GPUs
         return false;
     }

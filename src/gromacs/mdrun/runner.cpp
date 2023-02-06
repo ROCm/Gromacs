@@ -337,7 +337,7 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
             && ((numRanksPerSimulation > 1 && numPmeRanksPerSimulation == 0)
                 || numPmeRanksPerSimulation > 1);
     const bool pmeGpuDecompositionSupported =
-            (devFlags.canUseGpuAwareMpi && (GMX_GPU_CUDA || GMX_GPU_SYCL)
+            (devFlags.canUseGpuAwareMpi && (GMX_GPU_CUDA || GMX_GPU_HIP || GMX_GPU_SYCL)
              && ((pmeRunMode == PmeRunMode::GPU && (GMX_USE_Heffte || GMX_USE_cuFFTMp))
                  || pmeRunMode == PmeRunMode::Mixed));
 
@@ -1565,6 +1565,12 @@ int Mdrunner::mdrunner()
         gmx::internal::disableCudaEventConsumptionCounting();
     }
 
+    if (runScheduleWork.simulationWork.useGpuDirectCommunication && GMX_GPU_HIP)
+    {
+        // Don't enable event counting with GPU Direct comm, see #3988.
+        gmx::internal::disableHipEventConsumptionCounting();
+    }
+
     if (isSimulationMainRank && GMX_GPU_SYCL)
     {
         const SimulationWorkload& simWorkload    = runScheduleWork.simulationWork;
@@ -1595,7 +1601,8 @@ int Mdrunner::mdrunner()
         }
         const bool useGpuTiming = decideGpuTimingsUsage();
         deviceStreamManager     = std::make_unique<DeviceStreamManager>(
-                *deviceInfo, runScheduleWork.simulationWork, useGpuTiming, thisRankHasDuty(cr, DUTY_PME), thisRankHasDuty(cr, DUTY_PP));
+                *deviceInfo, runScheduleWork.simulationWork, useGpuTiming
+        );
     }
 
     // If the user chose a task assignment, give them some hints

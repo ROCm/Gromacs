@@ -54,8 +54,6 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
-#include <iostream>
-
 namespace gmx
 {
 
@@ -175,8 +173,6 @@ static inline Matrix3x3 multiplyBoxMatrices(const Matrix3x3& a, const matrix b)
  */
 static inline Matrix3x3 invertBoxMatrix(const Matrix3x3& src)
 {
-    std::cout << "HI" << std::endl;
-
     assertMatrixIsBoxMatrix(src);
 
     double tmp = src(XX, XX) * src(YY, YY) * src(ZZ, ZZ);
@@ -184,9 +180,6 @@ static inline Matrix3x3 invertBoxMatrix(const Matrix3x3& src)
     {
         GMX_THROW(RangeError("Cannot invert matrix, determinant is too close to zero"));
     }
-
-    std::cout << src(XX, XX) << " ; " << src(YY, YY) << " ; " << src(ZZ, ZZ) << std::endl;
-    std::cout.flush();
 
     Matrix3x3 dest;
     dest(XX, XX) = 1 / src(XX, XX);
@@ -210,20 +203,13 @@ static inline Matrix3x3 invertBoxMatrix(const Matrix3x3& src)
  */
 static inline void invertBoxMatrix(const matrix src, matrix dest)
 {
-    std::cout << "HI" << std::endl;
-
     assertMatrixIsBoxMatrix(src);
-
-    std::cout << "HI" << std::endl;
 
     double tmp = src[XX][XX] * src[YY][YY] * src[ZZ][ZZ];
     if (std::fabs(tmp) <= 100 * GMX_REAL_MIN)
     {
         GMX_THROW(RangeError("Cannot invert matrix, determinant is too close to zero"));
     }
-
-    std::cout << src[XX][XX] << " ; " << src[YY][YY] << " ; " <<  src[ZZ][ZZ] << std::endl;
-    std::cout.flush();
 
     dest[XX][XX] = 1 / src[XX][XX];
     dest[YY][YY] = 1 / src[YY][YY];
@@ -234,9 +220,6 @@ static inline void invertBoxMatrix(const matrix src, matrix dest)
     dest[XX][YY] = 0.0;
     dest[XX][ZZ] = 0.0;
     dest[YY][ZZ] = 0.0;
-
-    std::cout << "End" << std::endl;
-    std::cout.flush();
 }
 
 } // namespace gmx

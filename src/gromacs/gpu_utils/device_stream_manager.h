@@ -96,11 +96,7 @@ public:
      *
      * \throws InternalError  If any of the required resources could not be initialized.
      */
-    DeviceStreamManager(const DeviceInformation& deviceInfo,
-                        SimulationWorkload       simulationWork,
-                        bool                     useTiming,
-			            bool                     hasPme=true,        
-                        bool                     hasPP=true);
+    DeviceStreamManager(const DeviceInformation& deviceInfo, SimulationWorkload simulationWork, bool useTiming);
     ~DeviceStreamManager();
 
     /*! \brief Get the device information object of the associated device.

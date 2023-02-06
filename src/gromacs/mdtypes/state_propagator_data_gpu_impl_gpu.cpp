@@ -55,6 +55,8 @@
 
 #    include "state_propagator_data_gpu_impl.h"
 
+#include <iostream>
+
 namespace gmx
 {
 
@@ -157,6 +159,8 @@ void StatePropagatorDataGpu::Impl::reinit(int numAtomsLocal, int numAtomsAll)
     const size_t paddingAllocationSize = numAtomsPadded - numAtomsAll_;
     if (paddingAllocationSize > 0)
     {
+        std::cout << "pmeStream_->synchronize();" << std::endl;
+        std::cout.flush();
         // The PME stream is used here because the padding region of d_x_ is only in the PME task.
         clearDeviceBufferAsync(&d_x_, numAtomsAll_, paddingAllocationSize, *pmeStream_);
         // Wait for clearing to complete since with PME-PP pipelining PME will use different streams.
@@ -385,7 +389,7 @@ void StatePropagatorDataGpu::Impl::waitCoordinatesCopiedToDevice(AtomLocality at
 }
 
 void StatePropagatorDataGpu::Impl::consumeCoordinatesCopiedToDeviceEvent(AtomLocality atomLocality)
-{    
+{
     GMX_ASSERT(atomLocality < AtomLocality::Count, "Wrong atom locality.");
     xReadyOnDevice_[atomLocality].consume();
 }

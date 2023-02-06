@@ -128,7 +128,7 @@ private:
     hipStream_t* stream_pointer() const;
 
 private:
-    hipStream_t stream_ = nullptr;
+    //hipStream_t stream_ = nullptr;
 
     hipStream_t* stream_pointer_ = nullptr;
 #elif GMX_GPU_SYCL

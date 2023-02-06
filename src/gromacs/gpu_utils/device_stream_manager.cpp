@@ -52,6 +52,8 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
+#include <iostream>
+
 namespace gmx
 {
 
@@ -70,10 +72,7 @@ public:
      *
      * \throws InternalError  If any of the required resources could not be initialized.
      */
-    Impl(const DeviceInformation& deviceInfo,
-         SimulationWorkload       simulationWork,
-         bool                     useTiming,
-	     bool hasPme, bool hasPP);
+    Impl(const DeviceInformation& deviceInfo, SimulationWorkload simulationWork, bool useTiming);
     ~Impl();
 
     //! Device context.
@@ -87,18 +86,15 @@ public:
 // DeviceStreamManager::Impl
 DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
                                 const SimulationWorkload simulationWork,
-                                const bool               useTiming,
-                                const bool               hasPme, 
-                                const bool               hasPP) :
+                                const bool               useTiming) :
     context_(deviceInfo), havePpDomainDecomposition_(simulationWork.havePpDomainDecomposition)
 {
     try
     {
-	if (hasPP)
         streams_[DeviceStreamType::NonBondedLocal] =
                 std::make_unique<DeviceStream>(context_, DeviceStreamPriority::Normal, useTiming);
 
-        if (simulationWork.useGpuPme && hasPme)
+        if (simulationWork.useGpuPme)
         {
             /* Creating a PME GPU stream:
              * - default high priority with CUDA
@@ -130,6 +126,8 @@ DeviceStreamManager::Impl::Impl(const DeviceInformation& deviceInfo,
 
 DeviceStreamManager::Impl::~Impl()
 {
+    std::cout << "DeviceStreamManager::Impl::~Impl()" << std::endl;
+    std::cout.flush();
     // Wait for all the tasks to complete before destroying the streams. See #4519.
     for (const auto& stream : streams_)
     {
@@ -143,10 +141,8 @@ DeviceStreamManager::Impl::~Impl()
 // DeviceStreamManager
 DeviceStreamManager::DeviceStreamManager(const DeviceInformation& deviceInfo,
                                          const SimulationWorkload simulationWork,
-                                         const bool               useTiming,
-					                     const bool               hasPme, 
-                                         const bool               hasPP) :
-    impl_(new Impl(deviceInfo, simulationWork, useTiming, hasPme, hasPP))
+                                         const bool               useTiming) :
+    impl_(new Impl(deviceInfo, simulationWork, useTiming))
 {
 }
 

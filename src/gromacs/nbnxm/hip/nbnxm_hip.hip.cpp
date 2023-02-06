@@ -50,8 +50,7 @@
 #endif
 
 
-#include "nbnxm_hip.h"
-
+#include "gromacs/gpu_utils/devicebuffer.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/gpu_utils/gpueventsynchronizer.h"
 #include "gromacs/gpu_utils/typecasts.hpp"
@@ -69,8 +68,12 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/gmxassert.h"
 
+#include "nbnxm_hip.h"
 #include "nbnxm_hip_types.h"
+
+#ifdef dump_arrays
 #include <fstream>
+#endif
 
 #include <rocprim/rocprim.hpp>
 
@@ -462,6 +465,62 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
         return;
     }
 
+#ifdef dump_arrays
+    {
+        std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+        hipError_t  stat = hipMemcpy(host_sci.data(),
+                                     *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci)),
+                                     plist->nsci * sizeof(nbnxn_sci_t),
+                                     hipMemcpyDeviceToHost);
+
+        std::ofstream scifile;
+        scifile.open("sci.out", std::ios::app);
+        scifile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cjPackedBegin << " ; ";
+            scifile << host_sci[index_sci].shift << " ; " << host_sci[index_sci].cjPackedLength << std::endl;
+        }
+        scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        scifile.close();
+
+        std::vector<nbnxn_cj_packed_t> host_cj_packed(plist->ncjPacked);
+        stat = hipMemcpy(host_cj_packed.data(),
+                         *reinterpret_cast<nbnxn_cj_packed_t**>(&(plist->cjPacked)),
+                         plist->ncjPacked * sizeof(nbnxn_cj_packed_t),
+                         hipMemcpyDeviceToHost);
+
+        std::ofstream cj_packed_file;
+        cj_packed_file.open("cj_packed_before_prune.out", std::ios::app);
+        cj_packed_file << "---------------------START-------------------- " << stat << std::endl;
+
+        std::ofstream countfile;
+        countfile.open("countfile_before_prune.out", std::ios::app);
+        countfile << "---------------------START-------------------- " << std::endl;
+
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            unsigned int count = 0;
+            for (int j4 = host_sci[index_sci].cjPackedBegin; j4 < host_sci[index_sci].cjPackedEnd(); j4++)
+            {
+                cj_packed_file << host_cj_packed[j4].cj[0] << " ; " << host_cj_packed[j4].cj[1] << " ; ";
+                cj_packed_file << host_cj_packed[j4].cj[2] << " ; " << host_cj_packed[j4].cj[3] << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].imask << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].excl_ind << " ; ";
+                cj_packed_file << std::endl;
+
+                count += __builtin_popcount(host_cj_packed[j4].imei[0].imask);
+            }
+            countfile << index_sci << " , " << count << std::endl;
+            cj_packed_file << std::endl;
+        }
+        cj_packed_file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cj_packed_file.close();
+        countfile.close();
+    }
+#endif
+
     if (nbp->useDynamicPruning && plist->haveFreshList)
     {
         /* Prunes for rlistOuter and rlistInner, sets plist->haveFreshList=false
@@ -470,6 +529,62 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
          */
         gpu_launch_kernel_pruneonly(nb, iloc, 1);
     }
+
+#ifdef dump_arrays
+    {
+        std::vector<nbnxn_sci_t> host_sci(plist->nsci);
+
+        hipError_t  stat = hipMemcpy(host_sci.data(),
+                                     *reinterpret_cast<nbnxn_sci_t**>(&(plist->sci_sorted)),
+                                     plist->nsci * sizeof(nbnxn_sci_t),
+                                     hipMemcpyDeviceToHost);
+
+        std::ofstream scifile;
+        scifile.open("sci_sorted.out", std::ios::app);
+        scifile << "---------------------START-------------------- " << stat << std::endl;
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            scifile << host_sci[index_sci].sci << " ; " << host_sci[index_sci].cjPackedBegin << " ; ";
+            scifile << host_sci[index_sci].shift << " ; " << host_sci[index_sci].cjPackedLength << std::endl;
+        }
+        scifile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        scifile.close();
+
+        std::vector<nbnxn_cj_packed_t> host_cj_packed(plist->ncjPacked);
+        stat = hipMemcpy(host_cj_packed.data(),
+                         *reinterpret_cast<nbnxn_cj_packed_t**>(&(plist->cjPacked)),
+                         plist->ncjPacked * sizeof(nbnxn_cj_packed_t),
+                         hipMemcpyDeviceToHost);
+
+        std::ofstream cj_packed_file;
+        cj_packed_file.open("cj_packed_after_prune.out", std::ios::app);
+        cj_packed_file << "---------------------START-------------------- " << stat << std::endl;
+
+        std::ofstream countfile;
+        countfile.open("countfile_after_prune.out", std::ios::app);
+        countfile << "---------------------START-------------------- " << std::endl;
+
+        for(unsigned int index_sci = 0; index_sci < plist->nsci; index_sci++)
+        {
+            unsigned int count = 0;
+            for (int j4 = host_sci[index_sci].cjPackedBegin; j4 < host_sci[index_sci].cjPackedEnd(); j4++)
+            {
+                cj_packed_file << host_cj_packed[j4].cj[0] << " ; " << host_cj_packed[j4].cj[1] << " ; ";
+                cj_packed_file << host_cj_packed[j4].cj[2] << " ; " << host_cj_packed[j4].cj[3] << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].imask << " ; ";
+                cj_packed_file << host_cj_packed[j4].imei[0].excl_ind << " ; ";
+                cj_packed_file << std::endl;
+
+                count += __builtin_popcount(host_cj_packed[j4].imei[0].imask);
+            }
+            countfile << index_sci << " , " << count << std::endl;
+            cj_packed_file << std::endl;
+        }
+        cj_packed_file << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+        cj_packed_file.close();
+        countfile.close();
+    }
+#endif
 
     if (plist->nsci == 0)
     {
@@ -532,6 +647,25 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     bool sumUpEnergy = (stepWork.computeEnergy && c_clEnergyMemoryMultiplier > 1);
     bool sumUpShifts = (stepWork.computeVirial && c_clShiftMemoryMultiplier > 1);
 
+#ifdef dump_arrays
+    std::vector<float3> host_force(adat->numAtoms);
+
+    hipError_t  stat = hipMemcpy(host_force.data(),
+                                 *reinterpret_cast<float3**>(&(adat->f)),
+                                 adat->numAtoms * sizeof(float3),
+                                 hipMemcpyDeviceToHost);
+
+    std::ofstream forcefile;
+    forcefile.open("host_force.out", std::ios::app);
+    forcefile << "---------------------START-------------------- " << stat << std::endl;
+    for(unsigned int index = 0; index < adat->numAtoms ; index++)
+    {
+        forcefile << index << " ; " << host_force[index].x << " ; " << host_force[index].y << " ; " << host_force[index].z << std::endl;
+    }
+    forcefile << "---------------------END-------------------- " << stat << std::endl;
+    forcefile.close();
+#endif
+
     if ( sumUpEnergy || sumUpShifts )
     {
         constexpr unsigned int block_size = 64U;
@@ -573,7 +707,8 @@ void gpu_launch_kernel(NbnxmGpu* nb, const gmx::StepWorkload& stepWork, const In
     if (GMX_NATIVE_WINDOWS)
     {
         /* Windows: force flushing WDDM queue */
-        hipStreamQuery(deviceStream.stream());
+        hipError_t stat = hipStreamQuery(deviceStream.stream());
+        HIP_RET_ERR(stat, "hipStreamQuery failed at Windows: force flushing WDDM queue");
     }
 }
 
@@ -606,7 +741,6 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
 
         /* Set rollingPruningNumParts to signal that it is not set */
         plist->rollingPruningNumParts = 0;
-        plist->rollingPruningPart     = 0;
     }
     else
     {
@@ -621,22 +755,15 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
         }
     }
 
-    /* Use a local variable for part and update in plist, so we can return here
-     * without duplicating the part increment code.
+    /* Compute the max number of list entries to prune across all passes
+     * Note that the actual number for a specific pass will be computed inside the kernel.
+     * Also note that this CUDA implementation (parts tracking on device) differs from the
+     * other backends (parts tracking on host, passed as kernel argument).
      */
-    int part = plist->rollingPruningPart;
+    int numSciInPartMax = (plist->nsci) / numParts;
 
-    plist->rollingPruningPart++;
-    if (plist->rollingPruningPart >= plist->rollingPruningNumParts)
-    {
-        plist->rollingPruningPart = 0;
-    }
-
-    /* Compute the number of list entries to prune in this pass */
-    int numSciInPart = (plist->nsci - part) / numParts;
-
-    /* Don't launch the kernel if there is no work to do (not allowed with HIP) */
-    if (numSciInPart <= 0)
+    /* Don't launch the kernel if there is no work to do (not allowed with CUDA) */
+    if (numSciInPartMax <= 0)
     {
         plist->haveFreshList = false;
 
@@ -662,7 +789,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
      * - The 1D block-grid contains as many blocks as super-clusters.
      */
     int num_threads_z = plist->haveFreshList ? c_pruneKernelJPackedConcurrency / 2 : c_pruneKernelJPackedConcurrency;
-    int nblock        = calc_nb_kernel_nblock(numSciInPart, &nb->deviceContext_->deviceInfo());
+    int nblock        = calc_nb_kernel_nblock(numSciInPartMax, &nb->deviceContext_->deviceInfo());
     KernelLaunchConfig config;
     config.blockSize[0]     = c_clSize;
     config.blockSize[1]     = c_clSize;
@@ -681,7 +808,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
                 config.blockSize[2],
                 config.gridSize[0],
                 config.gridSize[1],
-                numSciInPart * c_nbnxnGpuNumClusterPerSupercluster,
+                numSciInPartMax * c_nbnxnGpuNumClusterPerSupercluster,
                 c_nbnxnGpuNumClusterPerSupercluster,
                 plist->na_c,
                 config.sharedMemorySize);
@@ -697,7 +824,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     const auto     kernel =
             plist->haveFreshList ? nbnxn_kernel_prune_hip<true, c_pruneKernelJPackedConcurrency / 2> :
                                    nbnxn_kernel_prune_hip<false, c_pruneKernelJPackedConcurrency>;
-    const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts, &part);
+    const auto kernelArgs = prepareGpuKernelArguments(kernel, config, adat, nbp, plist, &numParts);
     launchGpuKernel(kernel, config, deviceStream, timingEvent, kernelName, kernelArgs);
 
     /* TODO: consider a more elegant way to track which kernel has been called
@@ -706,7 +833,7 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     {
 
         size_t scan_temporary_size = (size_t)plist->nscan_temporary;
-        rocprim::exclusive_scan(
+        hipError_t stat = rocprim::exclusive_scan(
             *reinterpret_cast<void**>(&plist->scan_temporary),
             scan_temporary_size,
             *reinterpret_cast<int**>(&plist->sci_histogram),
@@ -716,6 +843,8 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             ::rocprim::plus<int>(),
             deviceStream.stream()
         );
+
+        HIP_RET_ERR(stat, "rocprim::exclusive_scan failed");
 
         KernelLaunchConfig configSortSci;
         const unsigned int items_per_block = 256 * 16;
@@ -743,6 +872,43 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
             "nbnxn_kernel_sci_sort",
             kernelSciSortArgs
         );
+
+        {
+            std::vector<int> host_sci_histogram(plist->nsci_histogram);
+
+            hipError_t  stat = hipMemcpy(host_sci_histogram.data(),
+                                         *reinterpret_cast<int**>(&(plist->sci_histogram)),
+                                         plist->nsci_histogram * sizeof(int),
+                                         hipMemcpyDeviceToHost);
+
+            std::ofstream scihistogramfile;
+            scihistogramfile.open("sci_histogram.out", std::ios::app);
+            scihistogramfile << "---------------------START-------------------- " << stat << std::endl;
+            for(unsigned int index = 0; index < plist->nsci_histogram; index++)
+            {
+                scihistogramfile << index << " ; " << host_sci_histogram[index] << std::endl;
+            }
+            scihistogramfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+            scihistogramfile.close();
+
+            std::vector<int> host_sci_offset(plist->nsci_offset);
+
+            stat = hipMemcpy(host_sci_offset.data(),
+                             *reinterpret_cast<int**>(&(plist->sci_offset)),
+                             plist->nsci_offset * sizeof(int),
+                             hipMemcpyDeviceToHost);
+
+            std::ofstream scioffsetfile;
+            scioffsetfile.open("sci_offset.out", std::ios::app);
+            scioffsetfile << "---------------------START-------------------- " << stat << std::endl;
+            for(unsigned int index = 0; index < plist->nsci_offset; index++)
+            {
+                scioffsetfile << index << " ; " << host_sci_offset[index] << std::endl;
+            }
+            scioffsetfile << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+            scioffsetfile.close();
+        }
+
     }
 
     if (plist->haveFreshList)
@@ -765,7 +931,8 @@ void gpu_launch_kernel_pruneonly(NbnxmGpu* nb, const InteractionLocality iloc, c
     if (GMX_NATIVE_WINDOWS)
     {
         /* Windows: force flushing WDDM queue */
-        hipStreamQuery(deviceStream.stream());
+        hipError_t stat = hipStreamQuery(deviceStream.stream());
+        HIP_RET_ERR(stat, "hipStreamQuery failed at Windows: force flushing WDDM queue");
     }
 }
 
@@ -778,11 +945,14 @@ void hip_set_cacheconfig()
         for (int j = 0; j < c_numVdwTypes; j++)
         {
             /* Default kernel 32/32 kB Shared/L1 */
-            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_prune_ptr[i][j]), hipFuncCachePreferEqual);
-            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
-            hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_ptr[i][j]), hipFuncCachePreferEqual);
-            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
-            HIP_RET_ERR(stat, "hipFuncSetCacheConfig failed");
+            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_prune_ptr[i][j]), hipFuncCachePreferEqual);
+            HIP_RET_ERR(stat, "hipFuncSetCacheConfig nb_kfunc_ener_prune_ptr failed");
+            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_ener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            HIP_RET_ERR(stat, "hipFuncSetCacheConfig nb_kfunc_ener_noprune_ptr failed");
+            stat = hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_prune_ptr[i][j]), hipFuncCachePreferEqual);
+            HIP_RET_ERR(stat, "hipFuncSetCacheConfig nb_kfunc_noener_prune_ptr failed");
+            stat =  hipFuncSetCacheConfig(reinterpret_cast<const void*>(nb_kfunc_noener_noprune_ptr[i][j]), hipFuncCachePreferEqual);
+            HIP_RET_ERR(stat, "hipFuncSetCacheConfig nb_kfunc_noener_noprune_ptr failed");
         }
     }
 }

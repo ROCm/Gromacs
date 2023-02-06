@@ -73,4 +73,4 @@ void convertRVecToFloat3OnDevice(ArrayRef<gmx::RVec> /* rVecOutput */,
 } // namespace test
 } // namespace gmx
 
-#endif // !GMX_GPU_CUDA
+#endif // !GMX_GPU_CUDA && !GMX_GPU_HIP

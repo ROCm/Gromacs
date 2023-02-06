@@ -111,8 +111,6 @@ __device__ __forceinline__ void reduce_atom_forces(float3* __restrict__ sm_force
 {
     if (gmx::isPowerOfTwo(order)) // Only for orders of power of 2
     {
-        const unsigned int activeMask = c_fullWarpMask;
-
         // A tricky shuffle reduction inspired by reduce_force_j_warp_shfl
         // TODO: find out if this is the best in terms of transactions count
         static_assert(order == 4, "Only order of 4 is implemented");

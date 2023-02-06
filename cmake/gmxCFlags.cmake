@@ -61,6 +61,7 @@ ENDMACRO(GMX_TEST_CXXFLAG VARIABLE FLAGS CXXFLAGSVAR)
 function(gmx_target_compile_options_inner)
     set(CFLAGS
             ${SIMD_C_FLAGS}
+            ${MPI_C_COMPILE_OPTIONS}
             ${EXTRA_C_FLAGS}
             ${GMXC_CFLAGS}
          PARENT_SCOPE)
@@ -70,6 +71,7 @@ function(gmx_target_compile_options_inner)
     # enable SYCL for the few files using it, as well as the linker.
     set(CXXFLAGS
             ${SIMD_CXX_FLAGS}
+            ${MPI_CXX_COMPILE_OPTIONS}
             ${DISABLE_SYCL_CXX_FLAGS}
             ${EXTRA_CXX_FLAGS}
             ${GMXC_CXXFLAGS}
@@ -264,7 +266,7 @@ macro (gmx_c_flags)
     endif()
     # g++
     if(CMAKE_COMPILER_IS_GNUCXX)
-        GMX_TEST_CXXFLAG(CXXFLAGS_GDB "-ggdb" GMXC_CXXFLAGS)
+        # GMX_TEST_CXXFLAG(CXXFLAGS_GDB "-ggdb" GMXC_CXXFLAGS)
         if(NOT GMX_OPENMP)
             GMX_TEST_CXXFLAG(CXXFLAGS_PRAGMA "-Wno-unknown-pragmas" GMXC_CXXFLAGS)
         endif()
