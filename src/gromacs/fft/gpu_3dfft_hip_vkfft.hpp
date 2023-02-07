@@ -42,8 +42,8 @@
  *  \ingroup module_fft
  */
 
-#ifndef GMX_FFT_GPU_3DFFT_HIPFFT_HPP
-#define GMX_FFT_GPU_3DFFT_HIPFFT_HPP
+#ifndef GMX_FFT_GPU_3DFFT_HIP_VKFFT_HPP
+#define GMX_FFT_GPU_3DFFT_HIP_VKFFT_HPP
 
 #include <memory>
 
@@ -53,7 +53,7 @@
 #include "gromacs/utility/gmxmpi.h"
 #include "gpu_3dfft_impl.h"
 
-#include <hipfft.h>
+#include <vkFFT.h>
 
 class DeviceContext;
 class DeviceStream;
@@ -64,34 +64,34 @@ namespace gmx
 /*! \internal \brief
  * A 3D FFT wrapper class for performing R2C/C2R transforms using hipFFT
  */
-class Gpu3dFft::ImplHipFft : public Gpu3dFft::Impl
+class Gpu3dFft::ImplHipVkFft : public Gpu3dFft::Impl
 {
 public:
     //! \copydoc Gpu3dFft::Impl::Impl
-    ImplHipFft(bool                 allocateRealGrid,
-               MPI_Comm             comm,
-               ArrayRef<const int>  gridSizesInXForEachRank,
-               ArrayRef<const int>  gridSizesInYForEachRank,
-               int                  nz,
-               bool                 performOutOfPlaceFFT,
-               const DeviceContext& context,
-               const DeviceStream&  pmeStream,
-               ivec                 realGridSize,
-               ivec                 realGridSizePadded,
-               ivec                 complexGridSizePadded,
-               DeviceBuffer<float>* realGrid,
-               DeviceBuffer<float>* complexGrid);
+    ImplHipVkFft(bool                 allocateRealGrid,
+                 MPI_Comm             comm,
+                 ArrayRef<const int>  gridSizesInXForEachRank,
+                 ArrayRef<const int>  gridSizesInYForEachRank,
+                 int                  nz,
+                 bool                 performOutOfPlaceFFT,
+                 const DeviceContext& context,
+                 const DeviceStream&  pmeStream,
+                 ivec                 realGridSize,
+                 ivec                 realGridSizePadded,
+                 ivec                 complexGridSizePadded,
+                 DeviceBuffer<float>* realGrid,
+                 DeviceBuffer<float>* complexGrid);
 
     //! \copydoc Gpu3dFft::Impl::~Impl
-    ~ImplHipFft() override;
+    ~ImplHipVkFft() override;
 
     //! \copydoc Gpu3dFft::Impl::perform3dFft
     void perform3dFft(gmx_fft_direction dir, CommandEvent* timingEvent) override;
 
 private:
-    hipfftHandle   planR2C_;
-    hipfftHandle   planC2R_;
-    hipfftReal*    realGrid_;
+    float*    realGrid_;
+    VkFFTConfiguration configuration;
+    VkFFTApplication appR2C;
 };
 
 } // namespace gmx

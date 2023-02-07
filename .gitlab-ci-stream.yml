@@ -113,7 +113,6 @@ build:rocm-tmpi-mi100:
       -DGMX_MPI=off
       -DGMX_GPU=HIP
       -DGMX_OPENMP=on
-      -DGMX_GPU_USE_VKFFT=on
       -DGMX_BUILD_UNITTESTS=ON
       -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
@@ -158,7 +157,6 @@ build:rocm-mpi-mi100:
       -DGMX_MPI=on
       -DGMX_GPU=HIP
       -DGMX_OPENMP=on
-      -DGMX_GPU_USE_VKFFT=on
       -DGMX_BUILD_UNITTESTS=ON
       -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
@@ -202,7 +200,6 @@ build:rocm-tmpi-navi:
       -DGMX_MPI=off
       -DGMX_GPU=HIP
       -DGMX_OPENMP=on
-      -DGMX_GPU_USE_VKFFT=on
       -DGMX_BUILD_UNITTESTS=ON
       -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
@@ -245,7 +242,6 @@ build:rocm-mpi-navi:
       -DGMX_MPI=on
       -DGMX_GPU=HIP
       -DGMX_OPENMP=on
-      -DGMX_GPU_USE_VKFFT=on
       -DGMX_BUILD_UNITTESTS=ON
       -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
@@ -289,7 +285,6 @@ validation:rocm-tmpi-mi100:
       -DGMX_MPI=off
       -DGMX_GPU=HIP
       -DGMX_OPENMP=on
-      -DGMX_GPU_USE_VKFFT=on
       -DGMX_BUILD_UNITTESTS=ON
       -DBUILD_TESTING=ON
       -DGMX_SIMD=AVX2_256
