@@ -64,15 +64,15 @@
  *
  * Chosen to match relevant hardware widths on supported hardware.
  */
-//#if GMX_NAVI_BUILD
+#if GMX_NAVI_BUILD
     static constexpr int sc_subGroupSizeX = 32;
     static constexpr int sc_subGroupSizeY = 4;
     static constexpr int sc_subGroupSizeZ = 1;
-/*#else
+#else
     static constexpr int sc_subGroupSizeX = 64;
     static constexpr int sc_subGroupSizeY = 2;
     static constexpr int sc_subGroupSizeZ = 1;
-#endif*/
+#endif
 
 /*! \brief
  * A HIP kernel which packs non-contiguous overlap data in all 8 neighboring directions
