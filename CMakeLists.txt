@@ -785,6 +785,15 @@ if(GMX_USE_CUFFTMP)
     set(GMX_USE_cuFFTMp ${cuFFTMp_FOUND})
 endif()
 
+if(GMX_USE_ROCTRACER)
+    find_package(roctracer REQUIRED)
+endif()
+
+gmx_dependent_option(GMX_USE_ROCTRACER
+    "Emit roctracer events for wall time regions"
+    OFF
+    "GMX_GPU STREQUAL HIP")
+
 if(WIN32)
     set(GMX_NATIVE_WINDOWS 1)
     # This makes windows.h not declare min/max as macros that would break

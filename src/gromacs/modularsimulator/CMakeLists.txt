@@ -84,6 +84,14 @@ target_link_libraries(modularsimulator PRIVATE
 target_include_directories(modularsimulator PUBLIC
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
+# Module dependencies
+# This module convey transitive dependence on these modules.
+target_link_libraries(modularsimulator PUBLIC
+                      ewald
+                      mdlib
+                      mdrun
+                      utility
+                      )
 if (BUILD_SHARED_LIBS)
     set_target_properties(modularsimulator PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()

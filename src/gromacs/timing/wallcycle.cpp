@@ -81,7 +81,7 @@ static constexpr bool checkStringsLengths(const Container& strings)
 
 /* Each name should not exceed 22 printing characters
    (ie. terminating null can be twentieth) */
-static const char* enumValuetoString(WallCycleCounter enumValue)
+const char* enumValuetoString(WallCycleCounter enumValue)
 {
     constexpr gmx::EnumerationArray<WallCycleCounter, const char*> wallCycleCounterNames = {
         "Run",
@@ -145,7 +145,7 @@ static const char* enumValuetoString(WallCycleCounter enumValue)
 // clang-format off
 CLANG_DIAGNOSTIC_IGNORE(-Wunneeded-internal-declaration)
 // clang-format on
-static const char* enumValuetoString(WallCycleSubCounter enumValue)
+const char* enumValuetoString(WallCycleSubCounter enumValue)
 {
     constexpr gmx::EnumerationArray<WallCycleSubCounter, const char*> wallCycleSubCounterNames = {
         "DD redist.",

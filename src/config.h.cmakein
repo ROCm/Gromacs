@@ -291,7 +291,10 @@
 /* Define if cuFFTMp library found */
 #cmakedefine01 GMX_USE_cuFFTMp
 
-// Cluster size used by GPU nonbonded kernel.
+/* Define wether to use roctracer for CPU traces */
+#cmakedefine01 GMX_USE_ROCTRACER
+
+/* Cluster size used by nonbonded kernel. Should be 8 for NVIDIA/AMD and 4 for Intel */
 #define GMX_GPU_NB_CLUSTER_SIZE @GMX_GPU_NB_CLUSTER_SIZE@
 
 // Number of clusters along X in a pair-search grid cell for GPU lists.
