@@ -390,6 +390,9 @@ inline void wallcycle_sub_start_nocount(gmx_wallcycle* wc, WallCycleSubCounter e
     {
         if (wc != nullptr)
         {
+#if GMX_USE_ROCTRACER
+            roctxRangePush(enumValuetoString(ewcs));
+#endif
             wallcycle_sub_start(wc, ewcs);
             wc->wcsc[ewcs].n--;
         }
