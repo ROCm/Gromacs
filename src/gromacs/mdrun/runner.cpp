@@ -235,6 +235,30 @@ static DevelopmentFeatureFlags manageDevelopmentFeatures(const gmx::MDLogger& md
         }
     }
 
+    if (getenv("GMX_HIP_GRAPH") != nullptr)
+    {
+        if (GMX_HAVE_HIP_GRAPH_SUPPORT)
+        {
+            devFlags.enableCudaGraphs = true;
+            GMX_LOG(mdlog.warning)
+                    .asParagraph()
+                    .appendText(
+                            "GMX_HIP_GRAPH environment variable is detected. "
+                            "The experimental HIP Graphs feature will be used if run conditions "
+                            "allow.");
+        }
+        else
+        {
+            devFlags.enableCudaGraphs = false;
+            GMX_LOG(mdlog.warning)
+                    .asParagraph()
+                    .appendText(
+                            "GMX_HIP_GRAPH environment variable is detected, "
+                            "but the HIP version in use is below the minumum requirement (11.1). "
+                            "HIP Graphs will be disabled.");
+        }
+    }
+
     // Flag use to enable GPU-aware MPI depenendent features such PME GPU decomposition
     // GPU-aware MPI is marked available if it has been detected by GROMACS or detection fails but
     // user wants to force its use
