@@ -86,8 +86,10 @@ public:
     //! Marks the synchronization point in the \p stream, for external event while capturing a HIP graph.
     inline void markExternalEventWhileCapturingGraph(const DeviceStream& deviceStream)
     {
-        hipError_t stat =
-                hipEventRecordWithFlags(event_, deviceStream.stream(), hipEventRecordExternal);
+        //TODO: Missin api
+        //hipError_t stat =
+        //        hipEventRecordWithFlags(event_, deviceStream.stream(), hipEventRecordExternal);
+        hipError_t stat = hipEventRecord(event_, deviceStream.stream());
         if (stat != hipSuccess)
         {
             GMX_THROW(gmx::InternalError("hipEventRecordWithFlags failed: "
@@ -130,7 +132,9 @@ public:
     //! Enqueues a wait for the recorded event in stream \p stream, for external event while capturing a HIP graph.
     inline void enqueueExternalWaitEventWhileCapturingGraph(const DeviceStream& deviceStream)
     {
-        hipError_t stat = hipStreamWaitEvent(deviceStream.stream(), event_, hipEventWaitExternal);
+        //TODO: Missin api
+        //hipError_t stat = hipStreamWaitEvent(deviceStream.stream(), event_, hipEventWaitExternal);
+        hipError_t stat = hipStreamWaitEvent(deviceStream.stream(), event_, 0);
         if (stat != hipSuccess)
         {
             GMX_THROW(gmx::InternalError("hipStreamWaitEvent failed: " + gmx::getDeviceErrorString(stat)));
