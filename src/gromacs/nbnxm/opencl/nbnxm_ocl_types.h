@@ -60,6 +60,17 @@
 
 struct gmx_wallclock_gpu_nbnxn_t;
 
+#ifdef GMX_ENABLE_MEMORY_MULTIPLIER
+    static constexpr unsigned int c_clEnergyMemoryMultiplier = 64U;
+    static constexpr unsigned int c_clShiftMemoryMultiplier  = 64U;
+#else
+    static constexpr unsigned int c_clEnergyMemoryMultiplier = 1U;
+    static constexpr unsigned int c_clShiftMemoryMultiplier  = 1U;
+#endif
+
+static constexpr unsigned int c_clEnergyMemorySize = c_clEnergyMemoryMultiplier == 1U ? 1U : c_clEnergyMemoryMultiplier + 1U;
+static constexpr unsigned int c_clShiftMemorySize = c_clShiftMemoryMultiplier == 1U ? 1U : c_clShiftMemoryMultiplier + 1U;
+
 /*! \brief Pruning kernel flavors.
  *
  * The values correspond to the first call of the pruning post-list generation
