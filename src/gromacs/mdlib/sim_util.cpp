@@ -49,6 +49,9 @@
 
 #include <array>
 #include <optional>
+#include <iostream>
+#include <fstream>
+#include "hip/hip_runtime.h"
 
 #include "gromacs/applied_forces/awh/awh.h"
 #include "gromacs/domdec/dlbtiming.h"
@@ -129,6 +132,7 @@
 #include "gromacs/utility/sysinfo.h"
 
 #include "gpuforcereduction.h"
+
 
 using gmx::ArrayRef;
 using gmx::AtomLocality;
@@ -1740,10 +1744,45 @@ void do_force(FILE*                               fplog,
         // launch to avoid FFT launch overhead hijacking the CPU and delaying
         // the nonbonded kernel.
         hipRangePush("launch_PmeGpuFftAndGather");
+#ifdef PMEGPU_SPIT_GRID
+        std::cout << std::endl << " printing coordinates / grid points / forces " << std::endl;
+        int sizeCoords = x.size()*3; 
+        std::ofstream input_pos("input_positions.bin", std::ios::out | std::ios::binary);
+        std::ofstream output_forces("output_forces.bin", std::ios::out | std::ios::binary);
+
+        
+        // grid unfortunately needs to be printed elsewhere because gmx_pme_t is incomplete here
+        // std::ofstream input_grid("input_grid.bin", std::ios::out | std::ios::binary);
+        // const float*  d_grid   = reinterpret_cast<const float*>(fr->pmedata->kernelParams->grid.d_realGrid[0]); // is this even going to work
+        // float* h_grid = new float(*realGridSize);
+
+        const float*  d_coords = reinterpret_cast<const float*>(stateGpu->getCoordinates());
+        float* h_coords = new float(sizeCoords); // need the number of atoms
+
+        // copy back results to the host
+        hipError_t err = hipMemcpy(h_coords, d_coords, sizeof(float)*sizeCoords, hipMemcpyDeviceToHost);
+#endif
         launchPmeGpuFftAndGather(fr->pmedata,
                                  lambda[static_cast<int>(FreeEnergyPerturbationCouplingType::Coul)],
                                  wcycle,
                                  stepWork);
+#ifdef PMEGPU_SPIT_GRID
+        hipDeviceSynchronize(); // hard sync on device here
+        const float* d_forces = reinterpret_cast<const float*>(pme_gpu_get_device_f);
+        float* h_forces = new float(sizeCoords);
+        // copy it back to the host 
+        err = hipMemcpy(h_forces, d_forces, sizeof(float)*sizeCoords, hipMemcpyDeviceToHost);
+        
+        // spit files out
+        for(int i = 0; i < sizeCoords; i++){
+            input_pos.write((const char*)&h_coords[sizeCoords], sizeof(float));
+            output_forces.write((const char*)&h_forces[sizeCoords], sizeof(float));
+        }
+        // check if forces on timestep 0 are wrong.
+        input_pos.close();
+        output_forces.close();
+        gmx_fatal(FARGS, " finished writing files"); // not sure if this works
+#endif
         hipRangePop();
     }
 
