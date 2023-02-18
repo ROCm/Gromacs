@@ -253,6 +253,10 @@ elseif(GMX_GPU_HIP)
        set_source_files_properties(${hip_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
     endforeach()
 
+    if (GMX_UNIFIED_MEM)
+        add_definitions(-DGMX_UNIFIED_MEM)
+    endif()
+
     string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
     if("${build_type}" STREQUAL "release")
         # -fno-slp-vectorize disables SLP vectorization (superword-level parallelism) becuase it produces non-optimal packed math instructions on gfx90a (MI200)
