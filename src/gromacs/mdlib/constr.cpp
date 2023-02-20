@@ -52,6 +52,8 @@
 
 #include <algorithm>
 
+#include "roctx.h"
+
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
@@ -511,6 +513,7 @@ bool Constraints::Impl::apply(bool                      bLog,
 
     if (lincsd != nullptr)
     {
+        roctxRangePush("cpu_constrain_lincs");
         bOK = constrain_lincs(bLog || bEner,
                               ir,
                               step,
@@ -534,6 +537,7 @@ bool Constraints::Impl::apply(bool                      bLog,
                               nrnb,
                               maxwarn,
                               &warncount_lincs);
+        roctxRangePop();
         if (!bOK && maxwarn < INT_MAX)
         {
             if (log != nullptr)
@@ -549,6 +553,7 @@ bool Constraints::Impl::apply(bool                      bLog,
 
     if (shaked != nullptr)
     {
+        roctxRangePush("cpu_constrain_shake");
         bOK = constrain_shake(log,
                               shaked.get(),
                               inverseMasses_,
@@ -567,6 +572,7 @@ bool Constraints::Impl::apply(bool                      bLog,
                               constraintsVirial,
                               maxwarn < INT_MAX,
                               econq);
+        roctxRangePop();
 
         if (!bOK && maxwarn < INT_MAX)
         {
@@ -597,7 +603,7 @@ bool Constraints::Impl::apply(bool                      bLog,
                         {
                             clear_mat(threadConstraintsVirial[th]);
                         }
-
+                        roctxRangePush("cpu_csettle");
                         csettle(*settled,
                                 nth,
                                 th,
@@ -609,6 +615,7 @@ bool Constraints::Impl::apply(bool                      bLog,
                                 computeVirial,
                                 th == 0 ? constraintsVirial : threadConstraintsVirial[th],
                                 th == 0 ? &bSettleErrorHasOccurred0 : &bSettleErrorHasOccurred[th]);
+                        roctxRangePop();
                     }
                     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
                 }

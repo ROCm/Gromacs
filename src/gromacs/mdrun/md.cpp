@@ -52,6 +52,8 @@
 #include <memory>
 #include <numeric>
 
+#include "roctx.h"
+
 #include "gromacs/applied_forces/awh/awh.h"
 #include "gromacs/applied_forces/awh/read_params.h"
 #include "gromacs/commandline/filenm.h"
@@ -1589,6 +1591,7 @@ void gmx::LegacySimulator::do_md()
                         (simulationWork.useMts && step % ir->mtsLevels[1].stepFactor == 0)
                                 ? f.view().forceMtsCombinedWithPadding()
                                 : f.view().forceWithPadding();
+                roctxRangePush("cpu_updateCoords");
                 upd.update_coords(*ir,
                                   step,
                                   md->homenr,
@@ -1604,9 +1607,11 @@ void gmx::LegacySimulator::do_md()
                                   etrtPOSITION,
                                   cr,
                                   constr != nullptr);
+                roctxRangePop();
 
                 wallcycle_stop(wcycle, WallCycleCounter::Update);
 
+                roctxRangePush("cpu_constrain_coordinates");
                 constrain_coordinates(constr,
                                       do_log,
                                       do_ene,
@@ -1616,7 +1621,9 @@ void gmx::LegacySimulator::do_md()
                                       &dvdl_constr,
                                       bCalcVir && !simulationWork.useMts,
                                       shake_vir);
+                roctxRangePop();
 
+                roctxRangePush("cpu_update_sd_second_half");
                 upd.update_sd_second_half(*ir,
                                           step,
                                           &dvdl_constr,
@@ -1630,8 +1637,12 @@ void gmx::LegacySimulator::do_md()
                                           constr,
                                           do_log,
                                           do_ene);
+                roctxRangePop();
+
+                roctxRangePush("cpu_finish_update");
                 upd.finish_update(
                         *ir, md->havePartiallyFrozenAtoms, md->homenr, state, wcycle, constr != nullptr);
+                roctxRangePop();
             }
 
             if (ir->bPull && ir->pull->bSetPbcRefToPrevStepCOM)
