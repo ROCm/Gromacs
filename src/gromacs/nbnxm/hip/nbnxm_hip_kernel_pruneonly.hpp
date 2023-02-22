@@ -115,22 +115,23 @@ __launch_bounds__(THREADS_PER_BLOCK * threadsZ, MIN_BLOCKS_PER_MP) __global__
         void nbnxn_kernel_prune_hip(NBAtomDataGpu    atdat,
                                     NBParamGpu       nbparam,
                                     Nbnxm::gpu_plist plist,
-                                    int              numParts/*,
-                                    int              part*/)
+                                    int              numParts,
+                                    int              part)
 #ifdef FUNCTION_DECLARATION_ONLY
                 ; /* Only do function declaration, omit the function body. */
 
 // Add extern declarations so each translation unit understands that
 // there will be a definition provided.
 extern template __launch_bounds__(THREADS_PER_BLOCK * (NTHREAD_Z / 2), MIN_BLOCKS_PER_MP) __global__ void
-nbnxn_kernel_prune_hip<true, NTHREAD_Z / 2>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int/*, int*/);
+nbnxn_kernel_prune_hip<true, NTHREAD_Z / 2>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 extern template __launch_bounds__(THREADS_PER_BLOCK * NTHREAD_Z, MIN_BLOCKS_PER_MP) __global__ void
-nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int/*, int*/);
+nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, const Nbnxm::gpu_plist, int, int);
 #else
 {
 
     // Get part for this kernel from global memory. Each block has its own copy to allow asynchronous incrementation.
-    int part = plist.d_rollingPruningPart[blockIdx.x];
+    // TODO: Enable when HIP GRAPH works
+    /*int part = plist.d_rollingPruningPart[blockIdx.x];
     __syncthreads();
 
     // Single thread per block increments the block's copy of the part index
@@ -145,7 +146,7 @@ nbnxn_kernel_prune_hip<false, NTHREAD_Z>(const NBAtomDataGpu, const NBParamGpu, 
     if (blockIdx.x >= numSciInPart)
     {
         return;
-    }
+    }*/
     /* convenience variables */
     //const nbnxn_sci_t* pl_sci    = plist.sci;
     const nbnxn_sci_t* pl_sci      = haveFreshList ? plist.sci : plist.sci_sorted;
