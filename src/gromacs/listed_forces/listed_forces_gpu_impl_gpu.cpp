@@ -57,7 +57,7 @@
 #include "listed_forces_gpu_impl.h"
 
 // Number of GPU threads in a block
-constexpr static int c_threadsPerBlock = 256;
+constexpr static int c_threadsPerBlock = 64;
 
 namespace gmx
 {
