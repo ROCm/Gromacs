@@ -56,9 +56,6 @@
 
 #include "listed_forces_gpu_impl.h"
 
-// Number of GPU threads in a block
-constexpr static int c_threadsPerBlock = 64;
-
 namespace gmx
 {
 // ---- ListedForcesGpu::Impl
@@ -106,7 +103,7 @@ ListedForcesGpu::Impl::Impl(const gmx_ffparams_t&    ffparams,
                        "Can't run GPU version of bonded forces in stream that is not valid.");
 
     static_assert(
-            c_threadsPerBlock >= c_numShiftVectors,
+            c_threadsBondedPerBlock >= c_numShiftVectors,
             "Threads per block in GPU bonded must be >= c_numShiftVectors for the virial kernel "
             "(calcVir=true)");
 
@@ -147,10 +144,10 @@ ListedForcesGpu::Impl::Impl(const gmx_ffparams_t&    ffparams,
 
     int fTypeRangeEnd = kernelParams_.fTypeRangeEnd[numFTypesOnGpu - 1];
 
-    kernelLaunchConfig_.blockSize[0]     = c_threadsPerBlock;
+    kernelLaunchConfig_.blockSize[0]     = c_threadsBondedPerBlock;
     kernelLaunchConfig_.blockSize[1]     = 1;
     kernelLaunchConfig_.blockSize[2]     = 1;
-    kernelLaunchConfig_.gridSize[0]      = (fTypeRangeEnd + c_threadsPerBlock) / c_threadsPerBlock;
+    kernelLaunchConfig_.gridSize[0]      = (fTypeRangeEnd + c_threadsBondedPerBlock) / c_threadsBondedPerBlock;
     kernelLaunchConfig_.gridSize[1]      = 1;
     kernelLaunchConfig_.gridSize[2]      = 1;
     kernelLaunchConfig_.sharedMemorySize = c_numShiftVectors * sizeof(Float3);
@@ -308,7 +305,7 @@ void ListedForcesGpu::Impl::updateInteractionListsAndDeviceBuffers(ArrayRef<cons
     }
 
     int fTypeRangeEnd               = kernelParams_.fTypeRangeEnd[numFTypesOnGpu - 1];
-    kernelLaunchConfig_.gridSize[0] = (fTypeRangeEnd + c_threadsPerBlock) / c_threadsPerBlock;
+    kernelLaunchConfig_.gridSize[0] = (fTypeRangeEnd + c_threadsBondedPerBlock) / c_threadsBondedPerBlock;
 
     d_xq_     = d_xqPtr;
     d_f_      = d_fPtr;

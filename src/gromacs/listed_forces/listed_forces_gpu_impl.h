@@ -59,6 +59,9 @@
 struct gmx_ffparams_t;
 class DeviceContext;
 
+// Number of GPU threads in a block
+constexpr static int c_threadsBondedPerBlock = 64;
+
 namespace gmx
 {
 

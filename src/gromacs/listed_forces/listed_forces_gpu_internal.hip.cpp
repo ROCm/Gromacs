@@ -820,6 +820,7 @@ namespace gmx
 {
 
 template<bool calcVir, bool calcEner>
+__launch_bounds__(c_threadsBondedPerBlock)
 __global__ void bonded_kernel_gpu(
                  //! Periodic boundary data
                  PbcAiuc pbcAiuc,
