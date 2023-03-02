@@ -165,4 +165,4 @@ option(GMX_GPU_NB_DISABLE_CLUSTER_PAIR_SPLIT
        "Disable NBNXM GPU cluster pair splitting. Only supported with HIP and SYCL and 64-wide GPU architectures (like AMD GCN/CDNA)."
        ON)
 # --gcc-toolchain=/opt/cray/pe/gcc/11.2.0/snos/ -stdlib=libstdc++
-set(HIPCC_EXTRA_FLAGS "Default" CACHE STRING "")
+set(HIPCC_EXTRA_FLAGS "" CACHE STRING "Extra HIPCC compiler flags")
