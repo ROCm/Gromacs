@@ -860,7 +860,14 @@ static gmx::FftBackend getFftBackend(const PmeGpu* pmeGpu)
     {
         if (!pmeGpu->settings.useDecomposition)
         {
-            return gmx::FftBackend::Hipfft;
+            if (GMX_GPU_FFT_VKFFT)
+            {
+                return gmx::FftBackend::HipVkfft;
+            }
+            else
+            {
+                return gmx::FftBackend::Hipfft;
+            }
         }
         else
         {
