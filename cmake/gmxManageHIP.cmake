@@ -164,3 +164,5 @@ option(GMX_NAVI_BUILD "Navi build with Warp Size 32 and Pairsplit 2" OFF)
 option(GMX_GPU_NB_DISABLE_CLUSTER_PAIR_SPLIT
        "Disable NBNXM GPU cluster pair splitting. Only supported with HIP and SYCL and 64-wide GPU architectures (like AMD GCN/CDNA)."
        ON)
+# --gcc-toolchain=/opt/cray/pe/gcc/11.2.0/snos/ -stdlib=libstdc++
+set(HIPCC_EXTRA_FLAGS "Default" CACHE STRING "")
