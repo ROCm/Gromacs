@@ -88,7 +88,7 @@ elseif (GMX_GPU_HIP)
         target_link_libraries(testutils PRIVATE VkFFT)
     endif()
 
-    if (GMX_GPU_FFT_HIPFFT OR GMX_USE_Heffte)
+    if (GMX_GPU_FFT_HIPFFT)
         target_link_libraries(testutils PUBLIC roc::rocfft hip::hipfft)
     endif()
 else()

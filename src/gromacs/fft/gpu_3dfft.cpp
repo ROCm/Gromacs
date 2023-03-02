@@ -56,8 +56,8 @@
 #    endif
 #elif GMX_GPU_OPENCL
 #    if GMX_GPU_FFT_VKFFT
-#    else
 #        include "gpu_3dfft_ocl_vkfft.h"
+#    else
 #        include "gpu_3dfft_ocl.h"
 #    endif
 #elif GMX_GPU_SYCL
@@ -147,27 +147,11 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
             GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_CUDA,
                                "Unsupported FFT backend requested");
     }
-#    elif GMX_GPU_HIP
+# elif GMX_GPU_HIP
     switch (backend)
     {
-#    if GMX_GPU_FFT_VKFFT
+#    if GMX_GPU_FFT_HIPFFT
         case FftBackend::Hipfft:
-            impl_ = std::make_unique<Gpu3dFft::ImplHipVkFft>(allocateRealGrid,
-                                                             comm,
-                                                             gridSizesInXForEachRank,
-                                                             gridSizesInYForEachRank,
-                                                             nz,
-                                                             performOutOfPlaceFFT,
-                                                             context,
-                                                             pmeStream,
-                                                             realGridSize,
-                                                             realGridSizePadded,
-                                                             complexGridSizePadded,
-                                                             realGrid,
-                                                             complexGrid);
-            break;
-#    elif GMX_GPU_FFT_HIPFFT
-        case FftBackend::HipVkfft:
             impl_ = std::make_unique<Gpu3dFft::ImplHipFft>(allocateRealGrid,
                                                            comm,
                                                            gridSizesInXForEachRank,
@@ -182,10 +166,28 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                                                            realGrid,
                                                            complexGrid);
             break;
+#    elif GMX_GPU_FFT_VKFFT
+        case FftBackend::HipVkfft:
+            impl_ = std::make_unique<Gpu3dFft::ImplHipVkFft>(allocateRealGrid,
+                                                             comm,
+                                                             gridSizesInXForEachRank,
+                                                             gridSizesInYForEachRank,
+                                                             nz,
+                                                             performOutOfPlaceFFT,
+                                                             context,
+                                                             pmeStream,
+                                                             realGridSize,
+                                                             realGridSizePadded,
+                                                             complexGridSizePadded,
+                                                             realGrid,
+                                                             complexGrid);
+            break;
 #    endif
-        default: GMX_THROW(InternalError("Unsupported FFT backend requested"));
-}
-#    elif GMX_GPU_OPENCL
+        default:
+            GMX_RELEASE_ASSERT(backend == FftBackend::HeFFTe_HIP,
+                               "Unsupported FFT backend requested");
+    }
+#    elif GMX_GPU_OPENCL 
     switch (backend)
     {
 #    if GMX_GPU_FFT_VKFFT
@@ -438,7 +440,7 @@ Gpu3dFft::Gpu3dFft(FftBackend           backend,
                                "build configurations only with oneMKL, rocFFT, or cuFFT");
 #    endif
             break;
-
+        
         default: GMX_RELEASE_ASSERT(impl_ != nullptr, "Unsupported FFT backend requested");
     }
 #endif
