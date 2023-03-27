@@ -358,7 +358,7 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_solveMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATION
          *       To use fewer warps, add to the conditional:
          *       && threadLocalId < activeWarps * stride
          */
-        assert(activeWarps * stride >= warpSize);
+        assert(c_solveMaxWarpsPerBlock * stride >= warpSize);
         if (threadLocalId < warpSize)
         {
             float output = sm_virialAndEnergy[threadLocalId];
