@@ -1587,6 +1587,7 @@ void gmx::LegacySimulator::do_md()
                         (simulationWork.useMts && step % ir->mtsLevels[1].stepFactor == 0)
                                 ? f.view().forceMtsCombinedWithPadding()
                                 : f.view().forceWithPadding();
+                hipRangePush("updateCoords");
                 upd.update_coords(*ir,
                                   step,
                                   md->homenr,
@@ -1602,9 +1603,11 @@ void gmx::LegacySimulator::do_md()
                                   etrtPOSITION,
                                   cr,
                                   constr != nullptr);
+                hipRangePop();
 
                 wallcycle_stop(wcycle, WallCycleCounter::Update);
 
+                hipRangePush("constrain_coordinates");
                 constrain_coordinates(constr,
                                       do_log,
                                       do_ene,
@@ -1614,6 +1617,7 @@ void gmx::LegacySimulator::do_md()
                                       &dvdl_constr,
                                       bCalcVir && !simulationWork.useMts,
                                       shake_vir);
+                hipRangePop();
 
                 upd.update_sd_second_half(*ir,
                                           step,
@@ -1628,8 +1632,10 @@ void gmx::LegacySimulator::do_md()
                                           constr,
                                           do_log,
                                           do_ene);
+                hipRangePush("finish_update");
                 upd.finish_update(
                         *ir, md->havePartiallyFrozenAtoms, md->homenr, state, wcycle, constr != nullptr);
+                hipRangePop();
             }
 
             if (ir->bPull && ir->pull->bSetPbcRefToPrevStepCOM)

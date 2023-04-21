@@ -39,6 +39,7 @@
 
 #include "update.h"
 
+
 #include <cmath>
 #include <cstdio>
 
@@ -77,6 +78,8 @@
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
+
 
 using namespace gmx; // TODO: Remove when this file is moved into gmx namespace
 
@@ -703,6 +706,7 @@ static void do_update_md(int                                  start,
 
         if (!doAcceleration)
         {
+            hipRangePush("updateMdLeapfrogGeneral");
             updateMDLeapfrogGeneral<AccelerationType::none>(start,
                                                             nrend,
                                                             doNoseHoover,
@@ -721,9 +725,11 @@ static void do_update_md(int                                  start,
                                                             nh_vxi,
                                                             nsttcouple,
                                                             stepM);
+            hipRangePop();
         }
         else if (useConstantAcceleration)
         {
+            hipRangePush("updateMDLeapFrogGeneral_accelGroup");
             updateMDLeapfrogGeneral<AccelerationType::group>(start,
                                                              nrend,
                                                              doNoseHoover,
@@ -742,9 +748,11 @@ static void do_update_md(int                                  start,
                                                              nh_vxi,
                                                              nsttcouple,
                                                              stepM);
+            hipRangePop();
         }
         else
         {
+            hipRangePush("updateMDLeapfrogGeneral_cosine");
             updateMDLeapfrogGeneral<AccelerationType::cosine>(start,
                                                               nrend,
                                                               doNoseHoover,
@@ -763,6 +771,7 @@ static void do_update_md(int                                  start,
                                                               nh_vxi,
                                                               nsttcouple,
                                                               stepM);
+            hipRangePop();
         }
     }
     else
@@ -791,13 +800,17 @@ static void do_update_md(int                                  start,
 
             if (haveSingleTempScaleValue)
             {
+                hipRangePush("updateMDLeapfrogSimple_parrineloRahman_singleTemp");
                 updateMDLeapfrogSimple<StoreUpdatedVelocities::yes, NumTempScaleValues::single, ApplyParrinelloRahmanVScaling::diagonal>(
                         start, nrend, dt, dtPressureCouple, invMassPerDim, tcstat, cTC, diagM, x, xprime, v, f);
+                hipRangePop();
             }
             else
             {
+                hipRangePush("updateMDLeapfrogSimple_parrineloRahman_multTemp");
                 updateMDLeapfrogSimple<StoreUpdatedVelocities::yes, NumTempScaleValues::multiple, ApplyParrinelloRahmanVScaling::diagonal>(
                         start, nrend, dt, dtPressureCouple, invMassPerDim, tcstat, cTC, diagM, x, xprime, v, f);
+                hipRangePop();
             }
         }
         else
@@ -813,20 +826,26 @@ static void do_update_md(int                                  start,
                 /* Check if we can use invmass instead of invMassPerDim */
                 if (!havePartiallyFrozenAtoms)
                 {
+                    hipRangePush("updateMDLeapfrogSimpleSimd_notFrozen");
                     updateMDLeapfrogSimpleSimd<StoreUpdatedVelocities::yes>(
                             start, nrend, dt, invmass, tcstat, x, xprime, v, f);
+                    hipRangePop();
                 }
                 else
 #endif
                 {
+                    hipRangePush("updateMDLeapfrogSimple_frozen");
                     updateMDLeapfrogSimple<StoreUpdatedVelocities::yes, NumTempScaleValues::single, ApplyParrinelloRahmanVScaling::no>(
                             start, nrend, dt, dtPressureCouple, invMassPerDim, tcstat, cTC, nullptr, x, xprime, v, f);
+                    hipRangePop();
                 }
             }
             else
             {
+                hipRangePush("updateMDLeapfrogSimple");
                 updateMDLeapfrogSimple<StoreUpdatedVelocities::yes, NumTempScaleValues::multiple, ApplyParrinelloRahmanVScaling::no>(
                         start, nrend, dt, dtPressureCouple, invMassPerDim, tcstat, cTC, nullptr, x, xprime, v, f);
+                hipRangePop();
             }
         }
     }

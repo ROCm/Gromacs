@@ -821,6 +821,7 @@ static void alternatePmeNbGpuWaitReduce(nonbonded_verlet_t* nbv,
 
         if (!isNbGpuDone)
         {
+            hipRangePush("gpu_try_finish_task");
             auto&             forceBuffersNonbonded = forceOutputsNonbonded->forceWithShiftForces();
             GpuTaskCompletion completionType =
                     (isPmeGpuDone) ? GpuTaskCompletion::Wait : GpuTaskCompletion::Check;
@@ -833,10 +834,13 @@ static void alternatePmeNbGpuWaitReduce(nonbonded_verlet_t* nbv,
                     forceBuffersNonbonded.shiftForces(),
                     completionType,
                     wcycle);
+            hipRangePop();
 
             if (isNbGpuDone)
             {
+                hipRangePush("atomdata_add_nbat_f_to_f");
                 nbv->atomdata_add_nbat_f_to_f(AtomLocality::Local, forceBuffersNonbonded.force());
+                hipRangePop();
             }
         }
     }
