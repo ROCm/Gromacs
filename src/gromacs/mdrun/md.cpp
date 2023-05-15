@@ -42,6 +42,7 @@
  * \ingroup module_mdrun
  */
 #include "gmxpre.h"
+#include <hip/hip_runtime.h>
 
 #include <cinttypes>
 #include <cmath>
@@ -171,9 +172,9 @@ void dumpBuffers(int numAtoms,
 								){
 
    // pointers to files to dump on
-   std::ofstream *x_file = NULL; 
-   std::ofstream *v_file = NULL;
-   std::ofstream *f_file = NULL; 
+   std::ofstream x_file; 
+   std::ofstream v_file;
+   std::ofstream f_file; 
 
    // JM: this appends V F and X to a binary file
    if((timestep % writePeriod) != 0) return;
@@ -188,32 +189,32 @@ void dumpBuffers(int numAtoms,
    basename.append("_gmx_fp32"); // name of app + precision which are always fp32
 
    // ok flushed every buffer, now it's time to print them 
-   x_file->open(basename+"_x.bin", std::ios::binary| std::ios::out);
-   v_file->open(basename+"_v.bin", std::ios::binary| std::ios::out);
-   f_file->open(basename+"_f.bin", std::ios::binary| std::ios::out);
+   x_file.open(basename+"_x.bin", std::ios::binary| std::ios::out);
+   v_file.open(basename+"_v.bin", std::ios::binary| std::ios::out);
+   f_file.open(basename+"_f.bin", std::ios::binary| std::ios::out);
 
    for(int i = 0; i< numAtoms; i++){
      // x-writing  
-     x_file->write(reinterpret_cast<char*>(&(x[i*3 + 0])), sizeof(float)); 
-     x_file->write(reinterpret_cast<char*>(&(x[i*3 + 1])), sizeof(float)); 
-     x_file->write(reinterpret_cast<char*>(&(x[i*3 + 2])), sizeof(float));
+     x_file.write(reinterpret_cast<char*>(&(x[i*3 + 0])), sizeof(float)); 
+     x_file.write(reinterpret_cast<char*>(&(x[i*3 + 1])), sizeof(float)); 
+     x_file.write(reinterpret_cast<char*>(&(x[i*3 + 2])), sizeof(float));
 
      // v-writing 
-     v_file->write(reinterpret_cast<char*>(&(v[i*3 + 0])), sizeof(float)); 
-     v_file->write(reinterpret_cast<char*>(&(v[i*3 + 1])), sizeof(float)); 
-     v_file->write(reinterpret_cast<char*>(&(v[i*3 + 2])), sizeof(float));
+     v_file.write(reinterpret_cast<char*>(&(v[i*3 + 0])), sizeof(float)); 
+     v_file.write(reinterpret_cast<char*>(&(v[i*3 + 1])), sizeof(float)); 
+     v_file.write(reinterpret_cast<char*>(&(v[i*3 + 2])), sizeof(float));
 
      // f-writing 
-     f_file->write(reinterpret_cast<char*>(&(f[i*3 + 0])), sizeof(float)); 
-     f_file->write(reinterpret_cast<char*>(&(f[i*3 + 1])), sizeof(float)); 
-     f_file->write(reinterpret_cast<char*>(&(f[i*3 + 2])), sizeof(float));
+     f_file.write(reinterpret_cast<char*>(&(f[i*3 + 0])), sizeof(float)); 
+     f_file.write(reinterpret_cast<char*>(&(f[i*3 + 1])), sizeof(float)); 
+     f_file.write(reinterpret_cast<char*>(&(f[i*3 + 2])), sizeof(float));
 
    } 
 
    // close down the files now
-   x_file->close();
-   v_file->close();
-   f_file->close();
+   x_file.close();
+   v_file.close();
+   f_file.close();
 }
 
 
@@ -1263,13 +1264,16 @@ void gmx::LegacySimulator::do_md()
 						// i need the f, x and v arrays as raw floats here, also the length of the simulation and
 						// and a way to grab the period of the writing
 						// how to get gpu integration here
+            
 					  stateGpu->copyCoordinatesFromGpu(state->x, AtomLocality::Local);
 						stateGpu->copyVelocitiesFromGpu(state->v, AtomLocality::Local);
+            // float* h_v = (float*)malloc(sizeof(float)*state->natoms*3);
+            // hipMemcpy(reinterpret_cast<float*>(stateGpu->getVelocities()), h_v, sizeof(float)*state->natoms*3, hipMemcpyDeviceToHost);
 						stateGpu->copyForcesFromGpu(f.view().force(), AtomLocality::Local);
 						stateGpu->waitCoordinatesReadyOnHost(AtomLocality::Local);
 						stateGpu->waitVelocitiesReadyOnHost(AtomLocality::Local);
 						stateGpu->waitForcesReadyOnHost(AtomLocality::Local);
-						
+					
 						dumpBuffers(state->natoms, 
 												step, 
 												50,
@@ -1277,7 +1281,6 @@ void gmx::LegacySimulator::do_md()
 												reinterpret_cast<float*>(state->x.data()),
 												reinterpret_cast<float*>(state->v.data()),
 											  reinterpret_cast<float*>(f.view().force().data()));	
-
         }
 
         // VV integrators do not need the following velocity half step
