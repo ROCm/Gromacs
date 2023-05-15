@@ -156,16 +156,24 @@
 #include "replicaexchange.h"
 #include "shellfc.h"
 
+#include <string>
+#include <fstream>
+
 using gmx::SimulationSignaller;
 
 void dumpBuffers(int numAtoms, 
 							   int timestep,
 								 int writePeriod, 
- 							 int N,  
-								 gmx::rvec<float>* x, 
-								 gmx::rvec<float>* v, 
-								 gmx::rvec<float>* f
+ 		    				 int N,  
+								 float* x, 
+								 float* v, 
+								 float* f
 								){
+
+   // pointers to files to dump on
+   std::ofstream *x_file = NULL; 
+   std::ofstream *v_file = NULL;
+   std::ofstream *f_file = NULL; 
 
    // JM: this appends V F and X to a binary file
    if((timestep % writePeriod) != 0) return;
@@ -186,19 +194,19 @@ void dumpBuffers(int numAtoms,
 
    for(int i = 0; i< numAtoms; i++){
      // x-writing  
-     x_file->write(reinterpret_cast<char*>(&(x[i][0])), sizeof(double)); 
-     x_file->write(reinterpret_cast<char*>(&(x[i][1])), sizeof(double)); 
-     x_file->write(reinterpret_cast<char*>(&(x[i][2])), sizeof(double));
+     x_file->write(reinterpret_cast<char*>(&(x[i*3 + 0])), sizeof(float)); 
+     x_file->write(reinterpret_cast<char*>(&(x[i*3 + 1])), sizeof(float)); 
+     x_file->write(reinterpret_cast<char*>(&(x[i*3 + 2])), sizeof(float));
 
      // v-writing 
-     v_file->write(reinterpret_cast<char*>(&(v[i][0])), sizeof(double)); 
-     v_file->write(reinterpret_cast<char*>(&(v[i][1])), sizeof(double)); 
-     v_file->write(reinterpret_cast<char*>(&(v[i][2])), sizeof(double));
+     v_file->write(reinterpret_cast<char*>(&(v[i*3 + 0])), sizeof(float)); 
+     v_file->write(reinterpret_cast<char*>(&(v[i*3 + 1])), sizeof(float)); 
+     v_file->write(reinterpret_cast<char*>(&(v[i*3 + 2])), sizeof(float));
 
      // f-writing 
-     f_file->write(reinterpret_cast<char*>(&(f[i][0])), sizeof(double)); 
-     f_file->write(reinterpret_cast<char*>(&(f[i][1])), sizeof(double)); 
-     f_file->write(reinterpret_cast<char*>(&(f[i][2])), sizeof(double));
+     f_file->write(reinterpret_cast<char*>(&(f[i*3 + 0])), sizeof(float)); 
+     f_file->write(reinterpret_cast<char*>(&(f[i*3 + 1])), sizeof(float)); 
+     f_file->write(reinterpret_cast<char*>(&(f[i*3 + 2])), sizeof(float));
 
    } 
 
@@ -1257,7 +1265,7 @@ void gmx::LegacySimulator::do_md()
 						// how to get gpu integration here
 					  stateGpu->copyCoordinatesFromGpu(state->x, AtomLocality::Local);
 						stateGpu->copyVelocitiesFromGpu(state->v, AtomLocality::Local);
-						stateGpu->copyForcesFromGpu(f.view.force(), AtomLocality::Local);
+						stateGpu->copyForcesFromGpu(f.view().force(), AtomLocality::Local);
 						stateGpu->waitCoordinatesReadyOnHost(AtomLocality::Local);
 						stateGpu->waitVelocitiesReadyOnHost(AtomLocality::Local);
 						stateGpu->waitForcesReadyOnHost(AtomLocality::Local);
@@ -1265,11 +1273,10 @@ void gmx::LegacySimulator::do_md()
 						dumpBuffers(state->natoms, 
 												step, 
 												50,
-												numSteps,
-												state->x,
-												state->v,
-											  state->f);	
-
+												ir->nsteps,
+												reinterpret_cast<float*>(state->x.data()),
+												reinterpret_cast<float*>(state->v.data()),
+											  reinterpret_cast<float*>(f.view().force().data()));	
 
         }
 
