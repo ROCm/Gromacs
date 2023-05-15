@@ -158,6 +158,57 @@
 
 using gmx::SimulationSignaller;
 
+void dumpBuffers(int numAtoms, 
+							   int timestep,
+								 int writePeriod, 
+ 							 int N,  
+								 gmx::rvec<float>* x, 
+								 gmx::rvec<float>* v, 
+								 gmx::rvec<float>* f
+								){
+
+   // JM: this appends V F and X to a binary file
+   if((timestep % writePeriod) != 0) return;
+
+   std::string basename;
+   int ndigits = std::to_string(N).length();
+   int npad = ndigits - std::to_string(timestep).length();
+
+   // how many zeros should I prepend before
+   for(int i = 0; i < npad; i++) basename.append("0"); 
+   basename.append(std::to_string(timestep));
+   basename.append("_gmx_fp32"); // name of app + precision which are always fp32
+
+   // ok flushed every buffer, now it's time to print them 
+   x_file->open(basename+"_x.bin", std::ios::binary| std::ios::out);
+   v_file->open(basename+"_v.bin", std::ios::binary| std::ios::out);
+   f_file->open(basename+"_f.bin", std::ios::binary| std::ios::out);
+
+   for(int i = 0; i< numAtoms; i++){
+     // x-writing  
+     x_file->write(reinterpret_cast<char*>(&(x[i][0])), sizeof(double)); 
+     x_file->write(reinterpret_cast<char*>(&(x[i][1])), sizeof(double)); 
+     x_file->write(reinterpret_cast<char*>(&(x[i][2])), sizeof(double));
+
+     // v-writing 
+     v_file->write(reinterpret_cast<char*>(&(v[i][0])), sizeof(double)); 
+     v_file->write(reinterpret_cast<char*>(&(v[i][1])), sizeof(double)); 
+     v_file->write(reinterpret_cast<char*>(&(v[i][2])), sizeof(double));
+
+     // f-writing 
+     f_file->write(reinterpret_cast<char*>(&(f[i][0])), sizeof(double)); 
+     f_file->write(reinterpret_cast<char*>(&(f[i][1])), sizeof(double)); 
+     f_file->write(reinterpret_cast<char*>(&(f[i][2])), sizeof(double));
+
+   } 
+
+   // close down the files now
+   x_file->close();
+   v_file->close();
+   f_file->close();
+}
+
+
 void gmx::LegacySimulator::do_md()
 {
     // TODO Historically, the EM and MD "integrators" used different
@@ -1199,6 +1250,27 @@ void gmx::LegacySimulator::do_md()
                      fr->longRangeNonbondeds.get(),
                      (bNS ? GMX_FORCE_NS : 0) | force_flags,
                      ddBalanceRegionHandler, &realGridSize, &d_grid);
+
+            // dumping x, f and v here for nitzan
+						// i need the f, x and v arrays as raw floats here, also the length of the simulation and
+						// and a way to grab the period of the writing
+						// how to get gpu integration here
+					  stateGpu->copyCoordinatesFromGpu(state->x, AtomLocality::Local);
+						stateGpu->copyVelocitiesFromGpu(state->v, AtomLocality::Local);
+						stateGpu->copyForcesFromGpu(f.view.force(), AtomLocality::Local);
+						stateGpu->waitCoordinatesReadyOnHost(AtomLocality::Local);
+						stateGpu->waitVelocitiesReadyOnHost(AtomLocality::Local);
+						stateGpu->waitForcesReadyOnHost(AtomLocality::Local);
+						
+						dumpBuffers(state->natoms, 
+												step, 
+												50,
+												numSteps,
+												state->x,
+												state->v,
+											  state->f);	
+
+
         }
 
         // VV integrators do not need the following velocity half step
