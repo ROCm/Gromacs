@@ -53,7 +53,7 @@
 #include "gromacs/utility/gmxmpi.h"
 #include "gpu_3dfft_impl.h"
 
-#include <hipfft.h>
+#include <hipfft/hipfft.h>
 
 #ifdef GMX_GPU_USE_VKFFT
 #define vkMinMP 1UL
