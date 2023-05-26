@@ -151,6 +151,8 @@
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/gpu_utils/pmalloc.h"
+
 
 #include "legacysimulator.h"
 #include "replicaexchange.h"
@@ -231,6 +233,8 @@ void gmx::LegacySimulator::do_md()
 
     int nstglobalcomm = computeGlobalCommunicationPeriod(mdlog, ir, cr);
     bGStatEveryStep   = (nstglobalcomm == 1);
+
+    bool bNoseHoover = (ir->etc == TemperatureCoupling::NoseHoover);
 
     const SimulationGroups* groups = &top_global.groups;
 
@@ -436,9 +440,9 @@ void gmx::LegacySimulator::do_md()
                            "the GPU to use GPU update.\n");
         GMX_RELEASE_ASSERT(ir->eI == IntegrationAlgorithm::MD,
                            "Only the md integrator is supported with the GPU update.\n");
-        GMX_RELEASE_ASSERT(
-                ir->etc != TemperatureCoupling::NoseHoover,
-                "Nose-Hoover temperature coupling is not supported with the GPU update.\n");
+        // GMX_RELEASE_ASSERT(
+        //      ir->etc != TemperatureCoupling::NoseHoover,
+        //      "Nose-Hoover temperature coupling is not supported with the GPU update.\n");
         GMX_RELEASE_ASSERT(
                 ir->epc == PressureCoupling::No || ir->epc == PressureCoupling::ParrinelloRahman
                         || ir->epc == PressureCoupling::Berendsen || ir->epc == PressureCoupling::CRescale,
@@ -484,7 +488,6 @@ void gmx::LegacySimulator::do_md()
                 wcycle);
 
         stateGpu->setXUpdatedOnDeviceEvent(integrator->xUpdatedOnDeviceEvent());
-
         integrator->setPbc(PbcType::Xyz, state->box);
     }
 
@@ -1431,7 +1434,8 @@ void gmx::LegacySimulator::do_md()
         }
         else
         {
-            update_tcouple(step,
+            {
+                update_tcouple(step,
                            ir,
                            state,
                            ekind,
@@ -1439,6 +1443,12 @@ void gmx::LegacySimulator::do_md()
                            md->homenr,
                            md->cTC ? gmx::arrayRefFromArray(md->cTC, md->nr)
                                    : gmx::ArrayRef<const unsigned short>());
+                if (bNoseHoover && useGpuForUpdate) 
+                {
+                    // XXX verify if is it ok to copy stuff here - also find a better place to do this allocation
+                    stateGpu->copyNHVectorsToGpu(state->ngtc, state->nosehoover_vxi, AtomLocality::Local);
+                }
+            }
             update_pcouple_before_coordinates(fplog, step, ir, state, pressureCouplingMu, M, bInitStep);
         }
 
@@ -1507,6 +1517,7 @@ void gmx::LegacySimulator::do_md()
                                     realGridSize,
                                     &d_grid,
                                     stateGpu->getForces(),
+                                    stateGpu->getVxi(), 
                                     top->idef,
                                     *md);
 
@@ -1543,10 +1554,12 @@ void gmx::LegacySimulator::do_md()
                 integrator->integrate(stateGpu->getLocalForcesReadyOnDeviceEvent(
                                               runScheduleWork->stepWork, runScheduleWork->simulationWork),
                                       ir->delta_t,
+                                      ir->nsttcouple, 
                                       true,
                                       bCalcVir,
                                       shake_vir,
                                       doTemperatureScaling,
+                                      bNoseHoover, 
                                       ekind->tcstat,
                                       doParrinelloRahman,
                                       ir->nstpcouple * ir->delta_t,

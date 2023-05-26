@@ -50,6 +50,7 @@
 namespace gmx
 {
 
+
 /*! \brief Backend-specific function to launch GPU Leap Frog kernel.
  *
  * \param numAtoms Total number of atoms.
@@ -77,10 +78,13 @@ void launchLeapFrogKernel(int                          numAtoms,
                           DeviceBuffer<Float3>         d_f,
                           DeviceBuffer<float>          d_inverseMasses,
                           float                        dt,
+                          float                        dttc,
                           bool                         doTemperatureScaling,
+                          bool                         doNoseHoover, 
                           int                          numTempScaleValues,
                           DeviceBuffer<unsigned short> d_tempScaleGroups,
                           DeviceBuffer<float>          d_lambdas,
+                          DeviceBuffer<double>         d_vxi, 
                           VelocityScalingType          prVelocityScalingType,
                           Float3                       prVelocityScalingMatrixDiagonal,
                           const DeviceStream&          deviceStream);

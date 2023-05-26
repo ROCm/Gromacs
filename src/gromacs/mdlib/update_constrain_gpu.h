@@ -105,6 +105,7 @@ public:
      * \param[in]  computeVirial            If virial should be updated.
      * \param[out] virial                   Place to save virial tensor.
      * \param[in]  doTemperatureScaling     If velocities should be scaled for temperature coupling.
+     * \param[in]  doNoseHoover             If the Nose-Hoover temperature coupling method should be used
      * \param[in]  tcstat                   Temperature coupling data.
      * \param[in]  doParrinelloRahman       If current step is a Parrinello-Rahman pressure coupling step.
      * \param[in]  dtPressureCouple         Period between pressure coupling steps.
@@ -113,10 +114,12 @@ public:
 
     void integrate(GpuEventSynchronizer*             fReadyOnDevice,
                    real                              dt,
+                   real                              dttc,
                    bool                              updateVelocities,
                    bool                              computeVirial,
                    tensor                            virial,
                    bool                              doTemperatureScaling,
+                   bool                              doNoseHoover, 
                    gmx::ArrayRef<const t_grp_tcstat> tcstat,
                    bool                              doParrinelloRahman,
                    float                             dtPressureCouple,
@@ -153,6 +156,7 @@ public:
              const int                     realGridSize, 
              DeviceBuffer<real>*           d_grid, 
              DeviceBuffer<RVec>            d_f,
+             DeviceBuffer<double>          d_vxi,
              const InteractionDefinitions& idef,
              const t_mdatoms&              md);
 

@@ -68,6 +68,25 @@ constexpr static int c_threadsPerBlock = 64;
 //! Maximum number of threads in a block (for __launch_bounds__)
 constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
 
+
+
+/*! \brief Main kernel for updating the nose-hoover coupling
+ *
+ *  gmx needs to updat ethe vxi and xi vectors every coupling step (which is an input parameter), 
+ * so that velocities can be recalculated in the leapfrog kernel;
+ *
+ *  \todo Check if the force should be set to zero here.
+ *  \todo This kernel can also accumulate incidental temperatures for each atom.
+ *
+ * \param[in]     dt                               timestep.
+ * \param[in]     ngtc                             number of temperature coupling groups.
+ * \param[in]     gm_reft                          reference temperatures
+ * \param[in]     gm_th                            reference temperature coupling th
+ * \param[in]     gm_inverseMasses                 Reciprocal masses.
+ * \param[in,out] gm_xi                            Set of nose-hoover coordinates to update
+ * \param[in,out] gm_vxi                           set of nose-hoover velocities  to update.
+ */
+
 /*! \brief Main kernel for Leap-Frog integrator.
  *
  *  The coordinates and velocities are updated on the GPU. Also saves the intermediate values of the coordinates for
@@ -81,6 +100,7 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  *
  * \tparam        numTempScaleValues               The number of different T-couple values.
  * \tparam        velocityScaling                  Type of the Parrinello-Rahman velocity rescaling.
+ * \tparam        doNoseHoover                     Coupling temperature with a Nose-hoover thermostat?
  * \param[in]     numAtoms                         Total number of atoms.
  * \param[in,out] gm_x                             Coordinates to update upon integration.
  * \param[out]    gm_xp                            A copy of the coordinates before the integration (for constraints).
@@ -93,7 +113,7 @@ constexpr static int c_maxThreadsPerBlock = c_threadsPerBlock;
  * \param[in]     gm_tempScaleGroups               Mapping of atoms into groups.
  * \param[in]     prVelocityScalingMatrixDiagonal  Diagonal elements of Parrinello-Rahman velocity scaling matrix
  */
-template<NumTempScaleValues numTempScaleValues, VelocityScalingType velocityScaling>
+template<NumTempScaleValues numTempScaleValues, VelocityScalingType velocityScaling, bool doNoseHoover = false>
 __launch_bounds__(c_threadsPerBlock) __global__
         void leapfrog_kernel(const int numAtoms,
                              float3* __restrict__ gm_x,
@@ -105,7 +125,9 @@ __launch_bounds__(c_threadsPerBlock) __global__
                              const float3* __restrict__ gm_f,
                              const float* __restrict__ gm_inverseMasses,
                              const float dt,
-                             const float* __restrict__ gm_lambdas,
+                             const float dttc,
+                             const float*  __restrict__ gm_lambdas,
+                             const double* __restrict__ gm_nh_vxi, 
                              const unsigned short* __restrict__ gm_tempScaleGroups,
                              const float3 prVelocityScalingMatrixDiagonal)
 {
@@ -117,12 +139,15 @@ __launch_bounds__(c_threadsPerBlock) __global__
         float3 f    = gm_f[threadIndex];
         float  im   = gm_inverseMasses[threadIndex];
         float  imdt = im * dt;
+        float factorNH = 0.f;
+        float3 v0 = v;
 
         // Swapping places for xp and x so that the x will contain the updated coordinates and xp - the
         // coordinates before update. This should be taken into account when (if) constraints are applied
         // after the update: x and xp have to be passed to constraints in the 'wrong' order.
         // TODO: Issue #3727
         gm_xp[threadIndex] = x;
+        int tempScaleGroup = 0;
 
         if (numTempScaleValues != NumTempScaleValues::None || velocityScaling != VelocityScalingType::None)
         {
@@ -131,14 +156,17 @@ __launch_bounds__(c_threadsPerBlock) __global__
             if (numTempScaleValues != NumTempScaleValues::None)
             {
                 float lambda = 1.0F;
+                if(doNoseHoover || numTempScaleValues == NumTempScaleValues::Multiple){
+                    tempScaleGroup = gm_tempScaleGroups[threadIndex];
+                    if (doNoseHoover) factorNH = 0.5f * dttc * dt * (float)gm_nh_vxi[tempScaleGroup];
+                }
                 if (numTempScaleValues == NumTempScaleValues::Single)
                 {
                     lambda = gm_lambdas[0];
                 }
                 else if (numTempScaleValues == NumTempScaleValues::Multiple)
-                {
-                    int tempScaleGroup = gm_tempScaleGroups[threadIndex];
-                    lambda             = gm_lambdas[tempScaleGroup];
+                {              
+                    lambda = gm_lambdas[tempScaleGroup];
                 }
                 vp *= lambda;
             }
@@ -149,12 +177,13 @@ __launch_bounds__(c_threadsPerBlock) __global__
                 vp.y -= prVelocityScalingMatrixDiagonal.y * v.y;
                 vp.z -= prVelocityScalingMatrixDiagonal.z * v.z;
             }
-
             v = vp;
         }
-
-        v = v + f * imdt;
-
+        if(doNoseHoover)
+        {
+            v = (v + (f * imdt - factorNH * v)) * (1.f/(1.f + factorNH));
+        } 
+        else v = v + f * imdt;
         x = x + v * dt;
         gm_v[threadIndex] = v;
         gm_x[threadIndex] = x;
@@ -186,6 +215,7 @@ __launch_bounds__(c_threadsPerBlock) __global__
  */
 inline auto selectLeapFrogKernelPtr(bool                doTemperatureScaling,
                                     int                 numTempScaleValues,
+                                    bool                doNoseHoover, 
                                     VelocityScalingType prVelocityScalingType)
 {
     // Check input for consistency: if there is temperature coupling, at least one coupling group should be defined.
@@ -201,11 +231,13 @@ inline auto selectLeapFrogKernelPtr(bool                doTemperatureScaling,
         }
         else if (numTempScaleValues == 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::None>;
+            if(doNoseHoover) kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::None, true>;
+            else kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::None>;
         }
         else if (numTempScaleValues > 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::None>;
+            if(doNoseHoover) kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::None, true>;
+            else kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::None>;
         }
     }
     else if (prVelocityScalingType == VelocityScalingType::Diagonal)
@@ -216,11 +248,13 @@ inline auto selectLeapFrogKernelPtr(bool                doTemperatureScaling,
         }
         else if (numTempScaleValues == 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::Diagonal>;
+            if(doNoseHoover) kernelPtr =  leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::Diagonal, true>;
+            else kernelPtr = leapfrog_kernel<NumTempScaleValues::Single, VelocityScalingType::Diagonal>;
         }
         else if (numTempScaleValues > 1)
         {
-            kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::Diagonal>;
+            if (doNoseHoover) kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::Diagonal, true>;
+            else kernelPtr = leapfrog_kernel<NumTempScaleValues::Multiple, VelocityScalingType::Diagonal>;
         }
     }
     else
@@ -242,10 +276,13 @@ void launchLeapFrogKernel(const int                          numAtoms,
                           const DeviceBuffer<Float3>         d_f,
                           const DeviceBuffer<float>          d_inverseMasses,
                           const float                        dt,
+                          const float                        dttc,
                           const bool                         doTemperatureScaling,
+                          const bool                         doNoseHoover,
                           const int                          numTempScaleValues,
                           const DeviceBuffer<unsigned short> d_tempScaleGroups,
                           const DeviceBuffer<float>          d_lambdas,
+                          const DeviceBuffer<double>         d_nh_vxi, 
                           const VelocityScalingType          prVelocityScalingType,
                           const Float3                       prVelocityScalingMatrixDiagonal,
                           const DeviceStream&                deviceStream)
@@ -262,7 +299,7 @@ void launchLeapFrogKernel(const int                          numAtoms,
     kernelLaunchConfig.sharedMemorySize = 0;
 
     auto kernelPtr =
-            selectLeapFrogKernelPtr(doTemperatureScaling, numTempScaleValues, prVelocityScalingType);
+            selectLeapFrogKernelPtr(doTemperatureScaling, doNoseHoover, numTempScaleValues, prVelocityScalingType);
     // fprintf(stderr, "Starting to prepare gpu kernel arguments\n");
     const auto kernelArgs = prepareGpuKernelArguments(kernelPtr,
                                                       kernelLaunchConfig,
@@ -276,7 +313,9 @@ void launchLeapFrogKernel(const int                          numAtoms,
                                                       asFloat3Pointer(&d_f),
                                                       &d_inverseMasses,
                                                       &dt,
+                                                      &dttc,
                                                       &d_lambdas,
+                                                      &d_nh_vxi, 
                                                       &d_tempScaleGroups,
                                                       &prVelocityScalingMatrixDiagonal);
     // hipError_t err = hipStreamSynchronize(deviceStream.stream());                                                  
@@ -286,5 +325,6 @@ void launchLeapFrogKernel(const int                          numAtoms,
     // err = hipStreamSynchronize(deviceStream.stream());
     // fprintf(stderr, " finished leapFrogKernel, error = %d\n", err);
 }
+
 
 } // namespace gmx

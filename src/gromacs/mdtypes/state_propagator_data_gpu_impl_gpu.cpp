@@ -56,6 +56,8 @@
 
 #    include "state_propagator_data_gpu_impl.h"
 #    include "gromacs/gpu_utils/gpu_utils.h"
+#    include "gromacs/gpu_utils/pmalloc.h"
+
 
 namespace gmx
 {
@@ -518,6 +520,11 @@ DeviceBuffer<RVec> StatePropagatorDataGpu::Impl::getForces()
     return d_f_;
 }
 
+DeviceBuffer<double> StatePropagatorDataGpu::Impl::getVxi()
+{
+    return d_vxi_;
+}
+
 // Copy CPU forces to GPU using stream internal to this module to allow overlap
 // with GPU force calculations.
 void StatePropagatorDataGpu::Impl::copyForcesToGpu(const gmx::ArrayRef<const gmx::RVec> h_f,
@@ -602,6 +609,22 @@ void StatePropagatorDataGpu::Impl::copyForcesFromGpu(gmx::ArrayRef<gmx::RVec> h_
     fReadyOnHost_[atomLocality].markEvent(*deviceStream);
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchStatePropagatorData);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
+}
+
+// I need th and reft
+void StatePropagatorDataGpu::Impl::copyNHVectorsToGpu(
+    const int              numTemperatureGroups, 
+    std::vector<double>    h_vxi, 
+    AtomLocality           atomLocality)
+{
+    int xi_size = numTemperatureGroups;
+    GMX_ASSERT(atomLocality < AtomLocality::Count, "Wrong atom locality.");
+    const DeviceStream* deviceStream = vCopyStreams_[atomLocality];
+    GMX_ASSERT(deviceStream != nullptr,
+               "No stream is valid for copying forces with given atom locality.");
+    
+    reallocateDeviceBuffer(&d_vxi_,      numTemperatureGroups, &d_vxiSize_,  &d_vxiCapacity_,  deviceContext_ );
+    copyToDeviceBuffer(&d_vxi_, reinterpret_cast<const double*>(&h_vxi[0]), 0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
 }
 
 void StatePropagatorDataGpu::Impl::waitForcesReadyOnHost(AtomLocality atomLocality)
@@ -749,6 +772,11 @@ DeviceBuffer<RVec> StatePropagatorDataGpu::getForces()
     return impl_->getForces();
 }
 
+DeviceBuffer<double> StatePropagatorDataGpu::getVxi()
+{
+    return impl_->getVxi();
+}
+
 void StatePropagatorDataGpu::copyForcesToGpu(const gmx::ArrayRef<const gmx::RVec> h_f, AtomLocality atomLocality)
 {
     return impl_->copyForcesToGpu(h_f, atomLocality);
@@ -790,6 +818,12 @@ void StatePropagatorDataGpu::waitForcesReadyOnHost(AtomLocality atomLocality)
     return impl_->waitForcesReadyOnHost(atomLocality);
 }
 
+void StatePropagatorDataGpu::copyNHVectorsToGpu(const int            numTemperatureGroups, 
+                                                std::vector<double>  h_vxi, 
+                                                AtomLocality         atomLocality)
+{
+    return impl_->copyNHVectorsToGpu(numTemperatureGroups, h_vxi, atomLocality);
+}
 
 const DeviceStream* StatePropagatorDataGpu::getUpdateStream()
 {

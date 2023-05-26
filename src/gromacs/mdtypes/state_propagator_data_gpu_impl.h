@@ -274,6 +274,12 @@ public:
      */
     DeviceBuffer<RVec> getForces();
 
+     /*! \brief Get vxi buffer the GPU
+     *
+     *  \returns GPU reference vxi buffer.
+     */
+    DeviceBuffer<double> getVxi();
+
     /*! \brief Copy forces to the GPU memory.
      *
      *  \param[in] h_f           Forces in the host memory.
@@ -332,6 +338,12 @@ public:
      *  \param[in] atomLocality  Locality of the particles to wait for.
      */
     void waitForcesReadyOnHost(AtomLocality atomLocality);
+
+     /*! \brief Copies Nose-hoover auxiliary data to GPU
+     */
+    void copyNHVectorsToGpu(const int               numTemperatureGroups, 
+                            std::vector<double>     h_vxi, 
+                            AtomLocality            atomLocality);
 
     /*! \brief Getter for the update stream.
      *
@@ -431,6 +443,19 @@ private:
 
     //! Whether this instance of the class is used on a PME-only rank
     bool isPmeOnly_ = false;
+
+     //! Number of temperature control groups
+    int numTemperatureGroups_;
+
+    //! Period of temperature coupling (can be > 1 for Nose-Hoover)
+    int numTemperatureCouplingSteps_;
+
+    //! Device buffer to Nose-hoover ref vxi values - todo better description here
+    DeviceBuffer<double> d_vxi_;
+    //! Number of particles saved in the xi buffer
+    int d_vxiSize_ = -1;
+    //! Allocation size for the xi buffer
+    int d_vxiCapacity_ = -1;
 
     /*! \brief Performs the copy of data from host to device buffer.
      *
