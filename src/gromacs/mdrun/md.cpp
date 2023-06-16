@@ -855,6 +855,7 @@ void gmx::LegacySimulator::do_md()
         {
             // This has to be here because PME load balancing is called so early.
             // TODO: Move to after all booleans are defined.
+            hipRangePush("pme_loadbal_do");
             if (useGpuForUpdate && !bFirstStep)
             {
                 stateGpu->copyCoordinatesFromGpu(state->x, AtomLocality::Local);
@@ -875,6 +876,7 @@ void gmx::LegacySimulator::do_md()
                            step_rel,
                            &bPMETunePrinting,
                            simulationWork.useGpuPmePpCommunication);
+            hipRangePop();
         }
 
         wallcycle_start(wcycle, WallCycleCounter::Step);
@@ -933,10 +935,12 @@ void gmx::LegacySimulator::do_md()
         // exchange).
         if (useGpuForUpdate && bNS && !bFirstStep && !bExchanged)
         {
+            hipRangePush("GpuUpdatebNS_flushCoordinatesToHost");
             stateGpu->copyVelocitiesFromGpu(state->v, AtomLocality::Local);
             stateGpu->copyCoordinatesFromGpu(state->x, AtomLocality::Local);
             stateGpu->waitVelocitiesReadyOnHost(AtomLocality::Local);
             stateGpu->waitCoordinatesReadyOnHost(AtomLocality::Local);
+            hipRangePop();
         }
 
         // We only need to calculate virtual velocities if we are writing them in the current step
@@ -984,6 +988,7 @@ void gmx::LegacySimulator::do_md()
             if (haveDDAtomOrdering(*cr))
             {
                 /* Repartition the domain decomposition */
+                hipRangePush("dd_partition_system");
                 dd_partition_system(fplog,
                                     mdlog,
                                     step,
@@ -1013,6 +1018,7 @@ void gmx::LegacySimulator::do_md()
                                          md->cACC ? gmx::arrayRefFromArray(md->cACC, md->nr)
                                                   : gmx::ArrayRef<const unsigned short>());
                 fr->longRangeNonbondeds->updateAfterPartition(*md);
+                hipRangePop();
             }
         }
 
@@ -1042,6 +1048,7 @@ void gmx::LegacySimulator::do_md()
              * the full step kinetic energy and possibly for T-coupling.*/
             /* This may not be quite working correctly yet . . . . */
             int cglo_flags = CGLO_GSTAT | CGLO_TEMPERATURE;
+            hipRangePush("compute_globals");
             compute_globals(gstat,
                             cr,
                             ir,
@@ -1065,6 +1072,7 @@ void gmx::LegacySimulator::do_md()
                             cglo_flags,
                             step,
                             &observablesReducer);
+            hipRangePop();
         }
         clear_mat(force_vir);
 
@@ -1170,6 +1178,7 @@ void gmx::LegacySimulator::do_md()
              * This is parallellized as well, and does communication too.
              * Check comments in sim_util.c
              */
+            hipRangePush("do_force");
             do_force(fplog,
                      cr,
                      ms,
@@ -1199,6 +1208,7 @@ void gmx::LegacySimulator::do_md()
                      fr->longRangeNonbondeds.get(),
                      (bNS ? GMX_FORCE_NS : 0) | force_flags,
                      ddBalanceRegionHandler, &realGridSize, &d_grid);
+            hipRangePop();
         }
 
         // VV integrators do not need the following velocity half step
@@ -1294,8 +1304,10 @@ void gmx::LegacySimulator::do_md()
             && (do_per_step(step, ir->nstxout) || do_per_step(step, ir->nstxout_compressed)
                 || checkpointHandler->isCheckpointingStep()))
         {
+            hipRangePush("GpuUpdate_localForces");
             stateGpu->copyCoordinatesFromGpu(state->x, AtomLocality::Local);
             stateGpu->waitCoordinatesReadyOnHost(AtomLocality::Local);
+            hipRangePop();
         }
         // Copy velocities if needed for the output/checkpointing.
         // NOTE: Copy on the search steps is done at the beginning of the step.
@@ -1431,6 +1443,7 @@ void gmx::LegacySimulator::do_md()
         }
         else
         {
+            hipRangePush("update_tcouple");
             update_tcouple(step,
                            ir,
                            state,
@@ -1440,6 +1453,7 @@ void gmx::LegacySimulator::do_md()
                            md->cTC ? gmx::arrayRefFromArray(md->cTC, md->nr)
                                    : gmx::ArrayRef<const unsigned short>());
             update_pcouple_before_coordinates(fplog, step, ir, state, pressureCouplingMu, M, bInitStep);
+            hipRangePop();
         }
 
         /* With leap-frog type integrators we compute the kinetic energy
@@ -1693,6 +1707,7 @@ void gmx::LegacySimulator::do_md()
                 bool                doIntraSimSignal = true;
                 SimulationSignaller signaller(&signals, cr, ms, doInterSimSignal, doIntraSimSignal);
 
+                hipRangePush("compute_globals_2");
                 compute_globals(gstat,
                                 cr,
                                 ir,
@@ -1719,6 +1734,7 @@ void gmx::LegacySimulator::do_md()
                                         | (!EI_VV(ir->eI) ? CGLO_PRESSURE : 0) | CGLO_CONSTRAINT,
                                 step,
                                 &observablesReducer);
+                hipRangePop();
                 if (!EI_VV(ir->eI) && bStopCM)
                 {
                     process_and_stopcm_grp(
@@ -1760,6 +1776,7 @@ void gmx::LegacySimulator::do_md()
         }
 
         bool scaleCoordinates = !useGpuForUpdate || bDoReplEx;
+        hipRangePush("update_pcouple_after_coordinates");
         update_pcouple_after_coordinates(fplog,
                                          step,
                                          ir,
@@ -1774,6 +1791,7 @@ void gmx::LegacySimulator::do_md()
                                          nrnb,
                                          upd.deform(),
                                          scaleCoordinates);
+        hipRangePop();
 
         const bool doBerendsenPressureCoupling = (inputrec->epc == PressureCoupling::Berendsen
                                                   && do_per_step(step, inputrec->nstpcouple));
