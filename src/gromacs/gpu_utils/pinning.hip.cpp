@@ -91,6 +91,9 @@ void pinBuffer(void* pointer, std::size_t numBytes) noexcept
     GMX_ASSERT(stat != hipErrorOutOfMemory,
                (errorMessage + getDeviceErrorString(stat) + " which was an unexpected error").c_str());
 
+    // mem-setting the data after register buffers to make sure pages migrate to the right numa domain
+    memset(pointer, 0, numBytes);
+    
     // It might be preferable to throw InternalError here, because the
     // failing condition can only happen when GROMACS is used with a
     // HIP API that can return some other error code. But we can't

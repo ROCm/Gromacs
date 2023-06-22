@@ -450,8 +450,8 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
 void StatePropagatorDataGpu::Impl::waitCoordinatesReadyOnHost(AtomLocality atomLocality)
 {
     wallcycle_start(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);
-    // xReadyOnHost_[atomLocality].waitForEvent();
-    hipStreamSynchronize(xCopyStreams_[atomLocality]->stream());
+    xReadyOnHost_[atomLocality].waitForEvent();
+    //hipStreamSynchronize(xCopyStreams_[atomLocality]->stream());
     wallcycle_stop(wcycle_, WallCycleCounter::WaitGpuStatePropagatorData);
 }
 
