@@ -57,6 +57,7 @@
 #    include "state_propagator_data_gpu_impl.h"
 #    include "gromacs/gpu_utils/gpu_utils.h"
 #    include "gromacs/gpu_utils/pmalloc.h"
+#    include "gromacs/gpu_utils/pinning.h"
 
 
 namespace gmx
@@ -441,7 +442,7 @@ void StatePropagatorDataGpu::Impl::copyCoordinatesFromGpu(gmx::ArrayRef<gmx::RVe
     copyFromDevice(h_x, d_x_, d_xSize_, atomLocality, *deviceStream);
     // Note: unlike copyCoordinatesToGpu this is not used in OpenCL, and the conditional is not needed.
     hipRangePush("copyCoordinatesFromGPU::markEvent");
-    //xReadyOnHost_[atomLocality].markEvent(*deviceStream);
+    xReadyOnHost_[atomLocality].markEvent(*deviceStream);
     hipRangePop();
     wallcycle_sub_stop(wcycle_, WallCycleSubCounter::LaunchStatePropagatorData);
     wallcycle_stop(wcycle_, WallCycleCounter::LaunchGpu);
@@ -617,14 +618,21 @@ void StatePropagatorDataGpu::Impl::copyNHVectorsToGpu(
     std::vector<double>    h_vxi, 
     AtomLocality           atomLocality)
 {
-    int xi_size = numTemperatureGroups;
     GMX_ASSERT(atomLocality < AtomLocality::Count, "Wrong atom locality.");
     const DeviceStream* deviceStream = vCopyStreams_[atomLocality];
     GMX_ASSERT(deviceStream != nullptr,
                "No stream is valid for copying forces with given atom locality.");
     
     reallocateDeviceBuffer(&d_vxi_,      numTemperatureGroups, &d_vxiSize_,  &d_vxiCapacity_,  deviceContext_ );
-    copyToDeviceBuffer(&d_vxi_, reinterpret_cast<const double*>(&h_vxi[0]), 0,  xi_size, *deviceStream, GpuApiCallBehavior::Async, nullptr);
+    if(numTemperatureGroups > xi_size){
+      xi_size = numTemperatureGroups*2; //overalloc
+      if (!h_pinned_vxi) free(h_pinned_vxi);
+      h_pinned_vxi = (double*)malloc(sizeof(double)*xi_size);
+      pinBuffer(h_pinned_vxi, sizeof(double)*xi_size);
+      // h_pinned_vxi = (double*)hipHostMalloc(sizeof(double)*xi_size);
+    }
+    std::memcpy(h_pinned_vxi, &h_vxi[0], sizeof(double)*numTemperatureGroups);
+    copyToDeviceBuffer(&d_vxi_, h_pinned_vxi, 0,  numTemperatureGroups, *deviceStream, GpuApiCallBehavior::Async, nullptr);
 }
 
 void StatePropagatorDataGpu::Impl::waitForcesReadyOnHost(AtomLocality atomLocality)
