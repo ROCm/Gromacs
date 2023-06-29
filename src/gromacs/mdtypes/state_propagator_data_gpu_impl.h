@@ -457,6 +457,10 @@ private:
     //! Allocation size for the xi buffer
     int d_vxiCapacity_ = -1;
 
+    double* h_pinned_vxi=NULL;
+    int xi_size = -1;
+    int pinnedNH = false;
+
     /*! \brief Performs the copy of data from host to device buffer.
      *
      * \todo Template on locality.
