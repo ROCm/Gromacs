@@ -135,7 +135,7 @@
 // MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
 // we can use twice as many registers as on MI100 and earlier devices without spilling.
 // Also it looks like spilling to global memory causes segfaults for some versions of the kernel.
-#if defined(__gfx90a__)
+#if defined(__gfx90a__) || defined(__gfx940__) 
 #    define MIN_BLOCKS_PER_MP 1
 #else
 #    ifdef CALC_ENERGIES
@@ -195,6 +195,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    endif
 #    ifdef PRUNE_NBL
     float                rlist_sq    = nbparam.rlistOuter_sq;
+#    endif
+
+#    ifdef LJ_FORCE_SWITCH
+    /* force switch constants*/
+    /* assign them to consecutive registers here so we can use them later on calculate_force_switch_F */
+    const float2 disprepu = float2(nbparam.dispersion_shift.c2, nbparam.repulsion_shift.c2) + 
+	    float2(nbparam.dispersion_shift.c3, nbparam.repulsion_shift.c3);
 #    endif
 
     unsigned int bidx = blockIdx.x;
@@ -521,7 +528,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #        ifdef CALC_ENERGIES
                         calculate_force_switch_F_E(nbparam, c6c12, inv_r, r2, &F_invr, &E_lj_p);
 #        else
-                        calculate_force_switch_F(nbparam, c6c12, inv_r, r2, &F_invr);
+                        calculate_force_switch_F(nbparam, disprepu, c6c12, inv_r, r2, &F_invr);
 #        endif /* CALC_ENERGIES */
 #    endif     /* LJ_FORCE_SWITCH */
 

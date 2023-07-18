@@ -281,21 +281,15 @@ convert_sigma_epsilon_to_c6_c12(const float sigma, const float epsilon)
 
 /*! Apply force switch, force-only version. */
 static __forceinline__ __device__ void
-calculate_force_switch_F(const NBParamGpu nbparam, float2 c6c12, float inv_r, float r2, float* F_invr)
+calculate_force_switch_F(const NBParamGpu nbparam, const float2 disprepu, 
+		float2 c6c12, float inv_r, float r2, float* F_invr)
 {
     float r, r_switch;
-
-    /* force switch constants */
-    float disp_shift_V2 = nbparam.dispersion_shift.c2;
-    float disp_shift_V3 = nbparam.dispersion_shift.c3;
-    float repu_shift_V2 = nbparam.repulsion_shift.c2;
-    float repu_shift_V3 = nbparam.repulsion_shift.c3;
-
     r        = r2 * inv_r;
     r_switch = r - nbparam.rvdw_switch;
     r_switch = r_switch >= 0.0F ? r_switch : 0.0F;
 
-    float2 f = c6c12 * (float2(disp_shift_V2, repu_shift_V2) + float2(disp_shift_V3, repu_shift_V3) * r_switch);
+    float2 f = c6c12 * (disprepu * r_switch);
     *F_invr += (-f.x + f.y) * r_switch * r_switch * inv_r;
 }
 
