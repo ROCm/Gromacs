@@ -143,8 +143,8 @@ __device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams kern
                         getSplineParamIndex<order, atomsPerWarp>(splineIndexBase, XX, ithx);
                 const float thetaX = sm_theta[splineIndexX];
                 assert(isfinite(thetaX));
-                assert(isfinite(*reinterpret_cast<float*>(reinterpret_cast<char*>(gm_grid) + (gridIndexGlobal * static_cast<unsigned int>(sizeof(float))))));
-                atomicAdd(reinterpret_cast<float*>(reinterpret_cast<char*>(gm_grid) + (gridIndexGlobal * static_cast<unsigned int>(sizeof(float)))), thetaX * Val);
+                assert(isfinite(gm_grid[gridIndexGlobal]));
+                atomicAdd(gm_grid + gridIndexGlobal, thetaX * Val);
             }
         }
     }
