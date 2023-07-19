@@ -162,7 +162,6 @@ __launch_bounds__(c_threadsPerBlock) __global__
 
     // TODO remove as if updateGPU is true we obviously have a single-rank
     if(isPmeRank){
-        // printf("hey doin isPmerank!\n");
         int stride = gridDim.x * blockDim.x;
         for(int k = threadIndex; k < realGridSize; k += stride)
         {
