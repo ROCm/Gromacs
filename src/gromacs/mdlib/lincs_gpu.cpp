@@ -238,6 +238,10 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     // Mass factors (CPU)
     // std::vector<float> massFactorsHost;
     float* massFactorsHost;
+    // Std vector for constraint groups that share a heavy atom 
+    std::vector<float> constraintGroupSize;
+
+    std::fill(constraintGroupSize.begin(), constraintGroupSize.end(), 0.f);
 
     // List of constrained atoms in local topology
     ArrayRef<const int> iatoms         = idef.il[F_CONSTR].iatoms;
@@ -312,6 +316,8 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
         constraintsTargetLengthsHost[splitMap[c]] = idef.iparams[type].constr.dA;
     }
 
+    // Fill the coupledConstraints array after the 
+
     // The adjacency list of constraints (i.e. the list of coupled constraints for each constraint).
     // We map a single thread to a single constraint, hence each thread 'c' will be using one
     // element from coupledConstraintsCountsHost array, which is the number of constraints coupled
@@ -347,6 +353,49 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     int sizeMaxConstraints = maxCoupledConstraints_ * kernelParams_.numConstraintsThreads;
     hipHostMalloc(&coupledConstraintsIndicesHost, sizeof(int)*sizeMaxConstraints);
     hipHostMalloc(&massFactorsHost, sizeMaxConstraints * sizeof(float)); 
+    if (!kernelParams_.haveCoupledConstraints){
+        while(c1 < numConstraints)
+        {
+          AtomPair prev_pair;
+          prev_pair.i = -1;
+          prev_pair.j = -1;
+          for(int c2 = 0; c2 < c_threadsPerBlock; c1++,c2++)
+          {
+              // Splitting the constraint array into multiple chunks of c_threadsPerBlock size in order
+              // to search adjacent pairs with the same i value;
+              // the goals to reduce contention on atomicAdds when accumulation the overlapping I values
+              // One good example is when you have multiple  hydrogen groups (ethane depicted with 2 CH3
+              // hydrogen grous):
+              //
+              //       H  H
+              //       |  |
+              //    H--C--C--H
+              //       |  |
+              //       H  H
+              //
+              // Carbons are bonded to multiple hydrogen, so each C-H constrain will contend on the C
+              // atom 3 times. Atomics performance may wildy vary from device to device, so it's better to 
+              // reduce reliance on atomics as much as we can. 
+              // The logic here is to sweep over the constraints and look hydrogen groups
+              // (CH3 groups depicted) and accumuate all updates in the heavy atom before we do
+              // an atomicAdd(). 
+              // AtomicAdd might still be needed since it's possible that constraints from different thread blocks
+              // to update the same heavy atom
+
+              AtomPair cur_pair = constraintsHost[c1];
+              int hgs = 1;
+              while(cur_pair.j == prev_pair.i){
+                hgs++;
+                cur_pair = constraintsHost[c1+hgs];
+              }
+              prev_pair = cur_pair;
+              constraintGroupSize[c1] = hgs;
+              c1 += hgs;
+
+          }
+        }
+    }
+
 
     memset(coupledConstraintsIndicesHost, -1, sizeof(int)*sizeMaxConstraints);
     memset(massFactorsHost, -1, sizeof(float)*sizeMaxConstraints);

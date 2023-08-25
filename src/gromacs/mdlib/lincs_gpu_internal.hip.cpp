@@ -106,6 +106,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     float* __restrict__ gm_matrixA                       = kernelParams.d_matrixA;
     const float* __restrict__ gm_inverseMasses           = kernelParams.d_inverseMasses;
     float* __restrict__ gm_virialScaled                  = kernelParams.d_virialScaled;
+    const int* __restrict__ gm_hydrogenGroupCount        = kernelParams.d_hydrogenGroupCount; // atoms that share the i-th atom on constraints 
 
     const int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
 
@@ -115,6 +116,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
     // Vectors connecting constrained atoms before algorithm was applied.
     // Needed to construct constrain matrix A
+    // possibly misaligned shared memory accesses here, try bumping to float4 and see 
     extern __shared__ float3 sm_r[];
 
     AtomPair pair = gm_constraints[threadIndex];
@@ -176,6 +178,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
     // Only non-zero values are saved (for coupled constraints)
     int coupledConstraintsCount = gm_coupledConstraintsCounts[threadIndex];
+
+#if 1
+    int  hydrogenGroupSize = gm_hydrogenGroupCount[threadIndex];
+    bool isHydrogenGroup  = kernelParams.haveCoupledConstraints; // don't use this if tied to the same atoms
+    __shared__ float3 sm_corr[c_threadsPerBlock];
+#endif
+
     for (int n = 0; n < coupledConstraintsCount; n++)
     {
         int index = n * numConstraintsThreads + threadIndex;
@@ -234,10 +243,18 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Save updated coordinates before correction for the rotational lengthening
     float3 tmp = rc * lagrangeScaled;
 
+    if(isHydrogenGroup) sm_corr[threadIdx.x] = tmp;
+
     // Writing for all but dummy constraints
     if (!isDummyThread)
     {
-        atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+        if(isHydrogenGroup && hydrogenGroupSize > 0)
+        {
+          float3 sumI = 0.f;
+          for(int gc = 0; gc < hydrogenGroupSize; gc++) sumI += sm_corr[threadIdx.x + gc]; 
+          atomicAdd(&gm_xp[i], -sumI * inverseMassi);
+        }
+        else if (!isHydrogenGroup) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
     }
 
@@ -305,7 +322,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (!isDummyThread)
         {
             float3 tmp = rc * sqrtmu_sol;
-            atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+            if (isHydrogenGroup) sm_corr[threadIdx.x] = tmp;
+            if(isHydrogenGroup && hydrogenGroupSize > 0) 
+            {
+              for(int gc = 0; gc < hydrogenGroupSize; gc++) sumI += sm_corr[threadIdx.x + gc];
+              atomicAdd(&gm_xp[i], -sumI * inverseMassi);
+            }
+            else if(!isHydrogenGroup) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
         }
     }
