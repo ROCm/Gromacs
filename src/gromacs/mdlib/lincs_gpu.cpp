@@ -353,6 +353,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     int sizeMaxConstraints = maxCoupledConstraints_ * kernelParams_.numConstraintsThreads;
     hipHostMalloc(&coupledConstraintsIndicesHost, sizeof(int)*sizeMaxConstraints);
     hipHostMalloc(&massFactorsHost, sizeMaxConstraints * sizeof(float)); 
+    int c1 = 0;
     if (!kernelParams_.haveCoupledConstraints){
         while(c1 < numConstraints)
         {
@@ -496,6 +497,9 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
                              deviceContext_);
         allocateDeviceBuffer(&kernelParams_.d_matrixA,
                              maxCoupledConstraints_ * kernelParams_.numConstraintsThreads,
+                             deviceContext_);
+        allocateDeviceBuffer(&kernelParams_.d_constraintGroupSize,
+                             kernelParams_.numConstraintsThreads,
                              deviceContext_);
     }
 
