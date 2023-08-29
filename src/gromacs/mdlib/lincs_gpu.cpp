@@ -239,10 +239,9 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     // std::vector<float> massFactorsHost;
     float* massFactorsHost;
     // Std vector for constraint groups that share a heavy atom 
-    std::vector<float> constraintGroupSize;
+    std::vector<int> constraintGroupSize;
 
-    std::fill(constraintGroupSize.begin(), constraintGroupSize.end(), 0.f);
-
+    
     // List of constrained atoms in local topology
     ArrayRef<const int> iatoms         = idef.il[F_CONSTR].iatoms;
     const int           stride         = NRAL(F_CONSTR) + 1;
@@ -303,6 +302,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     // std::fill(constraintsTargetLengthsHost.begin(), constraintsTargetLengthsHost.end(), 0.0);
     hipHostMalloc(&constraintsTargetLengthsHost, sizeof(float)*kernelParams_.numConstraintsThreads);
     std::fill(&constraintsTargetLengthsHost[0], &constraintsTargetLengthsHost[kernelParams_.numConstraintsThreads-1], 0.0);
+    constraintGroupSize.resize(kernelParams_.numConstraintsThreads, -1);
     for (int c = 0; c < numConstraints; c++)
     {
         int a1   = iatoms[stride * c + 1];
@@ -548,6 +548,13 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
                        0,
                        maxCoupledConstraints_ * kernelParams_.numConstraintsThreads,
                        deviceStream_,
+                       GpuApiCallBehavior::Sync,
+                       nullptr);
+    copyToDeviceBuffer(&kernelParams_.d_constraintGroupSize, 
+                       constraintGroupSize.data(), 
+                       0,
+                       kernelParams_.numConstraintsThreads,
+                       deviceStream_, 
                        GpuApiCallBehavior::Sync,
                        nullptr);
 
