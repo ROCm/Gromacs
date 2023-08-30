@@ -182,7 +182,8 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 #if 1
     // TODO grep if we have coupled constraints
     int  constraintGroupSize = gm_constraintGroupSize[threadIndex];
-    bool isConstraintGroup  = kernelParams.haveCoupledConstraints; // don't use this if tied to the same atoms
+    // bool isConstraintGroup  = kernelParams.haveCoupledConstraints; // don't use this if tied to the same atoms
+    bool isConstraintGroup = true;
     __shared__ float3 sm_corr[c_threadsPerBlock];
 #endif
 
@@ -249,13 +250,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Writing for all but dummy constraints
     if (!isDummyThread)
     {
-        if(isConstraintGroup && constraintGroupSize > 0)
+        if(isConstraintGroup && constraintGroupSize >= 0)
         {
           float3 sumI = make_float3(0.f, 0.f, 0.f);
           for(int gc = 0; gc < constraintGroupSize; gc++) sumI += sm_corr[threadIdx.x + gc]; 
           atomicAdd(&gm_xp[i], -sumI * inverseMassi);
         }
-        else if (!isConstraintGroup) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+        else if (constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
     }
 
@@ -324,13 +325,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         {
             float3 tmp = rc * sqrtmu_sol;
             if (isConstraintGroup) sm_corr[threadIdx.x] = tmp;
-            if(isConstraintGroup && constraintGroupSize > 0) 
+            if(isConstraintGroup && constraintGroupSize >= 0) 
             {
               float3 sumI = make_float3(0.f, 0.f, 0.f);
               for(int gc = 0; gc < constraintGroupSize; gc++) sumI += sm_corr[threadIdx.x + gc];
               atomicAdd(&gm_xp[i], -sumI * inverseMassi);
             }
-            else if(!isConstraintGroup) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+            else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
         }
     }

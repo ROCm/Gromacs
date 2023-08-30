@@ -354,45 +354,52 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     hipHostMalloc(&coupledConstraintsIndicesHost, sizeof(int)*sizeMaxConstraints);
     hipHostMalloc(&massFactorsHost, sizeMaxConstraints * sizeof(float)); 
     int c1 = 0;
-    if (!kernelParams_.haveCoupledConstraints){
+    fprintf(stderr, "have coupled constraints? %d\n", kernelParams_.haveCoupledConstraints);
+    // if (!kernelParams_.haveCoupledConstraints){
+    if (1)
+    {
         while(c1 < numConstraints)
         {
           AtomPair prev_pair;
           prev_pair.i = -1;
           prev_pair.j = -1;
+				  
+					// Splitting the constraint array into multiple chunks of c_threadsPerBlock size in order
+          // to search adjacent pairs with the same i value;
+          // the goals to reduce contention on atomicAdds when accumulation the overlapping I values
+          // One good example is when you have multiple  hydrogen groups (ethane depicted with 2 CH3
+          // hydrogen grous):
+          //
+          //       H  H
+          //       |  |
+          //    H--C--C--H
+          //       |  |
+          //       H  H
+          //
+          // Carbons are bonded to multiple hydrogen, so each C-H constrain will contend on the C
+          // atom 3 times. Atomics performance may wildy vary from device to device, so it's better to 
+          // reduce reliance on atomics as much as we can. 
+          // The logic here is to sweep over the constraints and look hydrogen groups
+          // (CH3 groups depicted) and accumuate all updates in the heavy atom before we do
+          // an atomicAdd(). 
+          // AtomicAdd might still be needed since it's possible that constraints from different thread blocks
+          // to update the same heavy atom
           for(int c2 = 0; c2 < c_threadsPerBlock; c1++,c2++)
           {
-              // Splitting the constraint array into multiple chunks of c_threadsPerBlock size in order
-              // to search adjacent pairs with the same i value;
-              // the goals to reduce contention on atomicAdds when accumulation the overlapping I values
-              // One good example is when you have multiple  hydrogen groups (ethane depicted with 2 CH3
-              // hydrogen grous):
-              //
-              //       H  H
-              //       |  |
-              //    H--C--C--H
-              //       |  |
-              //       H  H
-              //
-              // Carbons are bonded to multiple hydrogen, so each C-H constrain will contend on the C
-              // atom 3 times. Atomics performance may wildy vary from device to device, so it's better to 
-              // reduce reliance on atomics as much as we can. 
-              // The logic here is to sweep over the constraints and look hydrogen groups
-              // (CH3 groups depicted) and accumuate all updates in the heavy atom before we do
-              // an atomicAdd(). 
-              // AtomicAdd might still be needed since it's possible that constraints from different thread blocks
-              // to update the same heavy atom
-
               AtomPair cur_pair = constraintsHost[c1];
-              int hgs = 1;
-              while(cur_pair.j == prev_pair.i){
+              int hgs = 0;
+              while(cur_pair.i == prev_pair.i){
                 hgs++;
                 cur_pair = constraintsHost[c1+hgs];
               }
               prev_pair = cur_pair;
-              constraintGroupSize[c1] = hgs;
-              c1 += hgs;
-
+              // now advances c1 to the first atom in the next hydrogen group
+						  if (hgs > 0)
+							{
+                constraintGroupSize[c1-1] = hgs;
+                c1+=hgs;
+                c2+=hgs;
+							}
           }
         }
     }
