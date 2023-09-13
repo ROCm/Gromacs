@@ -224,7 +224,7 @@ elseif(GMX_GPU_HIP)
     get_property(HIP_ADD_LIBRARY_FOUND GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND)
 
 	if(NOT HIP_ADD_LIBRARY_FOUND)
-        list(APPEND CMAKE_MODULE_PATH ${ROCM_PATH}/hip/cmake)
+        list(APPEND CMAKE_MODULE_PATH ${ROCM_PATH}/lib/cmake/hip)
         # set(CMAKE_MODULE_PATH "${ROCM_PATH}/cmake" ${CMAKE_MODULE_PATH})
         find_package(HIP)
 	    set_property(GLOBAL PROPERTY GMX_HIP_ADD_LIBRARY_FOUND true)
