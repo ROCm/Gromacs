@@ -155,16 +155,6 @@ __launch_bounds__(c_threadsPerBlock) __global__
         gm_v[threadIndex] = v;
         gm_x[threadIndex] = x;
     }
-
-    // TODO remove as if updateGPU is true we obviously have a single-rank
-    if(isPmeRank){
-        int stride = gridDim.x * blockDim.x;
-        for(int k = threadIndex; k < realGridSize; k += stride)
-        {
-            // zero-out pme_grid
-            gm_grid[k] = 0;
-        }
-    }
 }
 
 /*! \brief Select templated kernel.
