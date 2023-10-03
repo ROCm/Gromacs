@@ -84,6 +84,12 @@ void SettleGpu::apply(const DeviceBuffer<Float3>& d_x,
         // Fill with zeros so the values can be reduced to it
         // Only 6 values are needed because virial is symmetrical
 #ifdef GMX_XNACK_BUILD
+	d_virialScaled_[0] = 0.f;
+	d_virialScaled_[1] = 0.f;
+	d_virialScaled_[2] = 0.f;
+	d_virialScaled_[3] = 0.f;
+	d_virialScaled_[4] = 0.f;
+	d_virialScaled_[5] = 0.f;
 #else
         clearDeviceBufferAsync(&d_virialScaled_, 0, 6, deviceStream_);
 #endif
