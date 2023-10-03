@@ -86,7 +86,17 @@ void LincsGpu::apply(const DeviceBuffer<Float3>& d_x,
     {
         // Fill with zeros so the values can be reduced to it
         // Only 6 values are needed because virial is symmetrical
+#ifdef GMX_XNACK_BUILD
+	// The idea behind XNACK_BUILD is just to have a smaller reliance on API performance
+	kernelParams_.d_virialScaled[0] = 0.f;
+	kernelParams_.d_virialScaled[1] = 0.f;
+	kernelParams_.d_virialScaled[2] = 0.f;
+	kernelParams_.d_virialScaled[3] = 0.f;
+	kernelParams_.d_virialScaled[4] = 0.f;
+	kernelParams_.d_virialScaled[5] = 0.f;
+#else
         clearDeviceBufferAsync(&kernelParams_.d_virialScaled, 0, 6, deviceStream_);
+#endif
     }
 
     kernelParams_.pbcAiuc = pbcAiuc;
@@ -97,6 +107,15 @@ void LincsGpu::apply(const DeviceBuffer<Float3>& d_x,
     if (computeVirial)
     {
         // Copy LINCS virial data and add it to the common virial
+#ifdef GMX_XNACK_BUILD
+	hipStreamSynchronize(deviceStream_.stream());
+	h_virialScaled_[0] = kernelParams_.d_virialScaled[0];
+	h_virialScaled_[1] = kernelParams_.d_virialScaled[1];
+	h_virialScaled_[2] = kernelParams_.d_virialScaled[2];
+	h_virialScaled_[3] = kernelParams_.d_virialScaled[3];
+	h_virialScaled_[4] = kernelParams_.d_virialScaled[4];
+	h_virialScaled_[5] = kernelParams_.d_virialScaled[5];
+#else
         copyFromDeviceBuffer(h_virialScaled_.data(),
                              &kernelParams_.d_virialScaled,
                              0,
@@ -104,6 +123,7 @@ void LincsGpu::apply(const DeviceBuffer<Float3>& d_x,
                              deviceStream_,
                              GpuApiCallBehavior::Sync,
                              nullptr);
+#endif
 
         // Mapping [XX, XY, XZ, YY, YZ, ZZ] internal format to a tensor object
         virialScaled[XX][XX] += h_virialScaled_[0];

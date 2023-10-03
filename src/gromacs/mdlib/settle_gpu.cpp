@@ -83,7 +83,10 @@ void SettleGpu::apply(const DeviceBuffer<Float3>& d_x,
     {
         // Fill with zeros so the values can be reduced to it
         // Only 6 values are needed because virial is symmetrical
+#ifdef GMX_XNACK_BUILD
+#else
         clearDeviceBufferAsync(&d_virialScaled_, 0, 6, deviceStream_);
+#endif
     }
 
     launchSettleGpuKernel(numSettles_,
@@ -102,9 +105,18 @@ void SettleGpu::apply(const DeviceBuffer<Float3>& d_x,
 
     if (computeVirial)
     {
+#ifdef GMX_XNACK_BUILD
+        hipStreamSynchronize(deviceStream_.stream());
+	h_virialScaled_[0] = d_virialScaled_[0];
+	h_virialScaled_[1] = d_virialScaled_[1];
+	h_virialScaled_[2] = d_virialScaled_[2];
+	h_virialScaled_[3] = d_virialScaled_[3];
+	h_virialScaled_[4] = d_virialScaled_[4];
+	h_virialScaled_[5] = d_virialScaled_[5];
+#else
         copyFromDeviceBuffer(
                 h_virialScaled_.data(), &d_virialScaled_, 0, 6, deviceStream_, GpuApiCallBehavior::Sync, nullptr);
-
+#endif
         // Mapping [XX, XY, XZ, YY, YZ, ZZ] internal format to a tensor object
         virialScaled[XX][XX] += h_virialScaled_[0];
         virialScaled[XX][YY] += h_virialScaled_[1];
