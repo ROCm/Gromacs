@@ -351,9 +351,11 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     // Number of constraints, coupled with the current one (CPU)
     std::vector<int> coupledConstraintsCountsHost;
     // List of coupled with the current one (CPU)
-    std::vector<int> coupledConstraintsIndicesHost;
+    // std::vector<int> coupledConstraintsIndicesHost;
+    int* coupledConstraintsIndicesHost;
     // Mass factors (CPU)
-    std::vector<float> massFactorsHost;
+    // std::vector<float> massFactorsHost;
+    float* massFactorsHost;
 
     // List of constrained atoms in local topology
     ArrayRef<const int> iatoms         = idef.il[F_CONSTR].iatoms;
@@ -454,9 +456,14 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     kernelParams_.haveCoupledConstraints = (maxCoupledConstraints > 0);
 
     coupledConstraintsCountsHost.resize(kernelParams_.numConstraintsThreads, 0);
-    coupledConstraintsIndicesHost.resize(maxCoupledConstraints * kernelParams_.numConstraintsThreads, -1);
-    massFactorsHost.resize(maxCoupledConstraints * kernelParams_.numConstraintsThreads, -1);
+    // coupledConstraintsIndicesHost.resize(maxCoupledConstraints * kernelParams_.numConstraintsThreads, -1);
+    // massFactorsHost.resize(maxCoupledConstraints * kernelParams_.numConstraintsThreads, -1);
+    int sizeMaxConstraints = maxCoupledConstraints * kernelParams_.numConstraintsThreads;
+    hipHostMalloc(&coupledConstraintsIndicesHost, sizeof(int)*sizeMaxConstraints);
+    hipHostMalloc(&massFactorsHost, sizeMaxConstraints * sizeof(float)); 
 
+    memset(coupledConstraintsIndicesHost, -1, sizeof(int)*sizeMaxConstraints);
+    memset(massFactorsHost, -1, sizeof(float)*sizeMaxConstraints);
     for (int c1 = 0; c1 < numConstraints; c1++)
     {
         coupledConstraintsCountsHost[splitMap[c1]] = 0;
@@ -591,14 +598,14 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
                        GpuApiCallBehavior::Sync,
                        nullptr);
     copyToDeviceBuffer(&kernelParams_.d_coupledConstraintsIndices,
-                       coupledConstraintsIndicesHost.data(),
+                       coupledConstraintsIndicesHost,
                        0,
                        maxCoupledConstraints * kernelParams_.numConstraintsThreads,
                        deviceStream_,
                        GpuApiCallBehavior::Sync,
                        nullptr);
     copyToDeviceBuffer(&kernelParams_.d_massFactors,
-                       massFactorsHost.data(),
+                       massFactorsHost,
                        0,
                        maxCoupledConstraints * kernelParams_.numConstraintsThreads,
                        deviceStream_,
@@ -608,6 +615,8 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     GMX_RELEASE_ASSERT(invmass != nullptr, "Masses of atoms should be specified.\n");
     copyToDeviceBuffer(
             &kernelParams_.d_inverseMasses, invmass, 0, numAtoms, deviceStream_, GpuApiCallBehavior::Sync, nullptr);
+    hipFree(coupledConstraintsIndicesHost);
+    hipFree(massFactorsHost);
 }
 
 } // namespace gmx
