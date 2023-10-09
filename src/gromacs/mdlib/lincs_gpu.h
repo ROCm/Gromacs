@@ -92,6 +92,7 @@ struct LincsGpuKernelParameters
      *  Should be a multiple of block size (the last block is filled with dummy to the end).
      */
     int numConstraintsThreads;
+
     //! List of constrained atoms (GPU memory)
     DeviceBuffer<AtomPair> d_constraints;
     //! Equilibrium distances for the constraints (GPU)
@@ -213,6 +214,8 @@ private:
      * reallocated.
      */
     int numAtomsAlloc_;
+
+    std::vector<AtomPair> constraintsHost;
 };
 
 } // namespace gmx
