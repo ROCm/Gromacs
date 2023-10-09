@@ -345,7 +345,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_HIP) || bool(GMX_GPU_SYCL),
                        "LINCS GPU is only implemented in CUDA, HIP and SYCL.");
     // List of constrained atoms (CPU memory)
-    std::vector<AtomPair> constraintsHost;
+    // std::vector<AtomPair> constraintsHost;
     // AtomPair* constraintsHost;
     // Equilibrium distances for the constraints (CPU)
     // std::vector<float> constraintsTargetLengthsHost;
