@@ -345,8 +345,8 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     GMX_RELEASE_ASSERT(bool(GMX_GPU_CUDA) || bool(GMX_GPU_HIP) || bool(GMX_GPU_SYCL),
                        "LINCS GPU is only implemented in CUDA, HIP and SYCL.");
     // List of constrained atoms (CPU memory)
-    // std::vector<AtomPair> constraintsHost;
-    AtomPair* constraintsHost;
+    std::vector<AtomPair> constraintsHost;
+    // AtomPair* constraintsHost;
     // Equilibrium distances for the constraints (CPU)
     // std::vector<float> constraintsTargetLengthsHost;
     float* constraintsTargetLengthsHost;
@@ -412,10 +412,10 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     AtomPair pair;
     pair.i = -1;
     pair.j = -1;
-    // constraintsHost.resize(kernelParams_.numConstraintsThreads, pair);
-    hipHostMalloc(&constraintsHost, sizeof(AtomPair)*kernelParams_.numConstraintsThreads);
-    // std::fill(constraintsHost.begin(), constraintsHost.end(), pair);
-    std::fill(&constraintsHost[0], &constraintsHost[kernelParams_.numConstraintsThreads-1], pair);
+    constraintsHost.resize(kernelParams_.numConstraintsThreads, pair);
+    // hipHostMalloc(&constraintsHost, sizeof(AtomPair)*kernelParams_.numConstraintsThreads);
+    std::fill(constraintsHost.begin(), constraintsHost.end(), pair);
+    //std::fill(&constraintsHost[0], &constraintsHost[kernelParams_.numConstraintsThreads-1], pair);
     // constraintsTargetLengthsHost.resize(kernelParams_.numConstraintsThreads, 0.0);
     // std::fill(constraintsTargetLengthsHost.begin(), constraintsTargetLengthsHost.end(), 0.0);
     hipHostMalloc(&constraintsTargetLengthsHost, sizeof(float)*kernelParams_.numConstraintsThreads);
@@ -585,7 +585,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
 
     // Copy data to GPU.
     copyToDeviceBuffer(&kernelParams_.d_constraints,
-                       constraintsHost,
+                       constraintsHost.data(),
                        0,
                        kernelParams_.numConstraintsThreads,
                        deviceStream_,
@@ -623,7 +623,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
     GMX_RELEASE_ASSERT(invmass != nullptr, "Masses of atoms should be specified.\n");
     copyToDeviceBuffer(
             &kernelParams_.d_inverseMasses, invmass, 0, numAtoms, deviceStream_, GpuApiCallBehavior::Sync, nullptr);
-    hipFree(constraintsHost);
+    // hipFree(constraintsHost);
     hipFree(constraintsTargetLengthsHost);
     hipFree(coupledConstraintsCountsHost);
     hipFree(coupledConstraintsIndicesHost);
