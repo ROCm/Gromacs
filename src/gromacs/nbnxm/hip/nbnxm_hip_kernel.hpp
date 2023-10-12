@@ -256,6 +256,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float        E_lj_p;
 #    endif
     unsigned int wexcl, imask, mask_ji;
+#   if defined EL_EWALD_TAB
+    float nb_interpolated_coulomb_force;
+#   endif
     float4       xqbuf;
     fast_float3  xi, xj, rv, n2, f_ij, fcj_buf;
     fast_float3  fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
@@ -499,6 +502,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
                         inv_r  = __frsqrt_rn(r2);
                         inv_r2 = inv_r * inv_r;
+#    ifdef EL_EWALD_TAB
+			nb_interpolated_coulomb_force = interpolate_coulomb_force_r(nbparam, r2 * inv_r);
+#    endif
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                         inv_r6 = inv_r2 * inv_r2 * inv_r2;
 #        ifdef EXCLUSION_FORCES
@@ -603,7 +609,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    elif defined EL_EWALD_TAB
                         F_invr += qi * qj_f
                                   * (int_bit * inv_r2
-                                     - interpolate_coulomb_force_r(nbparam, r2 * inv_r))
+                                     - nb_interpolated_coulomb_force)
                                   * inv_r;
 #    endif /* EL_EWALD_ANA/TAB */
 
