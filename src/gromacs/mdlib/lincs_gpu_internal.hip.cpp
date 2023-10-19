@@ -181,11 +181,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     int coupledConstraintsCount = gm_coupledConstraintsCounts[threadIndex];
 
 #if 1
-    // TODO grep if we have coupled constraints
+    // TODO check if we have coupled constraints
     int  constraintGroupSize = gm_constraintGroupSize[threadIndex];
     // bool isConstraintGroup  = kernelParams.haveCoupledConstraints; // don't use this if tied to the same atoms
     bool isConstraintGroup = true;
+    // todo use float4s for higher bw
     __shared__ float3 sm_corr[c_threadsPerBlock];
+    __shared__ float3 sm_xpi[c_threadsPerBlock];
 #endif
 
     for (int n = 0; n < coupledConstraintsCount; n++)
@@ -246,20 +248,33 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Save updated coordinates before correction for the rotational lengthening
     float3 tmp = rc * lagrangeScaled;
 
-    if(isConstraintGroup) sm_corr[threadIdx.x] = tmp;
+    if(isConstraintGroup)
+    {
+       sm_xpi[threadIdx.x]  =  xi;
+       sm_corr[threadIdx.x] = -tmp * inverseMassi;
+    }
+
+    __syncthreads();
 
     // Writing for all but dummy constraints
     if (!isDummyThread)
     {
-        if(isConstraintGroup && constraintGroupSize >= 0)
+        if(isConstraintGroup && constraintGroupSize > 0)
         {
           float3 sumI = make_float3(0.f, 0.f, 0.f);
-          for(int gc = 0; gc < constraintGroupSize; gc++) sumI += sm_corr[threadIdx.x + gc]; 
-          atomicAdd(&gm_xp[i], -sumI * inverseMassi);
+          for(int gc = 0; gc < constraintGroupSize; gc++) {
+	     // thread with constraingGroupSize == 1 updates the shared memory position
+	     // Keep it in LDS - no atomics
+	     xi += sm_corr[threadIdx.x + gc];
+	  }
+	  // update the coordinates to lds
+	  for(int gc = 0; gc < constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
         }
-        else if (constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+	else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
     }
+
+    // do I need to flush the coordinates here?
 
     /*
      *  Correction for centripetal effects
@@ -272,7 +287,8 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
         if (!isDummyThread)
         {
-            xi = gm_xp[i];
+	    if(isConstraintGroup && constraintGroupSize >= 0) xi = sm_xpi[threadIdx.x];
+	    else xi = gm_xp[i];
             xj = gm_xp[j];
         }
 
@@ -325,22 +341,34 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (!isDummyThread)
         {
             float3 tmp = rc * sqrtmu_sol;
-            if (isConstraintGroup) sm_corr[threadIdx.x] = tmp;
-            if(isConstraintGroup && constraintGroupSize >= 0) 
+            if (isConstraintGroup && constraintGroupSize >= 0) sm_corr[threadIdx.x] = -tmp*inverseMassi;
+	    __syncthreads();
+
+            if(isConstraintGroup && constraintGroupSize > 0) 
             {
               float3 sumI = make_float3(0.f, 0.f, 0.f);
-              for(int gc = 0; gc < constraintGroupSize; gc++) sumI += sm_corr[threadIdx.x + gc];
-              atomicAdd(&gm_xp[i], -sumI * inverseMassi);
+              for(int gc = 0; gc < constraintGroupSize; gc++){
+	         xi += sm_corr[threadIdx.x + gc];
+	      }
+	      // update the coordinates to lds
+	      for(int gc = 0; gc < constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
             }
             else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
         }
     }
 
+    // now flush sm_xp_i to global memory
+    if(!isDummyThread)
+    {
+        if(isConstraintGroup && constraintGroupSize > 0)  gm_xp[i] = xi;
+    }
+
     // Updating particle velocities for all but dummy threads
     if (updateVelocities && !isDummyThread)
     {
         float3 tmp = rc * invdt * lagrangeScaled;
+	// we don't stall on these, so just leave it like that
         atomicAdd(&gm_v[i], -tmp * inverseMassi);
         atomicAdd(&gm_v[j], tmp * inverseMassj);
     }
