@@ -505,23 +505,25 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
           // (CH3 groups depicted) and accumuate all updates in the heavy atom before we do
           // an atomicAdd(). 
           // AtomicAdd might still be needed since it's possible that constraints from different thread blocks
-          // to update the same heavy atom
+          // to update the same heavy atom - validate
           for(int c2 = 0; c2 < c_threadsPerBlock; c1++,c2++)
           {
               AtomPair cur_pair = constraintsHost[c1];
               int hgs = 0;
-              while(cur_pair.i == prev_pair.i){
+              while(cur_pair.i == prev_pair.i /* || cur_pair.j == prev_pair.j */){
+                // if(cur_pair.j == prev_pair.j) std::swap(cur_pair.i, cur_pair.j);
                 hgs++;
                 cur_pair = constraintsHost[c1+hgs];
               }
               prev_pair = cur_pair;
               // now advances c1 to the first atom in the next hydrogen group
-						  if (hgs > 0)
-							{
+	      if (hgs > 0)
+	      {
                 constraintGroupSize[c1-1] = hgs;
+                for(int cgc = 0; cgc < hgs; cgc++) constraintGroupSize[c1 + cgc] = 0;
                 c1+=hgs;
                 c2+=hgs;
-							}
+              }
           }
         }
     }
@@ -642,6 +644,14 @@ void LincsGpu::set(const InteractionDefinitions& idef, const int numAtoms, const
         numAtomsAlloc_ = numAtoms;
         allocateDeviceBuffer(&kernelParams_.d_inverseMasses, numAtoms, deviceContext_);
     }
+
+#if 0
+    for(int i = 0; i < kernelParams_.numConstraintsThreads; i++)
+    {
+        fprintf(stderr, "constraints[%d] = [%d,%d] groupSize %d\n", i, constraintsHost[i].i, constraintsHost[i].j, 
+                constraintGroupSize[i]);
+    }
+#endif
 
     // Copy data to GPU.
     copyToDeviceBuffer(&kernelParams_.d_constraints,

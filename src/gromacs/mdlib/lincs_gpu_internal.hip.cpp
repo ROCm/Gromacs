@@ -248,7 +248,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Save updated coordinates before correction for the rotational lengthening
     float3 tmp = rc * lagrangeScaled;
 
-    if(isConstraintGroup)
+    if(isConstraintGroup && constraintGroupSize >= 0 )
     {
        sm_xpi[threadIdx.x]  =  xi;
        sm_corr[threadIdx.x] = -tmp * inverseMassi;
@@ -262,13 +262,13 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if(isConstraintGroup && constraintGroupSize > 0)
         {
           float3 sumI = make_float3(0.f, 0.f, 0.f);
-          for(int gc = 0; gc < constraintGroupSize; gc++) {
+          for(int gc = 0; gc <= constraintGroupSize; gc++) {
 	     // thread with constraingGroupSize == 1 updates the shared memory position
 	     // Keep it in LDS - no atomics
 	     xi += sm_corr[threadIdx.x + gc];
 	  }
 	  // update the coordinates to lds
-	  for(int gc = 0; gc < constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
+	  for(int gc = 0; gc <= constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
         }
 	else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
@@ -347,11 +347,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
             if(isConstraintGroup && constraintGroupSize > 0) 
             {
               float3 sumI = make_float3(0.f, 0.f, 0.f);
-              for(int gc = 0; gc < constraintGroupSize; gc++){
+              for(int gc = 0; gc <= constraintGroupSize; gc++){
 	         xi += sm_corr[threadIdx.x + gc];
 	      }
 	      // update the coordinates to lds
-	      for(int gc = 0; gc < constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
+	      for(int gc = 0; gc <= constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
             }
             else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
@@ -361,7 +361,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // now flush sm_xp_i to global memory
     if(!isDummyThread)
     {
-        if(isConstraintGroup && constraintGroupSize > 0)  gm_xp[i] = xi;
+       if(isConstraintGroup && constraintGroupSize > 0)  gm_xp[i] = xi;
     }
 
     // Updating particle velocities for all but dummy threads
