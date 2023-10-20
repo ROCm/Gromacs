@@ -354,7 +354,6 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
     hipHostMalloc(&coupledConstraintsIndicesHost, sizeof(int)*sizeMaxConstraints);
     hipHostMalloc(&massFactorsHost, sizeMaxConstraints * sizeof(float)); 
     int c1 = 0;
-    fprintf(stderr, "have coupled constraints? %d\n", kernelParams_.haveCoupledConstraints);
     // if (!kernelParams_.haveCoupledConstraints){
     if (1)
     {
@@ -389,7 +388,7 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
               AtomPair cur_pair = constraintsHost[c1];
               int hgs = 0;
               while(cur_pair.i == prev_pair.i /* || cur_pair.j == prev_pair.j */){
-                // if(cur_pair.j == prev_pair.j) std::swap(cur_pair.i, cur_pair.j);
+                if(cur_pair.j == prev_pair.j) std::swap(cur_pair.i, cur_pair.j);
                 hgs++;
                 cur_pair = constraintsHost[c1+hgs];
               }
