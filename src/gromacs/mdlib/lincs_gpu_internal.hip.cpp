@@ -516,7 +516,6 @@ void launchLincsGpuKernel(LincsGpuKernelParameters*   kernelParams,
                     nullptr,
                     "lincs_kernel<updateVelocities, computeVirial>",
                     kernelArgs);
-    hipDeviceSynchronize();
 }
 
 } // namespace gmx
