@@ -509,6 +509,9 @@ void LincsGpu::set(const InteractionDefinitions& idef, int numAtoms, const Array
         allocateDeviceBuffer(&kernelParams_.d_constraintGroupSize,
                              kernelParams_.numConstraintsThreads,
                              deviceContext_);
+        allocateDeviceBuffer(&kernelParams_.d_constraintGroupSize,
+                             kernelParams_.numConstraintsThreads,
+                             deviceContext_);
     }
 
     // (Re)allocate the memory, if the number of atoms has increased.
