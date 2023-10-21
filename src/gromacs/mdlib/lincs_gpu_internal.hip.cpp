@@ -107,6 +107,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     float* __restrict__ gm_matrixA                       = kernelParams.d_matrixA;
     const float* __restrict__ gm_inverseMasses           = kernelParams.d_inverseMasses;
     float* __restrict__ gm_virialScaled                  = kernelParams.d_virialScaled;
+    const int* __restrict__ gm_constraintGroupSize       = kernelParams.d_constraintGroupSize; // # of consecutive constraints sharing i-th atom
 
     const int threadIndex = blockIdx.x * c_threadsPerBlock + threadIdx.x;
 
@@ -116,6 +117,7 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
     // Vectors connecting constrained atoms before algorithm was applied.
     // Needed to construct constrain matrix A
+    // possibly misaligned shared memory accesses here, try bumping to float4 and see 
     extern __shared__ float3 sm_r[];
 
     AtomPair pair = gm_constraints[threadIndex];
@@ -177,6 +179,17 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
     // Only non-zero values are saved (for coupled constraints)
     int coupledConstraintsCount = gm_coupledConstraintsCounts[threadIndex];
+
+#if 1
+    // TODO check if we have coupled constraints
+    int  constraintGroupSize = gm_constraintGroupSize[threadIndex];
+    // bool isConstraintGroup  = kernelParams.haveCoupledConstraints; // don't use this if tied to the same atoms
+    bool isConstraintGroup = true;
+    // float4 transactions for higher bw
+    __shared__ float4 sm_corr[c_threadsPerBlock];
+    __shared__ float4 sm_xpi[c_threadsPerBlock];
+#endif
+
     for (int n = 0; n < coupledConstraintsCount; n++)
     {
         int index = n * numConstraintsThreads + threadIndex;
@@ -235,12 +248,40 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     // Save updated coordinates before correction for the rotational lengthening
     float3 tmp = rc * lagrangeScaled;
 
+    if(isConstraintGroup && constraintGroupSize >= 0 )
+    {
+       float3 corr = -tmp * inverseMassi;
+       sm_xpi[threadIdx.x]  = make_float4(xi.x, xi.y, xi.z, 0.f);
+       sm_corr[threadIdx.x] = make_float4(corr.x, corr.y, corr.z, 0.f);
+    }
+
+    __syncthreads();
+
     // Writing for all but dummy constraints
     if (!isDummyThread)
     {
-        atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+        if(isConstraintGroup && constraintGroupSize > 0)
+        {
+          for(int gc = 0; gc <= constraintGroupSize; gc++) {
+	     // thread with constraingGroupSize == 1 updates the shared memory position
+	     // Keep it in LDS - no atomics
+	      //xi += sm_corr[threadIdx.x + gc];
+	      float4 r_corr = sm_corr[threadIdx.x +gc];
+              xi += make_float3(r_corr.x, r_corr.y, r_corr.z);
+	  }
+	  // update the coordinates to lds
+	  for(int gc = 0; gc <= constraintGroupSize; gc++) {
+              // sm_xpi[threadIdx.x + gc].x = xi.x;
+              // sm_xpi[threadIdx.x + gc].y = xi.y;
+              // sm_xpi[threadIdx.x + gc].z = xi.z;
+              sm_xpi[threadIdx.x + gc] = make_float4(xi.x, xi.y, xi.z, 0.f);
+          }
+        }
+	else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
     }
+
+    // do I need to flush the coordinates here?
 
     /*
      *  Correction for centripetal effects
@@ -253,7 +294,11 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
         if (!isDummyThread)
         {
-            xi = gm_xp[i];
+	    if(isConstraintGroup && constraintGroupSize >= 0)
+            {
+               xi = make_float3(sm_xpi[threadIdx.x].x, sm_xpi[threadIdx.x].y, sm_xpi[threadIdx.x].z);
+            }
+	    else xi = gm_xp[i];
             xj = gm_xp[j];
         }
 
@@ -306,15 +351,45 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (!isDummyThread)
         {
             float3 tmp = rc * sqrtmu_sol;
-            atomicAdd(&gm_xp[i], -tmp * inverseMassi);
+            if (isConstraintGroup && constraintGroupSize >= 0) {
+              float3 corr = -tmp*inverseMassi;
+              sm_corr[threadIdx.x] = make_float4(corr.x, corr.y, corr.z, 0.f);
+            }
+	    __syncthreads();
+
+            if(isConstraintGroup && constraintGroupSize > 0) 
+            {
+              float3 sumI = make_float3(0.f, 0.f, 0.f);
+              for(int gc = 0; gc <= constraintGroupSize; gc++)
+              {
+	         // xi.x += sm_corr[threadIdx.x + gc].x;
+	         // xi.y += sm_corr[threadIdx.x + gc].y;
+	         // xi.z += sm_corr[threadIdx.x + gc].z;
+	         float4 r_corr = sm_corr[threadIdx.x + gc];
+	         xi += make_float3(r_corr.x, r_corr.y, r_corr.z);
+	      }
+	      // update the coordinates to lds
+	      for(int gc = 0; gc <= constraintGroupSize; gc++)
+              {
+                sm_xpi[threadIdx.x + gc] = make_float4(xi.x, xi.y, xi.z, 0.f);
+              }
+            }
+            else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
         }
+    }
+
+    // now flush sm_xp_i to global memory
+    if(!isDummyThread)
+    {
+       if(isConstraintGroup && constraintGroupSize > 0)  gm_xp[i] = xi;
     }
 
     // Updating particle velocities for all but dummy threads
     if (updateVelocities && !isDummyThread)
     {
         float3 tmp = rc * invdt * lagrangeScaled;
+	// we don't stall on these, so just leave it like that
         atomicAdd(&gm_v[i], -tmp * inverseMassi);
         atomicAdd(&gm_v[j], tmp * inverseMassj);
     }
