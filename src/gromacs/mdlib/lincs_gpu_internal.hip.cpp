@@ -185,9 +185,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     int  constraintGroupSize = gm_constraintGroupSize[threadIndex];
     // bool isConstraintGroup  = kernelParams.haveCoupledConstraints; // don't use this if tied to the same atoms
     bool isConstraintGroup = true;
-    // todo use float4s for higher bw
-    __shared__ float3 sm_corr[c_threadsPerBlock];
-    __shared__ float3 sm_xpi[c_threadsPerBlock];
+    // float4 transactions for higher bw
+    __shared__ float4 sm_corr[c_threadsPerBlock];
+    __shared__ float4 sm_xpi[c_threadsPerBlock];
 #endif
 
     for (int n = 0; n < coupledConstraintsCount; n++)
@@ -250,8 +250,9 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
     if(isConstraintGroup && constraintGroupSize >= 0 )
     {
-       sm_xpi[threadIdx.x]  =  xi;
-       sm_corr[threadIdx.x] = -tmp * inverseMassi;
+       float3 corr = -tmp * inverseMassi;
+       sm_xpi[threadIdx.x]  = make_float4(xi.x, xi.y, xi.z, 0.f);
+       sm_corr[threadIdx.x] = make_float4(corr.x, corr.y, corr.z, 0.f);
     }
 
     __syncthreads();
@@ -261,14 +262,20 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
     {
         if(isConstraintGroup && constraintGroupSize > 0)
         {
-          float3 sumI = make_float3(0.f, 0.f, 0.f);
           for(int gc = 0; gc <= constraintGroupSize; gc++) {
 	     // thread with constraingGroupSize == 1 updates the shared memory position
 	     // Keep it in LDS - no atomics
-	     xi += sm_corr[threadIdx.x + gc];
+	      //xi += sm_corr[threadIdx.x + gc];
+	      float4 r_corr = sm_corr[threadIdx.x +gc];
+              xi += make_float3(r_corr.x, r_corr.y, r_corr.z);
 	  }
 	  // update the coordinates to lds
-	  for(int gc = 0; gc <= constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
+	  for(int gc = 0; gc <= constraintGroupSize; gc++) {
+              // sm_xpi[threadIdx.x + gc].x = xi.x;
+              // sm_xpi[threadIdx.x + gc].y = xi.y;
+              // sm_xpi[threadIdx.x + gc].z = xi.z;
+              sm_xpi[threadIdx.x + gc] = make_float4(xi.x, xi.y, xi.z, 0.f);
+          }
         }
 	else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
         atomicAdd(&gm_xp[j], tmp * inverseMassj);
@@ -287,7 +294,10 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
 
         if (!isDummyThread)
         {
-	    if(isConstraintGroup && constraintGroupSize >= 0) xi = sm_xpi[threadIdx.x];
+	    if(isConstraintGroup && constraintGroupSize >= 0)
+            {
+               xi = make_float3(sm_xpi[threadIdx.x].x, sm_xpi[threadIdx.x].y, sm_xpi[threadIdx.x].z);
+            }
 	    else xi = gm_xp[i];
             xj = gm_xp[j];
         }
@@ -341,17 +351,28 @@ __launch_bounds__(c_maxThreadsPerBlock) __global__
         if (!isDummyThread)
         {
             float3 tmp = rc * sqrtmu_sol;
-            if (isConstraintGroup && constraintGroupSize >= 0) sm_corr[threadIdx.x] = -tmp*inverseMassi;
+            if (isConstraintGroup && constraintGroupSize >= 0) {
+              float3 corr = -tmp*inverseMassi;
+              sm_corr[threadIdx.x] = make_float4(corr.x, corr.y, corr.z, 0.f);
+            }
 	    __syncthreads();
 
             if(isConstraintGroup && constraintGroupSize > 0) 
             {
               float3 sumI = make_float3(0.f, 0.f, 0.f);
-              for(int gc = 0; gc <= constraintGroupSize; gc++){
-	         xi += sm_corr[threadIdx.x + gc];
+              for(int gc = 0; gc <= constraintGroupSize; gc++)
+              {
+	         // xi.x += sm_corr[threadIdx.x + gc].x;
+	         // xi.y += sm_corr[threadIdx.x + gc].y;
+	         // xi.z += sm_corr[threadIdx.x + gc].z;
+	         float4 r_corr = sm_corr[threadIdx.x + gc];
+	         xi += make_float3(r_corr.x, r_corr.y, r_corr.z);
 	      }
 	      // update the coordinates to lds
-	      for(int gc = 0; gc <= constraintGroupSize; gc++) sm_xpi[threadIdx.x + gc] = xi;
+	      for(int gc = 0; gc <= constraintGroupSize; gc++)
+              {
+                sm_xpi[threadIdx.x + gc] = make_float4(xi.x, xi.y, xi.z, 0.f);
+              }
             }
             else if(constraintGroupSize == -1) atomicAdd(&gm_xp[i], -tmp * inverseMassi);
             atomicAdd(&gm_xp[j], tmp * inverseMassj);
