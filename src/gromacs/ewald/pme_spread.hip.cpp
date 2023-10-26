@@ -224,8 +224,10 @@ LAUNCH_BOUNDS_EXACT_SINGLE(c_spreadMaxThreadsPerBlock) CLANG_DISABLE_OPTIMIZATIO
         const int ny = kernelParams.grid.realGridSize[YY];
         const int nz = kernelParams.grid.realGridSize[ZZ];
         // this kernel has a bidimensional grid
-        int bin = (blockIdx.x + (blockIdx.y * gridDim.x)) % NGRID_BINS; // assuming row-major grid but doesn't really matter
+        const int bin = (blockIdx.x + (blockIdx.y * gridDim.x)) % NGRID_BINS; // assuming row-major grid but doesn't really matter
         // jumping pointer to match appropriate bin
+        // const int bin = threadIdx.z % NGRID_BINS;
+        // jumps to the appropriate grid by doing some math here 
         gm_grid = &(kernelParams.grid.d_binGrids[(nx*ny*nz)*bin]); 
     }
     else

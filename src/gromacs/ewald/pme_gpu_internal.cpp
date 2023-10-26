@@ -1756,7 +1756,7 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                 const int realGridSize = kernelParamsPtr->grid.realGridSizePadded[XX]
                                 * kernelParamsPtr->grid.realGridSizePadded[YY]
                                 * kernelParamsPtr->grid.realGridSizePadded[ZZ];
-                int ngrid = (realGridSize / nblocks)/nblocks + 1;
+                int ngrid = (realGridSize / nblocks) + 1;
                 config.blockSize[0] = nblocks;
                 config.blockSize[1] = 1;
                 config.blockSize[2] = 1;
@@ -1764,6 +1764,8 @@ void pme_gpu_spread(const PmeGpu*                  pmeGpu,
                 config.gridSize[1]  = 1;
                 config.gridSize[2]  = 1;
                 auto kernelPtr = pmeGpu->programHandle_->impl_->mergeBinsIntoGrid;
+                // we can just reuse kernelParams from the previous launch here, no need to call prepareGpuKernelArguments again
+                //
                 launchGpuKernel(kernelPtr, config, *launchStream, timingEvent, "PME merge grids", kernelArgs);
             }
 #endif
