@@ -90,7 +90,11 @@ bool isHostMemoryPinned(const void* h_ptr)
 //#if HIPRT_VERSION < 11 * 1000
 //            isPinned = true;
 //#else
+#if HIP_VERSION_MAJOR > 5
             isPinned = (memoryAttributes.type == hipMemoryTypeHost);
+#else
+            isPinned = (memoryAttributes.memoryType == hipMemoryTypeHost);
+#endif
 //#endif
             break;
 
