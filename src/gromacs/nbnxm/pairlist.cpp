@@ -2659,6 +2659,12 @@ static void print_nblist_sci_cj(FILE* fp, const NbnxnPairlistGpu& nbl)
     }
 }
 
+#if defined(GMX_GPU_HIP)
+#define OVERALLOC 1.1
+#else
+#define OVERALLOC 1.0
+#endif
+
 /* Combine pair lists *nbl generated on multiple threads nblc */
 static void combine_nblists(gmx::ArrayRef<const NbnxnPairlistGpu> nbls, NbnxnPairlistGpu* nblc)
 {
@@ -2674,9 +2680,18 @@ static void combine_nblists(gmx::ArrayRef<const NbnxnPairlistGpu> nbls, NbnxnPai
 
     /* Resize with the final, combined size, so we can fill in parallel */
     /* NOTE: For better performance we should use default initialization */
+    if(nblc->overalloc)
+    {
+      nblc->sci.resize(nsci*OVERALLOC);
+      nblc->cj4.resize(ncj4*OVERALLOC);
+      nblc->excl.resize(nexcl*OVERALLOC);
+      nblc->overalloc = false;
+    }
+    // shrinks size back -> capacity still at > 20%
     nblc->sci.resize(nsci);
     nblc->cj4.resize(ncj4);
     nblc->excl.resize(nexcl);
+    fprintf(stderr, "resizing to %d %d %d\n", nsci, ncj4, nexcl);
 
     /* Each thread should copy its own data to the combined arrays,
      * as otherwise data will go back and forth between different caches.

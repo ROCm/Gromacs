@@ -303,6 +303,9 @@ struct NbnxnPairlistGpu
 
     //! Cache protection
     gmx_cache_protect_t cp1;
+
+    //! First overalloc
+    bool overalloc=true;
 };
 
 #endif
