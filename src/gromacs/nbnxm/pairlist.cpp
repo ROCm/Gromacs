@@ -2691,7 +2691,6 @@ static void combine_nblists(gmx::ArrayRef<const NbnxnPairlistGpu> nbls, NbnxnPai
     nblc->sci.resize(nsci);
     nblc->cj4.resize(ncj4);
     nblc->excl.resize(nexcl);
-    fprintf(stderr, "resizing to %d %d %d\n", nsci, ncj4, nexcl);
 
     /* Each thread should copy its own data to the combined arrays,
      * as otherwise data will go back and forth between different caches.
