@@ -91,6 +91,7 @@ struct LincsGpuKernelParameters
      *  Should be a multiple of block size (the last block is filled with dummy to the end).
      */
     int numConstraintsThreads;
+
     //! List of constrained atoms (GPU memory)
     DeviceBuffer<AtomPair> d_constraints;
     //! Equilibrium distances for the constraints (GPU)
@@ -110,6 +111,8 @@ struct LincsGpuKernelParameters
     DeviceBuffer<float> d_matrixA;
     //! Mass factors (GPU)
     DeviceBuffer<float> d_massFactors;
+    //! Sizes for constraint groups if no coupled constraints are found
+    DeviceBuffer<int> d_constraintGroupSize;
 };
 
 /*! \internal \brief Class with interfaces and data for GPU version of LINCS. */
@@ -215,6 +218,7 @@ private:
 
     //! Maximum number of coupled constraints
     int maxCoupledConstraints_ = 0;
+    std::vector<AtomPair> constraintsHost;
 };
 
 } // namespace gmx

@@ -134,7 +134,7 @@
 // MI2** GPUs (gfx90a) have one unified pool of VGPRs and AccVGPRs. AccVGPRs are not used so
 // we can use twice as many registers as on MI100 and earlier devices without spilling.
 // Also it looks like spilling to global memory causes segfaults for some versions of the kernel.
-#if defined(__gfx90a__)
+#if defined(__gfx90a__) || defined(__gfx940__) 
 #    define MIN_BLOCKS_PER_MP 1
 #else
 #    ifdef CALC_ENERGIES
@@ -196,6 +196,13 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float                rlist_sq    = nbparam.rlistOuter_sq;
 #    endif
 
+#    ifdef LJ_FORCE_SWITCH
+    /* force switch constants*/
+    /* assign them to consecutive registers here so we can use them later on calculate_force_switch_F */
+    const float2 disprepu = float2(nbparam.dispersion_shift.c2, nbparam.repulsion_shift.c2) + 
+	    float2(nbparam.dispersion_shift.c3, nbparam.repulsion_shift.c3);
+#    endif
+
     unsigned int bidx = blockIdx.x;
 
 #    ifdef CALC_ENERGIES
@@ -248,6 +255,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
     float        E_lj_p;
 #    endif
     unsigned int wexcl, imask, mask_ji;
+#   if defined EL_EWALD_TAB
+    float nb_interpolated_coulomb_force;
+#   endif
     float4       xqbuf;
     fast_float3  xi, xj, rv, n2, f_ij, fcj_buf;
     fast_float3  fci_buf[c_nbnxnGpuNumClusterPerSupercluster]; /* i force buffer */
@@ -491,6 +501,9 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 
                         inv_r  = __frsqrt_rn(r2);
                         inv_r2 = inv_r * inv_r;
+#    ifdef EL_EWALD_TAB
+			nb_interpolated_coulomb_force = interpolate_coulomb_force_r(nbparam, r2 * inv_r);
+#    endif
 #    if !defined LJ_COMB_LB || defined CALC_ENERGIES
                         inv_r6 = inv_r2 * inv_r2 * inv_r2;
 #        ifdef EXCLUSION_FORCES
@@ -520,7 +533,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #        ifdef CALC_ENERGIES
                         calculate_force_switch_F_E(nbparam, c6c12, inv_r, r2, &F_invr, &E_lj_p);
 #        else
-                        calculate_force_switch_F(nbparam, c6c12, inv_r, r2, &F_invr);
+                        calculate_force_switch_F(nbparam, disprepu, c6c12, inv_r, r2, &F_invr);
 #        endif /* CALC_ENERGIES */
 #    endif     /* LJ_FORCE_SWITCH */
 
@@ -595,7 +608,7 @@ __launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
 #    elif defined EL_EWALD_TAB
                         F_invr += qi * qj_f
                                   * (int_bit * inv_r2
-                                     - interpolate_coulomb_force_r(nbparam, r2 * inv_r))
+                                     - nb_interpolated_coulomb_force)
                                   * inv_r;
 #    endif /* EL_EWALD_ANA/TAB */
 
