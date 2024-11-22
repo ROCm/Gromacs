@@ -63,6 +63,7 @@
 #include "gromacs/mdlib/updategroupscog.h"
 #include "gromacs/mdtypes/atominfo.h"
 #include "gromacs/nbnxm/atomdata.h"
+#include "gromacs/nbnxm/nbnxm_enums.h"
 #include "gromacs/nbnxm/pairlist.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/simd/vector_operations.h"
@@ -807,8 +808,8 @@ static void print_bbsizes_supersub(FILE* fp, const Grid& grid)
     const GridDimensions& dims = grid.dimensions();
     const real            avgClusterSizeZ =
             (dims.atomDensity > 0 ? grid.geometry().numAtomsPerCell_
-                                            / (dims.atomDensity * dims.cellSize[XX]
-                                               * dims.cellSize[YY] * detail::c_gpuNumClusterPerCellZ)
+                                            / (dims.atomDensity * dims.cellSize[XX] * dims.cellSize[YY]
+                                               * sc_gpuNumClusterPerCellZ(layoutType))
                                   : 0.0);
 
     fprintf(fp,
