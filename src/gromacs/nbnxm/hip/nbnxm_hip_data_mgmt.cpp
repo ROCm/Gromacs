@@ -40,9 +40,9 @@
 
 #include "gmxpre.h"
 
-// The compiler generates the wrong code when calling rocprim for gfx1034 devices, so we need to make sure that it doesn't try to
+// The compiler generates the wrong code when calling rocprim for gfx1034 (and some other) devices, so we need to make sure that it doesn't try to
 // use unsupported dpp instructions. Tracked here, but not fixed even if the ticket says so: https://github.com/ROCm/rocPRIM/issues/452
-#if __gfx1034__
+#if __gfx1032__ || __gfx1034__ || __gfx1103__ || __gfx1150__ || __gfx1151__ || __gfx1152__
 #    define ROCPRIM_DISABLE_DPP
 #    define ROCPRIM_DETAIL_USE_DPP false
 #endif
@@ -153,7 +153,7 @@ template void performExclusiveScan<PairlistType::Hierarchical8x8x8_nosplit>(
         const DeviceStream&                                   deviceStream);
 
 // reset our custom defines
-#if __gfx1034__
+#if __gfx1032__ || __gfx1034__ || __gfx1103__ || __gfx1150__ || __gfx1151__ || __gfx1152__
 #    undef ROCPRIM_DISABLE_DPP
 #    undef ROCPRIM_DETAIL_USE_DPP
 #endif
